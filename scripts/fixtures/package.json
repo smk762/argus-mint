@@ -1,0 +1,9 @@
+{
+  "name": "argus-mint-fixtures",
+  "private": true,
+  "type": "module",
+  "description": "Generates cross-implementation test fixtures from the reference JS libraries. Run via `make fixtures`.",
+  "dependencies": {
+    "@openzeppelin/merkle-tree": "1.0.8"
+  }
+}

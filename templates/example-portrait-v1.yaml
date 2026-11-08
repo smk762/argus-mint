@@ -1,0 +1,19 @@
+# Example render template. Copy it into the consumer's repo, adjust, and have a human
+# review it: approval means setting status: approved plus approved_by / approved_at.
+# Only approved templates render; every variable value must come from its list.
+id: example-portrait
+version: 1
+status: draft            # draft | approved | retired
+approved_by: null
+approved_at: null
+model: juggernaut-xl
+loras: [fantasy-portrait]
+width: 1024
+height: 1024
+prompt: "portrait of a {role}, {colour} heraldry, {pose}, painted fantasy card art"
+negative: "text, watermark, gore"
+variables:
+  role: [knight, ranger, sailor, rider]
+  colour: [crimson, azure, emerald, gold, none]
+  pose: [standing, charging, on guard]
+max_attempts: 4
