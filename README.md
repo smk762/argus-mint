@@ -59,11 +59,11 @@ Versions are derived from git tags via `hatch-vcs`. Tagging `vX.Y.Z` publishes t
 
 ```bash
 cp .env.example .env                        # RPC URLs and role addresses (no paid API keys needed)
-cast wallet import deployer --interactive   # deployer key goes in Foundry's encrypted keystore
+cast wallet new deployer                    # new key, straight into Foundry's encrypted keystore; fund its address
 make deploy                                 # Base Sepolia; `make deploy NETWORK=base` for mainnet
 ```
 
-The script deploys `Card`, `Deed` and `Ledger` over plain JSON-RPC, grants roles, and verifies the sources on Sourcify for free (Blockscout displays them). `VERIFIER=blockscout` verifies on Blockscout directly; `VERIFIER=etherscan` uses Basescan and needs an Etherscan API key.
+The script deploys `Card`, `Deed` and `Ledger` over plain JSON-RPC, grants roles, and verifies the sources on Sourcify for free (Blockscout displays them). `VERIFIER=blockscout` verifies on Blockscout directly; `VERIFIER=etherscan` uses Basescan and needs an Etherscan API key. Step by step, including wallet backup, funding and role setup: [docs/deploy.md](docs/deploy.md).
 
 ## Rendering with argus-darkroom, pinning with Kubo
 
