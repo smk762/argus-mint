@@ -6,7 +6,7 @@ It contains no game logic. A consumer supplies a template's variables, a record 
 
 Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 
-> Status: pre-alpha. Milestones M0–M4 are built (pure core, contracts, clients, JS verifier). Target chain: **Base**. A Base Sepolia demo (M5) waits on darklight's API.
+> Status: pre-alpha. Milestones M0–M4 are built (pure core, contracts, clients, JS verifier). Target chain: **Base**. Renders go through argus-darkroom. Next: the Base Sepolia demo (M5).
 
 ## What's in the box
 
@@ -58,12 +58,20 @@ Versions are derived from git tags via `hatch-vcs`. Tagging `vX.Y.Z` publishes t
 ## Deploy (Base)
 
 ```bash
-cp .env.example .env                        # RPC URLs, Basescan key, role addresses
+cp .env.example .env                        # RPC URLs and role addresses (no paid API keys needed)
 cast wallet import deployer --interactive   # deployer key goes in Foundry's encrypted keystore
 make deploy                                 # Base Sepolia; `make deploy NETWORK=base` for mainnet
 ```
 
-The script deploys `Card`, `Deed` and `Ledger`, grants roles, and verifies the sources on Basescan.
+The script deploys `Card`, `Deed` and `Ledger` over plain JSON-RPC, grants roles, and verifies the sources on Sourcify for free (Blockscout displays them). `VERIFIER=blockscout` verifies on Blockscout directly; `VERIFIER=etherscan` uses Basescan and needs an Etherscan API key.
+
+## Rendering with argus-darkroom
+
+```bash
+argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # reviewer check, every combination
+argus-mint mint --template my-template.yaml --var ... --asset unit-17 --to 0x… --name "…" --card 0x… \
+  --darkroom http://localhost:8106 --ipfs-api http://127.0.0.1:5001         # live: renders, pins, signs
+```
 
 ## License
 

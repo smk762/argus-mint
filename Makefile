@@ -55,11 +55,20 @@ verifier-test:  ## Run the JS verifier tests
 	cd verifier && $(NPM) test --silent
 
 # Deploy Card, Deed and Ledger to Base: `make deploy` (Base Sepolia) or `make deploy NETWORK=base`.
+# Verification is free by default: Sourcify (Blockscout shows Sourcify-verified sources).
+# VERIFIER=blockscout verifies on Blockscout directly; VERIFIER=etherscan uses Basescan (needs ETHERSCAN_API_KEY).
 NETWORK ?= base_sepolia
-deploy: forge-build  ## Deploy + verify on Basescan (NETWORK=base_sepolia|base; settings in .env)
+VERIFIER ?= sourcify
+BLOCKSCOUT_base := https://base.blockscout.com/api/
+BLOCKSCOUT_base_sepolia := https://base-sepolia.blockscout.com/api/
+VERIFY_ARGS_sourcify := --verify --verifier sourcify
+VERIFY_ARGS_blockscout := --verify --verifier blockscout --verifier-url $(BLOCKSCOUT_$(NETWORK))
+VERIFY_ARGS_etherscan := --verify
+VERIFY_ARGS_none :=
+deploy: forge-build  ## Deploy + verify (NETWORK=base_sepolia|base, VERIFIER=sourcify|blockscout|etherscan|none)
 	@test -f .env || { echo "copy .env.example to .env first"; exit 1; }
 	set -a; . ./.env; set +a; cd contracts && $(FORGE) script script/Deploy.s.sol \
-		--rpc-url $(NETWORK) --account "$${DEPLOYER_ACCOUNT:-deployer}" --broadcast --verify
+		--rpc-url $(NETWORK) --account "$${DEPLOYER_ACCOUNT:-deployer}" --broadcast $(VERIFY_ARGS_$(VERIFIER))
 
 check: lint test forge-test verifier-test  ## Everything a milestone needs green
 

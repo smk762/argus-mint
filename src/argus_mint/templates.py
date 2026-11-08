@@ -8,6 +8,7 @@ templates fill (hard rule 2). Pure apart from reading the YAML files.
 
 from __future__ import annotations
 
+import itertools
 import re
 import string
 from datetime import date
@@ -52,6 +53,44 @@ def placeholders(text: str) -> list[str]:
     return names
 
 
+class LoraRef(BaseModel):
+    """A LoRA by file name, with its weight and the trigger words the renderer appends.
+
+    A bare string in YAML means ``{name: <string>, weight: 1.0}``.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1)
+    weight: float = Field(default=1.0, ge=-4.0, le=4.0)
+    trigger_words: tuple[str, ...] = ()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_name(cls, v: object) -> object:
+        return {"name": v} if isinstance(v, str) else v
+
+    @field_validator("trigger_words")
+    @classmethod
+    def _check_triggers(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        for w in v:
+            if not w.strip() or "{" in w or "}" in w or "\n" in w:
+                raise ValueError(f"trigger word {w!r} is blank, multi-line or contains braces")
+        return v
+
+
+class Sampling(BaseModel):
+    """Sampler settings, fixed by the reviewed template so a render is reproducible."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    sampler: str = Field(min_length=1)
+    scheduler: str = Field(min_length=1)
+    steps: int = Field(gt=0, le=200)
+    cfg: float = Field(gt=0, le=30)
+    clip_skip: int = Field(default=1, ge=1, le=12)
+
+
 class Template(BaseModel):
     """One version of a render template, as reviewed and recorded in its YAML file."""
 
@@ -63,7 +102,8 @@ class Template(BaseModel):
     approved_by: str | None = None
     approved_at: date | None = None
     model: str = Field(min_length=1)
-    loras: tuple[str, ...] = ()
+    loras: tuple[LoraRef, ...] = ()
+    sampling: Sampling | None = None  # required by darkroom; optional for other renderers
     width: int = Field(gt=0, le=8192)
     height: int = Field(gt=0, le=8192)
     prompt: str = Field(min_length=1)
@@ -125,7 +165,8 @@ class RenderRequest(BaseModel):
     template_version: int
     template_hash: Bytes32
     model: str
-    loras: tuple[str, ...]
+    loras: tuple[LoraRef, ...]
+    sampling: Sampling | None
     width: int
     height: int
     prompt: str
@@ -177,6 +218,25 @@ def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
     """
     if t.status != "approved":
         raise NotApprovedError(f"template {t.id} v{t.version} is {t.status}; only approved templates render")
+    return _build(t, values, seed)
+
+
+def fill_for_review(t: Template, values: dict[str, str], seed: int = 0) -> RenderRequest:
+    """Like :func:`fill` but for any status: lets a reviewer pre-flight a draft before approving it.
+
+    Use it only for text checks (``DarkroomClient.preflight``); rendering goes through
+    :func:`argus_mint.render.render`, which calls :func:`fill` and so refuses non-approved templates.
+    """
+    return _build(t, values, seed)
+
+
+def combinations(t: Template) -> list[dict[str, str]]:
+    """Every assignment of values to the template's variables (the prompts a reviewer approves)."""
+    names = sorted(t.variables)
+    return [dict(zip(names, combo, strict=True)) for combo in itertools.product(*(t.variables[n] for n in names))]
+
+
+def _build(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
     missing = t.variables.keys() - values.keys()
     extra = values.keys() - t.variables.keys()
     if missing:
@@ -194,6 +254,7 @@ def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
         template_hash=t.hash(),
         model=t.model,
         loras=t.loras,
+        sampling=t.sampling,
         width=t.width,
         height=t.height,
         prompt=t.prompt.format(**values),

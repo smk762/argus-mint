@@ -67,7 +67,7 @@ def test_mint_refuses_draft_template(tmp_path, template_doc):
     assert "only approved templates render" in result.output
 
 
-def test_mint_without_dry_run_is_not_available_yet(tmp_path, template_doc):
+def test_live_mint_requires_darkroom_ipfs_and_signer(tmp_path, template_doc):
     path = tmp_path / "t.yaml"
     path.write_text(yaml.safe_dump(template_doc))
     result = runner.invoke(app, _args(path))
@@ -79,3 +79,73 @@ def test_templates_lists_registry(tmp_path, template_doc):
     result = runner.invoke(app, ["templates", str(tmp_path)])
     assert result.exit_code == 0
     assert result.stdout.startswith("test-portrait\tv1\tapproved\t0x")
+
+
+def test_live_mint_through_darkroom_and_kubo(tmp_path, template_doc, monkeypatch):
+    import httpx
+
+    from argus_mint import cli
+    from argus_mint.darkroom import DarkroomClient
+    from argus_mint.pin import KuboPinner
+
+    from .test_darkroom import FakeDarkroom
+
+    doc = {**template_doc, "sampling": {"sampler": "euler", "scheduler": "normal", "steps": 20, "cfg": 5.0}}
+    path = tmp_path / "t.yaml"
+    path.write_text(yaml.safe_dump(doc))
+    fake = FakeDarkroom("deleted", "passed")
+    pinned = []
+
+    def kubo(request):
+        pinned.append(request)
+        return httpx.Response(200, json={"Hash": f"bafkrei{'a' * 52}"})
+
+    monkeypatch.setattr(
+        cli,
+        "DarkroomClient",
+        lambda url, **kw: DarkroomClient(url, client=httpx.Client(transport=httpx.MockTransport(fake)), **kw),
+    )
+    monkeypatch.setattr(
+        cli, "KuboPinner", lambda url: KuboPinner(url, client=httpx.Client(transport=httpx.MockTransport(kubo)))
+    )
+    monkeypatch.setenv("ARGUS_MINT_SIGNER_KEY", KEY)
+    result = runner.invoke(app, _args(path, "--darkroom", "http://darkroom:8106", "--ipfs-api", "http://ipfs:5001"))
+    assert result.exit_code == 0, result.output
+    out = json.loads(result.stdout)
+    assert out["dry_run"] is False and out["render"]["renderer"] == "darkroom"
+    assert [a["outcome"] for a in out["render"]["attempts"]] == ["safety_rejected", "ok"]
+    assert [a["ref"] for a in out["render"]["attempts"]] == ["rec1", "rec2"]
+    assert out["metadata"]["provenance"]["attempts"] == 2
+    assert out["metadata"]["provenance"]["seed"] == fake.bodies[1]["seed"]
+    assert len(pinned) == 2  # image + metadata
+    assert all(b["enforcing_policy"] == "default" and b["expand"] is False for b in fake.bodies)
+
+
+def test_preflight_command(tmp_path, template_doc, monkeypatch):
+    import httpx
+
+    from argus_mint import cli
+    from argus_mint.darkroom import DarkroomClient
+
+    path = tmp_path / "t.yaml"
+    path.write_text(yaml.safe_dump({**template_doc, "status": "draft", "approved_by": None, "approved_at": None}))
+    seen = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        seen.append(body)
+        refused = "infantry" in body["user_prompt"] and "crimson" in body["user_prompt"]
+        return httpx.Response(
+            200, json={"outcome": "refused" if refused else "ok", "refusal": "default:X" if refused else None}
+        )
+
+    monkeypatch.setattr(
+        cli,
+        "DarkroomClient",
+        lambda url, **kw: DarkroomClient(url, client=httpx.Client(transport=httpx.MockTransport(handler)), **kw),
+    )
+    result = runner.invoke(app, ["preflight", str(path), "--darkroom", "http://darkroom:8106"])
+    assert result.exit_code == 1  # one combination is refused
+    assert len(seen) == 8  # 2 x 2 x 2 combinations, drafts included
+    assert result.stdout.count("REFUSED") == 2
+    assert all(b["sampling"] is None and b["expand"] is False for b in seen)

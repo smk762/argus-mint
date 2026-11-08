@@ -123,3 +123,13 @@ def test_indexer_survives_a_reorg(w3, deploy):
     _mine(w3, 5)
     with pytest.raises(ReorgTooDeep):
         safe_step()
+
+
+def test_connect_fails_over_and_checks_chain_id(anvil_url):
+    from argus_mint import networks
+    from argus_mint.chain import NoRpcAvailable, connect
+
+    w3 = connect(networks.ANVIL, ["http://127.0.0.1:1", anvil_url], timeout=2)
+    assert w3.eth.chain_id == 31337
+    with pytest.raises(NoRpcAvailable, match="expected 8453"):
+        connect("base", [anvil_url], timeout=2)  # answers, but it's the wrong chain

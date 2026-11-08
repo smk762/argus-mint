@@ -1,13 +1,21 @@
 # Example render template. Copy it into the consumer's repo, adjust, and have a human
 # review it: approval means setting status: approved plus approved_by / approved_at.
 # Only approved templates render; every variable value must come from its list.
+# Before approving, run every combination through darkroom's pre-flight:
+#   argus-mint preflight templates/example-portrait-v1.yaml --darkroom http://localhost:8106
 id: example-portrait
 version: 1
 status: draft            # draft | approved | retired
 approved_by: null
 approved_at: null
-model: juggernaut-xl
-loras: [fantasy-portrait]
+model: juggernaut-xl.safetensors          # darkroom checkpoint name
+loras:                                    # file name, weight, trigger words darkroom appends
+  - {name: fantasy-portrait.safetensors, weight: 0.8, trigger_words: []}
+sampling:                                 # fixed here so a render is reproducible
+  sampler: euler
+  scheduler: normal
+  steps: 25
+  cfg: 5.0
 width: 1024
 height: 1024
 prompt: "portrait of a {role}, {colour} heraldry, {pose}, painted fantasy card art"

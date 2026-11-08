@@ -16,15 +16,29 @@ from eth_account import Account
 import argus_mint
 from argus_mint import networks
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
+from argus_mint.darkroom import DarkroomClient, DarkroomError
 from argus_mint.metadata import Provenance, card_metadata, content_hash
-from argus_mint.pin import LocalPinner
-from argus_mint.render import GenResult, render
-from argus_mint.templates import RenderRequest, TemplateError, fill, load_registry, load_template
+from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
+from argus_mint.render import Darklight, GenResult, RenderError, render
+from argus_mint.templates import (
+    RenderRequest,
+    TemplateError,
+    combinations,
+    fill,
+    fill_for_review,
+    load_registry,
+    load_template,
+)
 from argus_mint.vouchers import Domain, MintVoucher, sign, typed_data
 
 app = typer.Typer(help="argus-mint: provenance tokens for game assets.", no_args_is_help=True)
 
 SIGNER_ENV = "ARGUS_MINT_SIGNER_KEY"
+DarkroomOpt = Annotated[
+    str | None,
+    typer.Option(envvar="ARGUS_MINT_DARKROOM_URL", help="argus-darkroom base URL, e.g. http://localhost:8106"),
+]
+PolicyOpt = Annotated[str, typer.Option(help="darkroom enforcing policy (default: the SFW policy)")]
 
 
 class _Stderr:
@@ -43,6 +57,11 @@ def _main() -> None:
     structlog.configure(logger_factory=structlog.PrintLoggerFactory(file=_Stderr()))
 
 
+def _fail(message: str, code: int = 1) -> typer.Exit:
+    typer.echo(f"error: {message}", err=True)
+    return typer.Exit(code)
+
+
 @app.command()
 def version() -> None:
     """Print the installed version."""
@@ -55,10 +74,45 @@ def templates(directory: Annotated[Path, typer.Argument(help="Directory of templ
     try:
         reg = load_registry(directory)
     except TemplateError as e:
-        typer.echo(f"error: {e}", err=True)
-        raise typer.Exit(1) from e
+        raise _fail(str(e)) from e
     for (tid, ver), t in sorted(reg.items()):
         typer.echo(f"{tid}\tv{ver}\t{t.status}\t{hex0x(t.hash())}")
+
+
+@app.command()
+def preflight(
+    template: Annotated[Path, typer.Argument(help="Template YAML file (any status)")],
+    darkroom: DarkroomOpt = None,
+    policy: PolicyOpt = "default",
+    limit: Annotated[int, typer.Option(help="Refuse templates with more combinations than this")] = 256,
+) -> None:
+    """Run darkroom's text pre-flight on every variable combination of TEMPLATE.
+
+    For reviewers: do this before approving a template. Exits 1 if any combination is refused.
+    """
+    if not darkroom:
+        raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
+    try:
+        t = load_template(template)
+    except TemplateError as e:
+        raise _fail(str(e)) from e
+    combos = combinations(t)
+    if len(combos) > limit:
+        raise _fail(f"{len(combos)} combinations exceed --limit {limit}")
+    client = DarkroomClient(darkroom, policy=policy)
+    refused = 0
+    for values in combos:
+        try:
+            verdict = client.preflight(fill_for_review(t, values))
+        except DarkroomError as e:
+            raise _fail(str(e)) from e
+        ok = verdict.get("outcome") == "ok"
+        refused += not ok
+        detail = "" if ok else f"\t{verdict.get('refusal') or verdict.get('outcome')}"
+        typer.echo(f"{'ok' if ok else 'REFUSED'}\t{json.dumps(values, sort_keys=True)}{detail}")
+    typer.echo(f"{len(combos) - refused}/{len(combos)} combinations pass pre-flight under {policy!r}", err=True)
+    if refused:
+        raise typer.Exit(1)
 
 
 class _PlaceholderRenderer:
@@ -99,17 +153,21 @@ def mint(
     ttl: Annotated[int, typer.Option(help="Voucher lifetime in seconds")] = 3600,
     deadline: Annotated[int | None, typer.Option(help="Voucher deadline (unix seconds); overrides --ttl")] = None,
     image: Annotated[Path | None, typer.Option(help="Use this image instead of rendering")] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Render/pin locally; print voucher and metadata")] = False,
+    darkroom: DarkroomOpt = None,
+    policy: PolicyOpt = "default",
+    accept_review: Annotated[bool, typer.Option(help="Accept darkroom 'review' images (default: retry)")] = False,
+    ipfs_api: Annotated[
+        str | None,
+        typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
+    ] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Pin locally (no IPFS); allow a throwaway signer")] = False,
 ) -> None:
-    """Render, pin, build metadata and sign a mint voucher.
+    """Render, pin, build metadata and sign a mint voucher; print it all as JSON.
 
-    The signer key comes from $ARGUS_MINT_SIGNER_KEY (a throwaway key is used in a dry run
-    when it's unset). Live runs need the darklight and pinning clients, which are not wired
-    up yet, so only --dry-run is available for now.
+    Renders through darkroom when --darkroom is given (a placeholder image otherwise, dry run
+    only). A live run pins to IPFS via --ipfs-api and needs $ARGUS_MINT_SIGNER_KEY; a dry run
+    pins locally and uses a throwaway signer when the key is unset.
     """
-    if not dry_run:
-        typer.echo("error: live minting needs darklight and pinning configured (not available yet); use --dry-run")
-        raise typer.Exit(2)
     try:
         resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
     except ValueError as e:
@@ -122,46 +180,67 @@ def mint(
         raise typer.BadParameter(str(e), param_hint="--asset-id") from e
 
     key_hex = os.environ.get(SIGNER_ENV)
+    if not dry_run:
+        missing = [
+            flag
+            for flag, have in (
+                ("--darkroom or --image", darkroom or image),
+                ("--ipfs-api", ipfs_api),
+                (f"${SIGNER_ENV}", key_hex),
+            )
+            if not have
+        ]
+        if missing:
+            raise _fail(f"a live mint needs {', '.join(missing)} (or use --dry-run)", 2)
     signer = Account.from_key(key_hex) if key_hex else Account.create()
+    renderer: Darklight = (
+        DarkroomClient(darkroom, policy=policy, accept_review=accept_review) if darkroom else _PlaceholderRenderer()
+    )
+    pinner: Pinner = KuboPinner(ipfs_api) if (ipfs_api and not dry_run) else LocalPinner()
 
     try:
         t = load_template(template)
         values = _parse_vars(var)
         if image is not None:
             req = fill(t, values, seed)
-            img, final_seed, attempts = image.read_bytes(), req.seed, 1
-            prov_req = req
+            img, attempts_out = image.read_bytes(), [{"seed": req.seed, "outcome": "supplied", "ref": str(image)}]
         else:
-            rendered = render(_PlaceholderRenderer(), t, values, seed)
-            img, final_seed, attempts, prov_req = (
-                rendered.image,
-                rendered.seed,
-                len(rendered.attempts),
-                rendered.request,
-            )
+            rendered = render(renderer, t, values, seed)
+            img, req = rendered.image, rendered.request
+            attempts_out = [
+                {"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in rendered.attempts
+            ]
     except TemplateError as e:
-        typer.echo(f"error: {e}", err=True)
-        raise typer.Exit(1) from e
+        raise _fail(str(e)) from e
+    except DarkroomError as e:
+        raise _fail(str(e)) from e
+    except RenderError as e:
+        for a in e.attempts:
+            typer.echo(f"  attempt seed={a.seed} {a.outcome} {a.ref} {a.detail}", err=True)
+        raise _fail(str(e)) from e
 
     provenance = Provenance(
-        template=prov_req.template_id,
-        template_version=prov_req.template_version,
-        template_hash=prov_req.template_hash,
-        seed=final_seed,
-        attempts=attempts,
+        template=req.template_id,
+        template_version=req.template_version,
+        template_hash=req.template_hash,
+        seed=req.seed,
+        attempts=len(attempts_out),
         asset_id=aid,
         consumer=consumer,
     )
-    pinner = LocalPinner()
-    image_cid = pinner.pin_bytes(img, f"{t.id}-v{t.version}-{final_seed}.png")
-    doc = card_metadata(
-        name=name,
-        description=description,
-        image_cid=image_cid,
-        external_url=external_url,
-        attributes=[],
-        provenance=provenance,
-    )
+    try:
+        image_cid = pinner.pin_bytes(img, f"{t.id}-v{t.version}-{req.seed}.png")
+        doc = card_metadata(
+            name=name,
+            description=description,
+            image_cid=image_cid,
+            external_url=external_url,
+            attributes=[],
+            provenance=provenance,
+        )
+        metadata_cid = pinner.pin_json(doc, f"{t.id}-metadata.json")
+    except PinError as e:
+        raise _fail(str(e)) from e
     voucher = MintVoucher(
         to=to,
         asset_id=aid,
@@ -171,12 +250,18 @@ def mint(
     )
     domain = Domain(chain_id=resolved_chain_id, verifying_contract=card)
     out = {
-        "dry_run": True,
+        "dry_run": dry_run,
         "signer": signer.address,
         "signer_is_ephemeral": key_hex is None,
-        "render": {"prompt": prov_req.prompt, "seed": final_seed, "attempts": attempts, "image_cid": image_cid},
+        "render": {
+            "renderer": "darkroom" if darkroom and image is None else ("supplied" if image else "placeholder"),
+            "prompt": req.prompt,
+            "seed": req.seed,
+            "attempts": attempts_out,
+            "image_cid": image_cid,
+        },
         "metadata": doc,
-        "metadata_cid": pinner.pin_json(doc, f"{t.id}-metadata.json"),
+        "metadata_cid": metadata_cid,
         "voucher": voucher.model_dump(mode="json"),
         "signature": hex0x(sign(voucher, domain, signer)),
         "typed_data": typed_data(voucher, domain),

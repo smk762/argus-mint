@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- darkroom render client (`darkroom.DarkroomClient`): guarded generation over SSE with record and image-hash checks, outcomes mapped onto the retry protocol; `argus-mint preflight` checks every template combination before approval; live `mint` (`--darkroom`, `--ipfs-api`). Templates gain `sampling` and weighted LoRAs with trigger words.
+- Keyless RPC: public Base endpoints with `chain.connect()` failover; contract verification defaults to Sourcify (free), with Blockscout or Basescan as options.
 - Base as the target chain: `networks` module (Base 8453, Base Sepolia 84532), `mint --network`, Foundry RPC and Basescan verification config, `make deploy`, `.env.example`, and `Web3Rpc(head="safe"|"finalized")` for following OP Stack safe/finalized heads.
 - M4 verifier: ES module under `verifier/` (Merkle proofs, Ledger root/commitment/reveal reads over JSON-RPC, on-chain `verify` cross-check, drand quicknet BLS beacon verification), tested against OpenZeppelin and Python proof fixtures, real quicknet rounds, and JSON-RPC responses recorded from anvil.
 - M3 clients: `render` (darklight `Protocol`, safety rejections retried with sha256-derived seeds up to `max_attempts`, every attempt recorded; non-safety errors stop at once), `pin` (`Pinner` protocol, `KuboPinner` for a self-hosted node, `LocalPinner` for tests/dry runs), `ledger` (`LedgerClient`), `indexer` (stateless confirmed-blocks follower with deep-reorg detection, `Web3Rpc` adapter), `chain` helpers, and the CLI (`templates`, `mint --dry-run`).

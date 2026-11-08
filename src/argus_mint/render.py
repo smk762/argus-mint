@@ -48,18 +48,19 @@ class GenResult:
     outcome: Outcome
     image: bytes | None = None
     detail: str = ""
+    ref: str = ""  # the renderer's id for this attempt (darkroom: the record id), for the audit trail
 
     @classmethod
-    def ok(cls, image: bytes) -> GenResult:
-        return cls(Outcome.OK, image=image)
+    def ok(cls, image: bytes, ref: str = "") -> GenResult:
+        return cls(Outcome.OK, image=image, ref=ref)
 
     @classmethod
-    def safety_rejected(cls, detail: str = "") -> GenResult:
-        return cls(Outcome.SAFETY_REJECTED, detail=detail)
+    def safety_rejected(cls, detail: str = "", ref: str = "") -> GenResult:
+        return cls(Outcome.SAFETY_REJECTED, detail=detail, ref=ref)
 
     @classmethod
-    def error(cls, detail: str) -> GenResult:
-        return cls(Outcome.ERROR, detail=detail)
+    def error(cls, detail: str, ref: str = "") -> GenResult:
+        return cls(Outcome.ERROR, detail=detail, ref=ref)
 
 
 class Darklight(Protocol):
@@ -71,6 +72,7 @@ class Attempt:
     seed: int
     outcome: Outcome
     detail: str = ""
+    ref: str = ""
 
 
 @dataclass(frozen=True)
@@ -134,8 +136,8 @@ def render(client: Darklight, t: Template, values: dict[str, str], seed: int) ->
         req = fill(t, values, derive_seed(seed, n))
         result = client.generate(req)
         if result.outcome is Outcome.OK and not result.image:
-            result = GenResult.error("darklight returned no image")
-        attempts.append(Attempt(seed=req.seed, outcome=result.outcome, detail=result.detail))
+            result = GenResult.error("darklight returned no image", ref=result.ref)
+        attempts.append(Attempt(seed=req.seed, outcome=result.outcome, detail=result.detail, ref=result.ref))
         log.info(
             "render_attempt", template=t.id, version=t.version, attempt=n + 1, seed=req.seed, outcome=result.outcome
         )

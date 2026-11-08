@@ -3,9 +3,11 @@ to an address, and send a contract call as a transaction and wait for it to land
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
-from argus_mint import abi
+from argus_mint import abi, networks
+from argus_mint.networks import Network
 
 try:
     from web3 import Web3
@@ -13,11 +15,36 @@ try:
 except ImportError as e:  # pragma: no cover - exercised only without the extra
     raise ImportError("the chain clients need the `chain` extra: pip install 'argus-mint[chain]'") from e
 
-__all__ = ["TxFailed", "contract", "send"]
+__all__ = ["NoRpcAvailable", "TxFailed", "connect", "contract", "send"]
 
 
 class TxFailed(Exception):
     """A transaction was mined but reverted."""
+
+
+class NoRpcAvailable(Exception):
+    """None of the RPC endpoints answered with the expected chain id."""
+
+
+def connect(network: Network | str, urls: Sequence[str] | None = None, *, timeout: float = 10) -> Web3:
+    """A ``Web3`` on the first endpoint that answers with the network's chain id.
+
+    ``urls`` defaults to the network's public endpoints; pass your provider's URL first to
+    prefer it. An endpoint on the wrong chain is skipped, never used.
+    """
+    net = networks.get(network) if isinstance(network, str) else network
+    errors: list[str] = []
+    for url in urls or net.public_rpcs:
+        w3 = Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": timeout}))
+        try:
+            chain_id = w3.eth.chain_id
+        except Exception as e:  # unreachable, rate-limited, TLS: try the next one
+            errors.append(f"{url}: {e}")
+            continue
+        if chain_id == net.chain_id:
+            return w3
+        errors.append(f"{url}: chain id {chain_id}, expected {net.chain_id}")
+    raise NoRpcAvailable(f"no RPC for {net.name}: " + "; ".join(errors))
 
 
 def contract(w3: Web3, name: str, address: str) -> Contract:
