@@ -1,0 +1,83 @@
+name: Release to PyPI
+
+# Top-level (non-reusable) on purpose: PyPI trusted publishing cannot run inside
+# a reusable workflow. Keep this file in sync across the suite via `copier update`.
+# argus-mint is a library: the template's GHCR image job is removed on purpose
+# (there is no service to run), along with the cortex-dispatch rebuild that
+# only feeds it, so re-delete them if `copier update` brings it back.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  test-install:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install wheel and smoke-test import
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install dist/*.whl
+          uv run --no-sync python -c "import argus_mint; print(f'argus-mint {argus_mint.__version__} OK')"
+
+  publish-testpypi:
+    runs-on: ubuntu-latest
+    needs: test-install
+    environment: testpypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    runs-on: ubuntu-latest
+    # Ordered *after* the TestPyPI rehearsal so its outcome is visible first, but
+    # deliberately not gated on it. A TestPyPI-only fault — a missing trusted
+    # publisher, an index outage — must not silently withhold the real release:
+    # that failure mode shipped argus-proof images for two tags with no wheel on
+    # PyPI, and nothing surfaced it because publish-image is independent.
+    # Only the build + install gate is required; a TestPyPI failure still marks
+    # the whole run failed, so the problem stays loud.
+    needs: [test-install, publish-testpypi]
+    if: "!cancelled() && needs.test-install.result == 'success'"
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,0 +1,56 @@
+UV ?= uv
+# foundryup installs to ~/.foundry/bin, which a non-login shell may not have on PATH.
+FORGE ?= $(shell command -v forge 2>/dev/null || echo $(HOME)/.foundry/bin/forge)
+NPM ?= npm
+RUFF := $(UV)x ruff@0.15.16
+
+.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures verifier-install verifier-test check
+
+help:  ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+
+install:  ## Sync the venv to uv.lock with all extras (editable) + fetch submodules
+	git submodule update --init --recursive
+	$(UV) sync --locked --all-extras
+
+lock:  ## Re-resolve uv.lock after a dependency change in pyproject.toml
+	$(UV) lock
+
+lint:  ## Ruff check + format check (+ forge fmt --check when forge is installed)
+	$(RUFF) check src/ tests/
+	$(RUFF) format --check src/ tests/
+	@if [ -x "$(FORGE)" ]; then cd contracts && $(FORGE) fmt --check; fi
+
+format:  ## Ruff autoformat + autofix, forge fmt
+	$(RUFF) format src/ tests/
+	$(RUFF) check --fix src/ tests/
+	@if [ -x "$(FORGE)" ]; then cd contracts && $(FORGE) fmt; fi
+
+test:  ## Run the Python test suite (no network)
+	$(UV) run --no-sync pytest --tb=short -q
+
+build:  ## Build sdist + wheel
+	$(UV) build
+
+forge-build:  ## Compile the contracts
+	cd contracts && $(FORGE) build
+
+forge-test:  ## Run the forge tests (incl. fuzz)
+	cd contracts && $(FORGE) test
+
+abi: forge-build  ## Copy contract ABIs into src/argus_mint/abi (committed)
+	$(UV) run --no-sync python scripts/export_abi.py
+
+fixtures:  ## Regenerate committed test fixtures with @openzeppelin/merkle-tree
+	cd scripts/fixtures && $(NPM) ci --silent && node merkle.mjs ../../tests/fixtures/merkle.json
+
+verifier-install:  ## Install the JS verifier's dependencies
+	cd verifier && $(NPM) ci --silent
+
+verifier-test:  ## Run the JS verifier tests
+	cd verifier && $(NPM) test --silent
+
+check: lint test forge-test  ## Everything a milestone needs green
+
+clean:  ## Remove build + cache artifacts
+	rm -rf dist build .venv *.egg-info .pytest_cache .ruff_cache src/argus_mint/_version.py contracts/out contracts/cache

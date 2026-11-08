@@ -1,0 +1,87 @@
+name: CI
+
+# Standalone rather than the shared smk762/argus-ci python-ci.yml: argus-mint has a
+# second toolchain (Foundry contracts) and a JS verifier, which the reusable
+# workflow has no hook for. The Python job mirrors its lint/test/build shape.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: ruff check
+        run: uvx ruff@0.15.16 check src/ tests/
+      - name: ruff format --check
+        run: uvx ruff@0.15.16 format --check src/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # hatch-vcs derives the dev version from git history
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked --all-extras --python ${{ matrix.python-version }}
+      - run: uv run --no-sync pytest --tb=short -q
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: forge fmt --check
+        working-directory: contracts
+        run: forge fmt --check
+      - name: forge build
+        working-directory: contracts
+        run: forge build --sizes
+      - name: forge test
+        working-directory: contracts
+        run: forge test -vvv
+      - name: forge coverage
+        working-directory: contracts
+        run: forge coverage --report summary
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Committed ABIs match the contracts
+        run: |
+          uv run --no-project python scripts/export_abi.py
+          git diff --exit-code src/argus_mint/abi/
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, test, contracts]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 14

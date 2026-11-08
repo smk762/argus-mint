@@ -1,0 +1,98 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "argus-mint"
+dynamic = ["version"]
+description = "Provenance tokens for game assets: render from reviewed templates, pin to IPFS, mint ERC-721 cards and soulbound deeds, and anchor commitments and Merkle roots on-chain"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "smk762" }]
+keywords = [
+    "nft",
+    "erc-721",
+    "erc-5192",
+    "soulbound",
+    "eip-712",
+    "siwe",
+    "eip-4361",
+    "merkle-tree",
+    "commit-reveal",
+    "provenance",
+    "ipfs",
+    "foundry",
+    "solidity",
+    "ethereum",
+    "game-assets",
+    "generative-ai",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: Pydantic :: 2",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
+]
+# Base install is pure Python (no web3): templates, metadata, Merkle, vouchers, SIWE,
+# and the render/pin clients. web3 is only pulled by the `chain` extra.
+dependencies = [
+    "pydantic>=2.7",
+    "structlog>=24.0",
+    "pyyaml>=6.0",
+    "eth-account>=0.13",
+    "eth-abi>=5.0",
+    "pycryptodome>=3.20",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+chain = ["web3>=7.0"]
+cli = ["typer>=0.12", "rich>=13.0"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff==0.15.16"]
+
+[project.scripts]
+argus-mint = "argus_mint.cli:app"
+
+[project.urls]
+Repository = "https://github.com/smk762/argus-mint"
+Homepage = "https://github.com/smk762/argus-mint#readme"
+Issues = "https://github.com/smk762/argus-mint/issues"
+Changelog = "https://github.com/smk762/argus-mint/blob/main/CHANGELOG.md"
+"Argus suite" = "https://github.com/smk762?tab=repositories&q=argus"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/argus_mint/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/argus_mint"]
+
+[tool.hatch.build.targets.sdist]
+# Python source only: the Foundry project (and its submodules) and the JS verifier
+# are not part of the pip package. The ABIs it needs live in src/argus_mint/abi.
+include = ["src/", "tests/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["src/argus_mint/_version.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
