@@ -82,7 +82,7 @@ argus-mint freeze --card 0x… --token-id 1 --uri <metadata cid>        # fix to
 argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Merkle root into the Ledger
 ```
 
-The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, forward 4001 (tcp+udp) or add a remote pinning service so cards stay retrievable when this host is offline.
+The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, pin on a VPS through an SSH tunnel instead ([docs/deploy.md §6](docs/deploy.md#6-pin-on-a-vps-optional)) so cards stay retrievable when this host is offline.
 
 ## Live demo (Base Sepolia)
 
