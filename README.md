@@ -6,7 +6,7 @@ It contains no game logic. A consumer supplies a template's variables, a record 
 
 Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 
-> Status: pre-alpha, under construction (milestone M0).
+> Status: pre-alpha. Pure core, contracts and clients are built (milestones M0–M3); the JS verifier and a testnet demo are next.
 
 ## What's in the box
 
@@ -22,6 +22,24 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 uv pip install argus-mint            # pure Python core
 uv pip install "argus-mint[chain]"   # + web3 for the indexer and ledger client
 uv pip install "argus-mint[cli]"     # + the argus-mint command
+```
+
+## Quick look
+
+```bash
+argus-mint templates templates/                 # validate templates, show status and hash
+argus-mint mint --template my-approved.yaml \
+  --var role=ranger --var colour=none --var pose=standing --seed 81234 \
+  --asset unit-17 --to 0x7099…79C8 --name "Hana of the Strait" \
+  --card 0x5FbD…0aa3 --chain-id 31337 --dry-run  # prints metadata, voucher and signature
+```
+
+```python
+from argus_mint import merkle, templates, vouchers
+from argus_mint.metadata import card_metadata, content_hash
+
+tree = merkle.build(leaf_hashes)            # OpenZeppelin StandardMerkleTree-compatible
+proof = tree.proof(3)                       # verifies in Ledger.verify and MerkleProof.verify
 ```
 
 ## Develop

@@ -24,8 +24,11 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (s
 ## Layout
 
 ```
-src/argus_mint/   templates render pin metadata merkle vouchers siwe indexer ledger cli
-                  abi/   # committed contract ABIs (`make abi`), so pip users never need Foundry
+src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_codec: keccak, canonical JSON, field types)
+                  render pin indexer                       # clients behind Protocols (no web3 needed)
+                  chain ledger                             # web3 clients (`chain` extra)
+                  cli                                      # Typer: templates, mint --dry-run
+                  abi/   # committed contract ABIs (`make abi`, abi.load(name)), so pip users never need Foundry
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
 templates/        example template YAML (status draft)
@@ -45,6 +48,13 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - **OpenZeppelin is pinned to v5.4.0 and `evm_version = "cancun"`** on purpose: OZ ≥ 5.5 emits the `clz` opcode, which needs an Osaka-compatible chain. Bump both together only once the target L2 is confirmed to support Osaka.
 - `Deed`: each `recordId` mints once, ever (a burned deed's record stays used), so a retried mint can't duplicate. The consumer makes per-player records with e.g. `keccak256(feat, player)`.
 - `Ledger.reveal` works once per epoch and is open to anyone; `Card.refresh`/`freeze` revert after freeze; `setBaseURI` emits `BatchMetadataUpdate` over all minted ids.
+
+## Client behaviour worth knowing
+
+- `render.render` retries **only** safety rejections, with `derive_seed(seed, n)` (attempt 0 = the given seed). A darklight `error` stops at once with the attempt log; transport retries belong inside the client. The prompt is identical across attempts.
+- `indexer.follow` is one stateless pass over blocks `[cursor.next_block, head - confirmations]` (paged by `max_blocks`). The returned `Cursor` carries the hash of the last block read; if that block is later replaced the next pass raises `ReorgTooDeep` rather than continuing on a stale view.
+- `pin.LocalPinner`/`raw_cid` produce real CIDv1 raw ids, equal to IPFS's only for single-chunk (≤ 256 KiB) files; treat them as local ids.
+- The CLI logs to stderr; `mint` prints JSON to stdout. Live (non-dry-run) minting is disabled until darklight's API and the pinning service are settled.
 
 ## Commands
 

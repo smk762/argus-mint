@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- M3 clients: `render` (darklight `Protocol`, safety rejections retried with sha256-derived seeds up to `max_attempts`, every attempt recorded; non-safety errors stop at once), `pin` (`Pinner` protocol, `KuboPinner` for a self-hosted node, `LocalPinner` for tests/dry runs), `ledger` (`LedgerClient`), `indexer` (stateless confirmed-blocks follower with deep-reorg detection, `Web3Rpc` adapter), `chain` helpers, and the CLI (`templates`, `mint --dry-run`).
 - M2 contracts: `Card` (ERC-721 + ERC-4906 + ERC-2981, EIP-712 voucher mint, live base URI then per-token freeze to `ipfs://`), `Deed` (ERC-721 + ERC-5192 soulbound, one deed per record id, holder may burn), `Ledger` (sha256 commit/reveal and Merkle-root anchors per epoch, write-once), `Deploy.s.sol`. Forge tests cover every revert, fuzz voucher fields and proofs, and consume Python-built fixtures; anvil-backed pytest mints a Python-signed voucher and verifies Python-built proofs on a live node.
 - Committed contract ABIs in `src/argus_mint/abi/` (`make abi`), checked against the build in CI.
 - M1 pure core: `templates` (registry, validation, `fill`; template hash excludes `status`), `metadata` (canonical ERC-721 JSON, `content_hash` over image + provenance), `merkle` (OpenZeppelin `StandardMerkleTree` `["bytes32"]` port with `standard-v1` dump/load), `vouchers` (EIP-712 `MintVoucher` for the `Card` contract), `siwe` (EIP-4361 build/parse/verify).
