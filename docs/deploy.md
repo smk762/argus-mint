@@ -34,13 +34,26 @@ Plain `cast wallet new` prints the private key to the terminal. That works: fund
 
 Send Base Sepolia ETH to the address from step 1. About **0.01 ETH** covers deploying all three contracts with plenty to spare; Base gas is cheap.
 
-- **Faucets:** the Coinbase Developer Platform faucet and most RPC providers (Alchemy, QuickNode, …) hand out Base Sepolia ETH.
-- **Bridge:** if you already hold Ethereum Sepolia ETH, bridge it to Base Sepolia.
+**Recommended: Google's faucet, then bridge.** [Google Cloud's Web3 faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) needs only a Google sign-in. It pays out *Ethereum* Sepolia ETH, not Base Sepolia, so bridge it across afterwards:
 
-Check the balance:
+1. Request Sepolia ETH from the faucet, sent to the deployer's address.
+2. Send it to Base Sepolia's bridge on Ethereum Sepolia: `0xfd0Bf71F60660E2f608ed56e1659C450eB113120` (the `L1StandardBridge`). ETH sent to this contract from an ordinary wallet arrives at **the same address** on Base Sepolia, usually within a few minutes:
+   ```bash
+   cast send 0xfd0Bf71F60660E2f608ed56e1659C450eB113120 --value 0.04ether \
+     --account deployer --rpc-url https://ethereum-sepolia-rpc.publicnode.com
+   ```
+   Send less than the faucet gave you: keep about 0.005 ETH back for this transaction's Ethereum Sepolia gas. 0.01 ETH on Base Sepolia is enough to deploy.
+
+Only send to this address from a wallet account, not from a contract or a multisig: anything else can't receive the deposit at the same address. Checked 2026-11-08: the contract reports Base Sepolia (chain 84532) as its destination and is not paused.
+
+**Alternatives** (most need an account): the Coinbase Developer Platform faucet, and Alchemy's or QuickNode's faucets, pay out Base Sepolia ETH directly.
+
+Check the balance on both chains:
 
 ```bash
-cast balance --ether --rpc-url https://sepolia.base.org $(cast wallet address --account deployer)
+ADDR=$(cast wallet address --account deployer)
+cast balance --ether --rpc-url https://ethereum-sepolia-rpc.publicnode.com $ADDR   # Ethereum Sepolia (faucet)
+cast balance --ether --rpc-url https://sepolia.base.org $ADDR                      # Base Sepolia (after the bridge)
 ```
 
 For mainnet, send real ETH on Base to the same address. Bridged from Ethereum, or withdrawn from an exchange to the **Base** network, not Ethereum mainnet.
