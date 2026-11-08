@@ -4,13 +4,13 @@ FORGE ?= $(shell command -v forge 2>/dev/null || echo $(HOME)/.foundry/bin/forge
 NPM ?= npm
 RUFF := $(UV)x ruff@0.15.16
 
-.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures verifier-install verifier-test check
+.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test check
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Sync the venv to uv.lock with all extras (editable) + fetch submodules
-	git submodule update --init --recursive
+	git submodule update --init  # not --recursive: OZ's own test submodules aren't needed
 	$(UV) sync --locked --all-extras
 
 lock:  ## Re-resolve uv.lock after a dependency change in pyproject.toml
@@ -45,13 +45,16 @@ fixtures:  ## Regenerate committed fixtures: OZ merkle-tree (JS reference) + Pyt
 	cd scripts/fixtures && $(NPM) ci --silent && node merkle.mjs ../../tests/fixtures/merkle.json
 	$(UV) run --no-sync python scripts/py_fixtures.py
 
+fixtures-rpc: forge-build  ## Record Ledger JSON-RPC responses from anvil for the JS verifier tests
+	$(UV) run --no-sync python scripts/record_ledger_rpc.py
+
 verifier-install:  ## Install the JS verifier's dependencies
 	cd verifier && $(NPM) ci --silent
 
 verifier-test:  ## Run the JS verifier tests
 	cd verifier && $(NPM) test --silent
 
-check: lint test forge-test  ## Everything a milestone needs green
+check: lint test forge-test verifier-test  ## Everything a milestone needs green
 
 clean:  ## Remove build + cache artifacts
 	rm -rf dist build .venv *.egg-info .pytest_cache .ruff_cache src/argus_mint/_version.py contracts/out contracts/cache

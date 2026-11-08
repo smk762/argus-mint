@@ -64,8 +64,10 @@ make test         # pytest (no network: clients are stubbed)
 make lint         # ruff 0.15.16 check + format --check, forge fmt --check
 make forge-build  # / forge-test
 make abi          # forge build, then copy ABIs into src/argus_mint/abi (commit them)
-make fixtures     # regenerate Merkle fixtures with @openzeppelin/merkle-tree (Node)
-make check        # lint test forge-test — every milestone ends green on this
+make fixtures     # regenerate OZ merkle-tree fixtures (Node) + Python-built forge fixtures
+make fixtures-rpc # record Ledger JSON-RPC responses from anvil for the verifier tests
+make verifier-install verifier-test   # JS verifier (node --test)
+make check        # lint test forge-test verifier-test — every milestone ends green on this
 ```
 
 Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.local/bin`.

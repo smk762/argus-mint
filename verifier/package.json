@@ -1,0 +1,18 @@
+{
+  "name": "argus-mint-verifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Verify argus-mint records in the browser or Node: Merkle proofs against a Ledger root, revealed secrets against commitments, and drand quicknet beacons.",
+  "license": "MIT",
+  "type": "module",
+  "exports": "./src/index.js",
+  "files": ["src"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0"
+  }
+}

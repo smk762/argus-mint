@@ -47,7 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true
           fetch-depth: 0
       - uses: foundry-rs/foundry-toolchain@v1
       - name: forge fmt --check
@@ -76,9 +76,23 @@ jobs:
           uv sync --locked --all-extras
           uv run --no-sync pytest --tb=short -q -m anvil
 
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: verifier/package-lock.json
+      - run: npm ci
+        working-directory: verifier
+      - run: npm test
+        working-directory: verifier
+
   build:
     runs-on: ubuntu-latest
-    needs: [lint, test, contracts]
+    needs: [lint, test, contracts, verifier]
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1,0 +1,32 @@
+{
+ "source": "https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+ "fetched": "2026-11-08",
+ "info": {
+  "public_key": "83cf0f2896adee7eb8b5f01fcad3912212c437e0073e911fb90022d3e760183c8c4b450b6a0a6c3ac6a5776a2d1064510d1fec758c921cc22b0e17e63aaf4bcb5ed66304de9cf809bd274ca73bab4af5a6e9c76a4bc09e76eae8991ef5ece45a",
+  "period": 3,
+  "genesis_time": 1692803367,
+  "hash": "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971",
+  "groupHash": "f477d5c89f21a17c863a7f937c6a6d15859414d2be09cd448d4279af331c5d3e",
+  "schemeID": "bls-unchained-g1-rfc9380",
+  "metadata": {
+   "beaconID": "quicknet"
+  }
+ },
+ "rounds": [
+  {
+   "round": 1,
+   "randomness": "1466a6cd24e327188770752f6134001c64d6efcc590ccc26b721611ad96f165a",
+   "signature": "b55e7cb2d5c613ee0b2e28d6750aabbb78c39dcc96bd9d38c2c2e12198df95571de8e8e402a0cc48871c7089a2b3af4b"
+  },
+  {
+   "round": 1000000,
+   "randomness": "b22aad4794f7451896f7a371aa46106fd84d919f3f569acd5b2fddf1d1440af3",
+   "signature": "83ad29e4c409f9470fc2ef02f90214df49e02b441a1a241a82d622d9f608ef98fd8b11a029f1bee9d9e83b45088abe72"
+  },
+  {
+   "round": 1000001,
+   "randomness": "9f45f439afd81e9846b3b4dc5e3e6051922c73c8459d18e9d507b52ddbd884ff",
+   "signature": "a5bd91e5e2d8c0bf51bffdfad87eef34348fd9c0b2df2bee39db90bdef7e1399b1a77bb2fe98b24d84c0936a306c4218"
+  }
+ ]
+}

@@ -6,7 +6,7 @@ It contains no game logic. A consumer supplies a template's variables, a record 
 
 Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 
-> Status: pre-alpha. Pure core, contracts and clients are built (milestones M0–M3); the JS verifier and a testnet demo are next.
+> Status: pre-alpha. Milestones M0–M4 are built (pure core, contracts, clients, JS verifier). A testnet demo (M5) waits on the choice of L2 and darklight's API.
 
 ## What's in the box
 
