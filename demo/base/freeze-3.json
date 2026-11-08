@@ -1,0 +1,11 @@
+{
+  "network": "base",
+  "from": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "tx": "0xa783b4aa35d4f382f1d19b21cb46377b70c83cb5a3a6c31f240d991e39935991",
+  "block": 54766472,
+  "gas_used": 121321,
+  "explorer": "https://basescan.org/tx/0xa783b4aa35d4f382f1d19b21cb46377b70c83cb5a3a6c31f240d991e39935991",
+  "card": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7",
+  "token_id": 3,
+  "token_uri": "ipfs://bafkreidnjgjkqs65jduecfvnfpwd7fgvhkpcplgkws3nqjkl7qkvh5zuga"
+}

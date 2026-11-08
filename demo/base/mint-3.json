@@ -1,0 +1,101 @@
+{
+  "dry_run": false,
+  "signer": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "signer_is_ephemeral": false,
+  "render": {
+    "renderer": "darkroom",
+    "prompt": "portrait of a non-binary cyborg, steel heraldry, repairing, workshop, painted fantasy card art",
+    "seed": 8455,
+    "attempts": [
+      {
+        "seed": 8455,
+        "outcome": "ok",
+        "ref": "2d682fba11114237a9c1c449295bc7b0",
+        "detail": ""
+      }
+    ],
+    "image_cid": "bafybeibpzkr3rskc7vzdmljcknefhuzy5opsnaxzax3izpcvapqmtjefwa"
+  },
+  "metadata": {
+    "name": "Steel Cyborg",
+    "description": "",
+    "image": "ipfs://bafybeibpzkr3rskc7vzdmljcknefhuzy5opsnaxzax3izpcvapqmtjefwa",
+    "attributes": [],
+    "provenance": {
+      "template": "example-portrait",
+      "template_version": 1,
+      "template_hash": "0xfee064fce30f045c9e7f88dc82d508800cc009c13150c296d6fcb2ad72f14328",
+      "seed": 8455,
+      "attempts": 1,
+      "asset_id": "0xcaddcf15613b045d2e104692791542802ca447f3a11a62ee26db9de4a9434ea8",
+      "consumer": "argus-mint"
+    }
+  },
+  "metadata_cid": "bafkreidnjgjkqs65jduecfvnfpwd7fgvhkpcplgkws3nqjkl7qkvh5zuga",
+  "voucher": {
+    "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+    "asset_id": "0xcaddcf15613b045d2e104692791542802ca447f3a11a62ee26db9de4a9434ea8",
+    "content_hash": "0xed23b16deef15f59bb4e1ce7bedbb5866cedf6f1bca8d744ffcfa140c37e0133",
+    "price": 0,
+    "deadline": 1794147259
+  },
+  "signature": "0x682c45ce59b05cfe83751f893b305ec92f81aebb8b6c619cb411a728e76b336041f2b8d06c7a5765afce711b79077e3432cc78c9563eca0b083be78f7a4e99621b",
+  "typed_data": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "MintVoucher": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "assetId",
+          "type": "bytes32"
+        },
+        {
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "name": "price",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint64"
+        }
+      ]
+    },
+    "primaryType": "MintVoucher",
+    "domain": {
+      "name": "argus-mint Card",
+      "version": "1",
+      "chainId": 8453,
+      "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+    },
+    "message": {
+      "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+      "assetId": "0xcaddcf15613b045d2e104692791542802ca447f3a11a62ee26db9de4a9434ea8",
+      "contentHash": "0xed23b16deef15f59bb4e1ce7bedbb5866cedf6f1bca8d744ffcfa140c37e0133",
+      "price": 0,
+      "deadline": 1794147259
+    }
+  }
+}

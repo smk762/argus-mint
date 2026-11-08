@@ -1,0 +1,14 @@
+{
+  "network": "base",
+  "from": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "tx": "0x15a60342852c7f40f7ea283a55637195f102b69899bb82a2ff638f1130808bc8",
+  "block": 54766340,
+  "gas_used": 136533,
+  "explorer": "https://basescan.org/tx/0x15a60342852c7f40f7ea283a55637195f102b69899bb82a2ff638f1130808bc8",
+  "card": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7",
+  "token_id": 2,
+  "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "asset_id": "0xcb5180eea421e55fba6d15dbbe8e7481dbf86f192411843bd4ddee613ddad47d",
+  "metadata_uri": "ipfs://bafkreiaey6gngmelhmcyieavk4ftzgj4i5fmd67ghwnwnzgftsoahhjusy",
+  "token_url": "https://basescan.org/nft/0xCAa3573b5550870A5e15C47c650b8700D70a8fA7/2"
+}

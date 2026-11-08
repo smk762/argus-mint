@@ -155,24 +155,20 @@ Contracts are not upgradeable: a new version is a new deployment, with new addre
 
 ## 6. Pin on a VPS (optional)
 
-A Kubo node at home sits behind NAT. Gateways reach it only through relays, slowly, and not at all while the machine is off. A small VPS with a public IP fixes both without opening any home port. It runs the same `compose.yaml`; minting reaches its RPC through an SSH tunnel.
+A Kubo node at home sits behind NAT. Gateways reach it only through relays, slowly, and not at all while the machine is off. A small VPS with a public IP fixes both without opening any home port. Minting reaches the VPS node's RPC through an SSH tunnel.
 
-**On the VPS** (Docker with the compose plugin installed):
+**On the VPS, run Kubo natively**, not in Docker. [scripts/kubo-vps.sh](../scripts/kubo-vps.sh) installs and verifies it, creates a node with the `server` profile, binds the RPC and gateway to 127.0.0.1, and starts it as the `ipfs` systemd service:
 
 ```bash
-scp compose.yaml <user>@<vps>:argus-ipfs/            # from this repo
+scp scripts/kubo-vps.sh <user>@<vps>:
 ssh <user>@<vps>
-cd argus-ipfs && docker compose up -d kubo
-sudo ufw allow 4001/tcp && sudo ufw allow 4001/udp    # swarm: the only public port
-# announce the public swarm port; behind Docker's NAT the node otherwise advertises a random UDP port
-docker compose exec kubo ipfs config --json Addresses.AppendAnnounce \
-  '["/ip4/<vps ip>/tcp/4001","/ip4/<vps ip>/udp/4001/quic-v1","/ip4/<vps ip>/udp/4001/quic-v1/webtransport"]'
-docker compose restart kubo
+GATEWAY_PORT=8180 bash kubo-vps.sh                      # pick a free port if 8080 is taken
+sudo ufw allow 4001/tcp && sudo ufw allow 4001/udp     # swarm: the only public port
 ```
 
-If 5001 or 8080 is already taken on the VPS, move it in `argus-ipfs/.env`, e.g. `IPFS_GATEWAY_PUBLISH=127.0.0.1:8180`.
+Why not `compose.yaml` there: Docker's port publishing puts address translation between the node and the internet. The node then advertises the wrong ports, and with rootless Docker it can't accept incoming connections at all. Gateways can fetch only over connections the node opened itself, so images load slowly or never. That's what happened to the first mainnet demo cards. `compose.yaml` is fine for a local node, where no one needs to dial in.
 
-The RPC (5001) and gateway (8080) stay on the VPS's 127.0.0.1, as `compose.yaml` publishes them. Don't change that: the RPC can pin, unpin and read the node's keys. Docker-published ports bypass `ufw`, so the bind address is what protects them, not the firewall.
+Keep the RPC on 127.0.0.1: it can pin, unpin and read the node's keys.
 
 **From the minting machine**, open a tunnel and pin through it:
 
@@ -181,14 +177,21 @@ ssh -N -L 5002:127.0.0.1:5001 <user>@<vps>            # keep running (autossh or
 argus-mint mint ... --ipfs-api http://127.0.0.1:5002
 ```
 
-Port 5002 keeps it apart from a local node on 5001. With Tailscale or WireGuard, bind the RPC to the VPS's tunnel address instead (`IPFS_API_PUBLISH=100.x.y.z:5001`) and skip the SSH step.
+Port 5002 keeps it apart from a local node on 5001. With Tailscale or WireGuard, bind the RPC to the VPS's tunnel address instead and skip the SSH step.
+
+**Check it from outside.** Both dials should succeed. Then any gateway should serve a pinned image within seconds:
+
+```bash
+ipfs swarm connect /ip4/<vps ip>/tcp/4001/p2p/<peer id>
+ipfs swarm connect /ip4/<vps ip>/udp/4001/quic-v1/p2p/<peer id>
+```
 
 **Moving content pinned elsewhere.** Export each CID as a CAR file, copy it over, and import it. Imported roots are pinned:
 
 ```bash
 curl -sfX POST "http://127.0.0.1:5001/api/v0/dag/export?arg=<cid>" > <cid>.car   # where it is pinned now
-scp <cid>.car <user>@<vps>:argus-ipfs/
-ssh <user>@<vps> 'cd argus-ipfs && docker compose cp <cid>.car kubo:/tmp/ && docker compose exec kubo ipfs dag import /tmp/<cid>.car'
+scp <cid>.car <user>@<vps>:
+ssh <user>@<vps> ipfs dag import <cid>.car
 ```
 
 Each card needs about 1.7 MB (image plus metadata), so 1,000 cards take about 2 GB. Kubo uses 1–2 GB of RAM.

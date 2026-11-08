@@ -1,0 +1,101 @@
+{
+  "dry_run": false,
+  "signer": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "signer_is_ephemeral": false,
+  "render": {
+    "renderer": "darkroom",
+    "prompt": "portrait of a female wizard, emerald heraldry, casting a spell, library, painted fantasy card art",
+    "seed": 8454,
+    "attempts": [
+      {
+        "seed": 8454,
+        "outcome": "ok",
+        "ref": "69232bcf34344c69bd667140fc34c71c",
+        "detail": ""
+      }
+    ],
+    "image_cid": "bafybeifg6an46ez7fjamgnsz3k7cjhowa2snkgtwhmndofzkzycishqsp4"
+  },
+  "metadata": {
+    "name": "Emerald Wizard",
+    "description": "",
+    "image": "ipfs://bafybeifg6an46ez7fjamgnsz3k7cjhowa2snkgtwhmndofzkzycishqsp4",
+    "attributes": [],
+    "provenance": {
+      "template": "example-portrait",
+      "template_version": 1,
+      "template_hash": "0xfee064fce30f045c9e7f88dc82d508800cc009c13150c296d6fcb2ad72f14328",
+      "seed": 8454,
+      "attempts": 1,
+      "asset_id": "0xcb5180eea421e55fba6d15dbbe8e7481dbf86f192411843bd4ddee613ddad47d",
+      "consumer": "argus-mint"
+    }
+  },
+  "metadata_cid": "bafkreiaey6gngmelhmcyieavk4ftzgj4i5fmd67ghwnwnzgftsoahhjusy",
+  "voucher": {
+    "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+    "asset_id": "0xcb5180eea421e55fba6d15dbbe8e7481dbf86f192411843bd4ddee613ddad47d",
+    "content_hash": "0x8672892018595df140ef24b48f918e2d7fdd00227cf32f6eef06150482b56a70",
+    "price": 0,
+    "deadline": 1794147237
+  },
+  "signature": "0x4097745968218982cf9b2ebd52ccbc59ba85e58191464fca9ac8fd3b8dd021d346f0ec1123a808a5a56d25b815c6ba9ed7322ccd649a47b2766b352d0096ec921c",
+  "typed_data": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "MintVoucher": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "assetId",
+          "type": "bytes32"
+        },
+        {
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "name": "price",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint64"
+        }
+      ]
+    },
+    "primaryType": "MintVoucher",
+    "domain": {
+      "name": "argus-mint Card",
+      "version": "1",
+      "chainId": 8453,
+      "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+    },
+    "message": {
+      "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+      "assetId": "0xcb5180eea421e55fba6d15dbbe8e7481dbf86f192411843bd4ddee613ddad47d",
+      "contentHash": "0x8672892018595df140ef24b48f918e2d7fdd00227cf32f6eef06150482b56a70",
+      "price": 0,
+      "deadline": 1794147237
+    }
+  }
+}

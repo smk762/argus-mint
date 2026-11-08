@@ -1,0 +1,101 @@
+{
+  "dry_run": false,
+  "signer": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "signer_is_ephemeral": false,
+  "render": {
+    "renderer": "darkroom",
+    "prompt": "portrait of a female priest, gold heraldry, praying, temple, painted fantasy card art",
+    "seed": 8458,
+    "attempts": [
+      {
+        "seed": 8458,
+        "outcome": "ok",
+        "ref": "1f2f2aa4b07848e0860d1db846795c61",
+        "detail": ""
+      }
+    ],
+    "image_cid": "bafybeifotqhtokinlm2geqriephgkjtzwtosjaz6l46qdyn5fbajh2ozqe"
+  },
+  "metadata": {
+    "name": "Golden Priest",
+    "description": "",
+    "image": "ipfs://bafybeifotqhtokinlm2geqriephgkjtzwtosjaz6l46qdyn5fbajh2ozqe",
+    "attributes": [],
+    "provenance": {
+      "template": "example-portrait",
+      "template_version": 1,
+      "template_hash": "0xfee064fce30f045c9e7f88dc82d508800cc009c13150c296d6fcb2ad72f14328",
+      "seed": 8458,
+      "attempts": 1,
+      "asset_id": "0x60fc9543cef9858cbc31b42505df905fec993005be4c5df67bfa6ab4f3506287",
+      "consumer": "argus-mint"
+    }
+  },
+  "metadata_cid": "bafkreidv54awqhg6w7f2gwqmjy4a33bmy6h3etdpco2bv7fxmqpiastbpi",
+  "voucher": {
+    "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+    "asset_id": "0x60fc9543cef9858cbc31b42505df905fec993005be4c5df67bfa6ab4f3506287",
+    "content_hash": "0xf4fcd59a38d4c38e502b6afa8c9da9fbce1bb2e50623b5c738a48b61bc0cc07a",
+    "price": 0,
+    "deadline": 1794147324
+  },
+  "signature": "0x6185db5e2b30ff5bf3408330266e383a28936f52c731bf7bec9dd1b26dc3d48456c86f7858aae01f8884bfe831b8052c09a131a552d5af5ec9cd565ba3ba64681b",
+  "typed_data": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "MintVoucher": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "assetId",
+          "type": "bytes32"
+        },
+        {
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "name": "price",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint64"
+        }
+      ]
+    },
+    "primaryType": "MintVoucher",
+    "domain": {
+      "name": "argus-mint Card",
+      "version": "1",
+      "chainId": 8453,
+      "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+    },
+    "message": {
+      "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+      "assetId": "0x60fc9543cef9858cbc31b42505df905fec993005be4c5df67bfa6ab4f3506287",
+      "contentHash": "0xf4fcd59a38d4c38e502b6afa8c9da9fbce1bb2e50623b5c738a48b61bc0cc07a",
+      "price": 0,
+      "deadline": 1794147324
+    }
+  }
+}

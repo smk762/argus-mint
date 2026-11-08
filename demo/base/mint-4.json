@@ -1,0 +1,101 @@
+{
+  "dry_run": false,
+  "signer": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "signer_is_ephemeral": false,
+  "render": {
+    "renderer": "darkroom",
+    "prompt": "portrait of a female elf, silver heraldry, hunting, forest, painted fantasy card art",
+    "seed": 8456,
+    "attempts": [
+      {
+        "seed": 8456,
+        "outcome": "ok",
+        "ref": "a7a3811dfe1448e394184b02bbb621b3",
+        "detail": ""
+      }
+    ],
+    "image_cid": "bafybeia7ludbvvph6bkdtl3prn4fte5xeo3t7m2pdwh7uefh2dw5ugzigu"
+  },
+  "metadata": {
+    "name": "Silver Huntress",
+    "description": "",
+    "image": "ipfs://bafybeia7ludbvvph6bkdtl3prn4fte5xeo3t7m2pdwh7uefh2dw5ugzigu",
+    "attributes": [],
+    "provenance": {
+      "template": "example-portrait",
+      "template_version": 1,
+      "template_hash": "0xfee064fce30f045c9e7f88dc82d508800cc009c13150c296d6fcb2ad72f14328",
+      "seed": 8456,
+      "attempts": 1,
+      "asset_id": "0xc1ca4514de2283d94d633708c80353215d0b89de56a1807f428267d9d5894320",
+      "consumer": "argus-mint"
+    }
+  },
+  "metadata_cid": "bafkreieyztnxw3c7nqytkrkxiwt6xgpldarnn6tcor4ifkpsoatvhwgxa4",
+  "voucher": {
+    "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+    "asset_id": "0xc1ca4514de2283d94d633708c80353215d0b89de56a1807f428267d9d5894320",
+    "content_hash": "0x7254aeac02350278ada52d6863786a5f7d00a6db1da3a32885f92a86568c09a8",
+    "price": 0,
+    "deadline": 1794147281
+  },
+  "signature": "0x64b28cc9fe6f8ba17a591f478d32d82fc644bf4a151b68c9e601cd770c70eb5845fe1569533a1efe63bae8b1e0ce0d24d935e7ed121b3c27bd14be3e1dab47751c",
+  "typed_data": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "MintVoucher": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "assetId",
+          "type": "bytes32"
+        },
+        {
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "name": "price",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint64"
+        }
+      ]
+    },
+    "primaryType": "MintVoucher",
+    "domain": {
+      "name": "argus-mint Card",
+      "version": "1",
+      "chainId": 8453,
+      "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+    },
+    "message": {
+      "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+      "assetId": "0xc1ca4514de2283d94d633708c80353215d0b89de56a1807f428267d9d5894320",
+      "contentHash": "0x7254aeac02350278ada52d6863786a5f7d00a6db1da3a32885f92a86568c09a8",
+      "price": 0,
+      "deadline": 1794147281
+    }
+  }
+}

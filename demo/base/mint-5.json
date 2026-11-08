@@ -1,0 +1,101 @@
+{
+  "dry_run": false,
+  "signer": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "signer_is_ephemeral": false,
+  "render": {
+    "renderer": "darkroom",
+    "prompt": "portrait of a male orc, crimson heraldry, fighting, dungeon, painted fantasy card art",
+    "seed": 8457,
+    "attempts": [
+      {
+        "seed": 8457,
+        "outcome": "ok",
+        "ref": "d95089898f4042c58a856fa0aecb0785",
+        "detail": ""
+      }
+    ],
+    "image_cid": "bafybeihigxsxkaly2oyymcypzjrbszoenwxgjjykh53pqqjtumlq4vt3xi"
+  },
+  "metadata": {
+    "name": "Crimson Orc",
+    "description": "",
+    "image": "ipfs://bafybeihigxsxkaly2oyymcypzjrbszoenwxgjjykh53pqqjtumlq4vt3xi",
+    "attributes": [],
+    "provenance": {
+      "template": "example-portrait",
+      "template_version": 1,
+      "template_hash": "0xfee064fce30f045c9e7f88dc82d508800cc009c13150c296d6fcb2ad72f14328",
+      "seed": 8457,
+      "attempts": 1,
+      "asset_id": "0xa21e49f25961fddafb6fc1caf7995bb8983d65f8b5d3e723d77c233d0e7ee3ca",
+      "consumer": "argus-mint"
+    }
+  },
+  "metadata_cid": "bafkreig43tpgu55gabkdeuvpugdobqdmjgxyzca3dtdksqy2sjswyl6nb4",
+  "voucher": {
+    "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+    "asset_id": "0xa21e49f25961fddafb6fc1caf7995bb8983d65f8b5d3e723d77c233d0e7ee3ca",
+    "content_hash": "0x9e7756225db1717e4e6165c747bc7994d3e1fb75ba937977472d250175a036cf",
+    "price": 0,
+    "deadline": 1794147303
+  },
+  "signature": "0x56f401d834b17830e5b6da333a929066099d230a5ddee4632a328d8a8437db764e170016c7cd7c5d7c13267774f4a742e6c772ad9d69bc0ed7e2bb7b22efdb3a1b",
+  "typed_data": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "version",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "MintVoucher": [
+        {
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "name": "assetId",
+          "type": "bytes32"
+        },
+        {
+          "name": "contentHash",
+          "type": "bytes32"
+        },
+        {
+          "name": "price",
+          "type": "uint256"
+        },
+        {
+          "name": "deadline",
+          "type": "uint64"
+        }
+      ]
+    },
+    "primaryType": "MintVoucher",
+    "domain": {
+      "name": "argus-mint Card",
+      "version": "1",
+      "chainId": 8453,
+      "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+    },
+    "message": {
+      "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+      "assetId": "0xa21e49f25961fddafb6fc1caf7995bb8983d65f8b5d3e723d77c233d0e7ee3ca",
+      "contentHash": "0x9e7756225db1717e4e6165c747bc7994d3e1fb75ba937977472d250175a036cf",
+      "price": 0,
+      "deadline": 1794147303
+    }
+  }
+}
