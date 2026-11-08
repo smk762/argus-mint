@@ -15,3 +15,5 @@ contracts/cache/
 contracts/broadcast/*/31337/
 # JS (verifier + fixture generator)
 node_modules/
+# Local deploy settings (see .env.example)
+.env

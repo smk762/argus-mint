@@ -4,7 +4,7 @@ FORGE ?= $(shell command -v forge 2>/dev/null || echo $(HOME)/.foundry/bin/forge
 NPM ?= npm
 RUFF := $(UV)x ruff@0.15.16
 
-.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test check
+.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -53,6 +53,13 @@ verifier-install:  ## Install the JS verifier's dependencies
 
 verifier-test:  ## Run the JS verifier tests
 	cd verifier && $(NPM) test --silent
+
+# Deploy Card, Deed and Ledger to Base: `make deploy` (Base Sepolia) or `make deploy NETWORK=base`.
+NETWORK ?= base_sepolia
+deploy: forge-build  ## Deploy + verify on Basescan (NETWORK=base_sepolia|base; settings in .env)
+	@test -f .env || { echo "copy .env.example to .env first"; exit 1; }
+	set -a; . ./.env; set +a; cd contracts && $(FORGE) script script/Deploy.s.sol \
+		--rpc-url $(NETWORK) --account "$${DEPLOYER_ACCOUNT:-deployer}" --broadcast --verify
 
 check: lint test forge-test verifier-test  ## Everything a milestone needs green
 

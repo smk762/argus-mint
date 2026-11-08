@@ -14,6 +14,7 @@ import typer
 from eth_account import Account
 
 import argus_mint
+from argus_mint import networks
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
 from argus_mint.metadata import Provenance, card_metadata, content_hash
 from argus_mint.pin import LocalPinner
@@ -85,7 +86,8 @@ def mint(
     to: Annotated[str, typer.Option(help="Address the card is minted to")],
     name: Annotated[str, typer.Option(help="Card name (free text: metadata only, never sent to the model)")],
     card: Annotated[str, typer.Option(help="Card contract address (EIP-712 verifyingContract)")],
-    chain_id: Annotated[int, typer.Option(help="Chain id of the Card contract")],
+    network: Annotated[str, typer.Option(help="base | base-sepolia | anvil (sets the chain id)")] = "base-sepolia",
+    chain_id: Annotated[int | None, typer.Option(help="Chain id override (default: from --network)")] = None,
     var: Annotated[list[str], typer.Option(help="Template variable key=value (repeat)")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="First render seed")] = 0,
     asset_id: Annotated[str | None, typer.Option(help="0x 32-byte asset id")] = None,
@@ -108,6 +110,10 @@ def mint(
     if not dry_run:
         typer.echo("error: live minting needs darklight and pinning configured (not available yet); use --dry-run")
         raise typer.Exit(2)
+    try:
+        resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--network") from e
     if (asset_id is None) == (asset is None):
         raise typer.BadParameter("give exactly one of --asset-id or --asset")
     try:
@@ -163,7 +169,7 @@ def mint(
         price=price,
         deadline=deadline if deadline is not None else int(time.time()) + ttl,
     )
-    domain = Domain(chain_id=chain_id, verifying_contract=card)
+    domain = Domain(chain_id=resolved_chain_id, verifying_contract=card)
     out = {
         "dry_run": True,
         "signer": signer.address,

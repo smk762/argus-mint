@@ -23,3 +23,14 @@ runs = 512
 
 [fmt]
 line_length = 120
+
+# Target chain: Base (OP Stack). Mainnet 8453, testnet Base Sepolia 84532.
+# URLs come from the environment (`make deploy` loads ../.env).
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+
+# Basescan verification through the Etherscan V2 API (one key covers every chain).
+[etherscan]
+base = { key = "${ETHERSCAN_API_KEY}", chain = 8453 }
+base_sepolia = { key = "${ETHERSCAN_API_KEY}", chain = 84532 }

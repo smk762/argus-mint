@@ -6,7 +6,7 @@ It contains no game logic. A consumer supplies a template's variables, a record 
 
 Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 
-> Status: pre-alpha. Milestones M0–M4 are built (pure core, contracts, clients, JS verifier). A testnet demo (M5) waits on the choice of L2 and darklight's API.
+> Status: pre-alpha. Milestones M0–M4 are built (pure core, contracts, clients, JS verifier). Target chain: **Base**. A Base Sepolia demo (M5) waits on darklight's API.
 
 ## What's in the box
 
@@ -54,6 +54,16 @@ make help          # everything else
 ```
 
 Versions are derived from git tags via `hatch-vcs`. Tagging `vX.Y.Z` publishes to PyPI.
+
+## Deploy (Base)
+
+```bash
+cp .env.example .env                        # RPC URLs, Basescan key, role addresses
+cast wallet import deployer --interactive   # deployer key goes in Foundry's encrypted keystore
+make deploy                                 # Base Sepolia; `make deploy NETWORK=base` for mainnet
+```
+
+The script deploys `Card`, `Deed` and `Ledger`, grants roles, and verifies the sources on Basescan.
 
 ## License
 

@@ -118,13 +118,23 @@ def follow(
 
 
 class Web3Rpc:
-    """:class:`Rpc` over a web3 ``Web3`` instance (the ``chain`` extra)."""
+    """:class:`Rpc` over a web3 ``Web3`` instance (the ``chain`` extra).
 
-    def __init__(self, w3: Any):
+    ``head`` picks which block counts as the chain head: ``"latest"`` (then rely on
+    ``confirmations``), or on an OP Stack chain like Base ``"safe"`` / ``"finalized"`` with
+    ``confirmations=0`` (see :mod:`argus_mint.networks`).
+    """
+
+    def __init__(self, w3: Any, head: str = "latest"):
+        if head not in ("latest", "safe", "finalized"):
+            raise ValueError("head must be 'latest', 'safe' or 'finalized'")
         self.w3 = w3
+        self.head = head
 
     def block_number(self) -> int:
-        return int(self.w3.eth.block_number)
+        if self.head == "latest":
+            return int(self.w3.eth.block_number)
+        return int(self.w3.eth.get_block(self.head)["number"])
 
     def block_hash(self, number: int) -> bytes:
         return bytes(self.w3.eth.get_block(number)["hash"])

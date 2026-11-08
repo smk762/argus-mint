@@ -44,8 +44,10 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - The voucher's **`contentHash` = keccak256(canonical({"image": …, "provenance": …}))** — only the immutable part of the metadata, so it stays checkable after live attribute refreshes. `metadata.content_hash()` is the one place this is computed.
 - Template hash = keccak256 of the canonical JSON of the template **minus `status`**, so retiring a template doesn't change the hash cards already carry. `approved_by`/`approved_at` are included.
 - Ledger commitments are **sha256** (atlas-realms already publishes `sha256(secret)`); Merkle leaves are OpenZeppelin `StandardMerkleTree` `["bytes32"]` (double keccak).
+- **Target chain: Base** (OP Stack; mainnet 8453, testnet Base Sepolia 84532), chosen 2026-11-08 for consumer onboarding and ecosystem exposure. `networks.py` holds the constants; `foundry.toml` has `base` / `base_sepolia` RPC and Basescan entries; `make deploy [NETWORK=base]` deploys and verifies (settings in `.env`, deployer from a Foundry keystore, never a raw key in a file).
+- Indexing on Base: follow `Web3Rpc(w3, head="safe")` with `confirmations=0` rather than counting blocks on the sequencer's unsafe head.
 - Contracts are not upgradeable; a new version is a new deployment.
-- **OpenZeppelin is pinned to v5.4.0 and `evm_version = "cancun"`** on purpose: OZ ≥ 5.5 emits the `clz` opcode, which needs an Osaka-compatible chain. Bump both together only once the target L2 is confirmed to support Osaka.
+- **OpenZeppelin is pinned to v5.4.0 and `evm_version = "cancun"`** on purpose: OZ ≥ 5.5 emits the `clz` opcode, which needs Osaka. Base's Osaka support was unconfirmed when chosen; bump both together only after verifying it (e.g. deploy a CLZ probe to Base Sepolia).
 - `Deed`: each `recordId` mints once, ever (a burned deed's record stays used), so a retried mint can't duplicate. The consumer makes per-player records with e.g. `keccak256(feat, player)`.
 - `Ledger.reveal` works once per epoch and is open to anyone; `Card.refresh`/`freeze` revert after freeze; `setBaseURI` emits `BatchMetadataUpdate` over all minted ids.
 
@@ -68,6 +70,7 @@ make fixtures     # regenerate OZ merkle-tree fixtures (Node) + Python-built for
 make fixtures-rpc # record Ledger JSON-RPC responses from anvil for the verifier tests
 make verifier-install verifier-test   # JS verifier (node --test)
 make check        # lint test forge-test verifier-test — every milestone ends green on this
+make deploy       # Base Sepolia (NETWORK=base for mainnet); needs .env from .env.example
 ```
 
 Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.local/bin`.
