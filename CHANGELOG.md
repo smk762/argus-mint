@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- M5 live demo on Base Sepolia: contracts deployed and Sourcify-verified, card #1 rendered through darkroom, pinned, minted and frozen, epoch 1 Merkle root anchored. Outputs and a JS verification script are in `demo/base-sepolia/`, and the README has the walkthrough.
 - On-chain CLI: `submit` (voucher → `Card.mint`), `freeze` (fix tokenURI at ipfs://), `anchor` (Merkle root → Ledger, with the tree dump). Each pre-checks what the contract would refuse and decodes custom-error reverts. `keys` module: Foundry keystore signers (password file for unattended use, or a hidden prompt) alongside `$ARGUS_MINT_SIGNER_KEY`; `mint --account`. `chain.send(value=)`, `chain.explain_revert`.
 - `compose.yaml` with a pinned Kubo node (`make ipfs` / `make ipfs-down`); the example template now names real darkroom models. Verified end to end: darkroom render → Kubo pin → metadata → signed voucher.
 - darkroom render client (`darkroom.DarkroomClient`): guarded generation over SSE with record and image-hash checks, outcomes mapped onto the retry protocol; `argus-mint preflight` checks every template combination before approval; live `mint` (`--darkroom`, `--ipfs-api`). Templates gain `sampling` and weighted LoRAs with trigger words.

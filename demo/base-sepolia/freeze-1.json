@@ -1,0 +1,11 @@
+{
+  "network": "base_sepolia",
+  "from": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "tx": "0x0f3140ec791db3069693ee9cb655f5ded8ca65b3bfcc33c9dfc7e4989de84bb4",
+  "block": 56077088,
+  "gas_used": 121321,
+  "explorer": "https://sepolia.basescan.org/tx/0x0f3140ec791db3069693ee9cb655f5ded8ca65b3bfcc33c9dfc7e4989de84bb4",
+  "card": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7",
+  "token_id": 1,
+  "token_uri": "ipfs://bafkreid3o6zha6adg7ndl4rpmnsv7bc22t6ak2ik4opr6oed56v74uhefu"
+}

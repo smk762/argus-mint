@@ -1,0 +1,14 @@
+{
+  "network": "base_sepolia",
+  "from": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "tx": "0x194f515824b65ff610fc61010ff01370745ed7c8a134cca2385d36bc080c5324",
+  "block": 56076844,
+  "gas_used": 153657,
+  "explorer": "https://sepolia.basescan.org/tx/0x194f515824b65ff610fc61010ff01370745ed7c8a134cca2385d36bc080c5324",
+  "card": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7",
+  "token_id": 1,
+  "to": "0xcb172f229574DacbC9f6C8D8f277FF5fDFF37669",
+  "asset_id": "0x876694d64580ba7994ab2644dd2b32c425d7a86f64d8259d367e71774f3e994b",
+  "metadata_uri": "ipfs://bafkreid3o6zha6adg7ndl4rpmnsv7bc22t6ak2ik4opr6oed56v74uhefu",
+  "token_url": "https://sepolia.basescan.org/nft/0xCAa3573b5550870A5e15C47c650b8700D70a8fA7/1"
+}

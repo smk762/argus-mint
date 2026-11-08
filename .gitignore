@@ -17,3 +17,4 @@ contracts/broadcast/*/31337/
 node_modules/
 # Local deploy settings (see .env.example)
 .env
+contracts/broadcast/**/*.lock

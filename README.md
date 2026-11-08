@@ -6,7 +6,7 @@ It contains no game logic. A consumer supplies a template's variables, a record 
 
 Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 
-> Status: pre-alpha. Milestones M0–M4 are built (pure core, contracts, clients, JS verifier). Target chain: **Base**. Renders go through argus-darkroom. Next: the Base Sepolia demo (M5).
+> Status: pre-alpha. Milestones M0–M5 are done: pure core, contracts, clients, JS verifier, and a live demo on Base Sepolia (below). Renders go through argus-darkroom.
 
 ## What's in the box
 
@@ -83,6 +83,45 @@ argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Me
 ```
 
 The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, forward 4001 (tcp+udp) or add a remote pinning service so cards stay retrievable when this host is offline.
+
+## Live demo (Base Sepolia)
+
+Deployed 2026-11-08 from this repo (`make deploy`), source verified on Sourcify:
+
+| Contract | Address |
+|---|---|
+| Card | [`0xCAa3573b5550870A5e15C47c650b8700D70a8fA7`](https://sepolia.basescan.org/address/0xCAa3573b5550870A5e15C47c650b8700D70a8fA7) |
+| Deed | [`0xe44D67bdFd3416F97206fdE7aeE55F9008EB5D7c`](https://sepolia.basescan.org/address/0xe44D67bdFd3416F97206fdE7aeE55F9008EB5D7c) |
+| Ledger | [`0x4b41B687C694bd8bf3778871752637445c2Aa254`](https://sepolia.basescan.org/address/0x4b41B687C694bd8bf3778871752637445c2Aa254) |
+
+**Card #1** was made end to end. Every command's output is in [demo/base-sepolia/](demo/base-sepolia/).
+
+1. **Render.** The approved `example-portrait` v1 template was rendered with fixed values and seed 42: `portrait of a female dwarf, bronze heraldry, mining, cave, …`. darkroom passed it on the first attempt under its SFW `default` policy (record `cb2bd951…`).
+2. **Pin.** The image and canonical metadata were pinned on Kubo. The metadata's `provenance` carries the template hash, seed and attempt count.
+3. **Sign.** A mint voucher was signed for the Card (EIP-712), carrying `contentHash` = keccak256 of the metadata's image and provenance.
+4. **[Submit](https://sepolia.basescan.org/tx/0x194f515824b65ff610fc61010ff01370745ed7c8a134cca2385d36bc080c5324)** minted token 1.
+5. **[Freeze](https://sepolia.basescan.org/tx/0x0f3140ec791db3069693ee9cb655f5ded8ca65b3bfcc33c9dfc7e4989de84bb4)** fixed `tokenURI(1)` at `ipfs://bafkreid3o6zha6adg7ndl4rpmnsv7bc22t6ak2ik4opr6oed56v74uhefu`.
+
+**Epoch 1 anchor:** four demo records ([records.txt](demo/base-sepolia/records.txt)) were hashed with sha256 into a Merkle tree. Its root, `0x4cafc06c…1ee1f736`, was [anchored in the Ledger](https://sepolia.basescan.org/tx/0x98899e0c2d074f0b63e30af5d7d52ee1ace470024932fa64124cdcda10584695).
+
+### Verify it yourself
+
+Anchored records, with the JS verifier and the public RPC (needs only Node):
+
+```bash
+make verifier-install
+node demo/base-sepolia/verify.mjs          # each record checks out; a changed one is rejected
+```
+
+To check the card, read `tokenURI(1)` and `contentHashOf(1)` from the Card and fetch the metadata from IPFS. Then confirm `keccak256(canonical({image, provenance}))` equals the on-chain `contentHash`:
+
+```python
+from argus_mint import chain
+from argus_mint.metadata import content_hash
+card = chain.contract(chain.connect("base-sepolia"), "Card", "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7")
+# doc = the JSON at card.functions.tokenURI(1).call()
+assert content_hash(doc) == bytes(card.functions.contentHashOf(1).call())
+```
 
 ## License
 
