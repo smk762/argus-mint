@@ -82,7 +82,7 @@ packages = ["src/argus_mint"]
 [tool.hatch.build.targets.sdist]
 # Python source only: the Foundry project (and its submodules) and the JS verifier
 # are not part of the pip package. The ABIs it needs live in src/argus_mint/abi.
-include = ["src/", "tests/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+include = ["/src", "/tests", "/README.md", "/CHANGELOG.md", "/LICENSE", "/pyproject.toml"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
