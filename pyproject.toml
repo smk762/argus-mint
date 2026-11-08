@@ -88,6 +88,7 @@ include = ["src/", "tests/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.
 asyncio_mode = "auto"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["anvil: starts a local anvil node (skips without Foundry unless ARGUS_MINT_REQUIRE_ANVIL=1)"]
 
 [tool.ruff]
 target-version = "py311"

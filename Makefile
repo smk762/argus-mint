@@ -41,8 +41,9 @@ forge-test:  ## Run the forge tests (incl. fuzz)
 abi: forge-build  ## Copy contract ABIs into src/argus_mint/abi (committed)
 	$(UV) run --no-sync python scripts/export_abi.py
 
-fixtures:  ## Regenerate committed test fixtures with @openzeppelin/merkle-tree
+fixtures:  ## Regenerate committed fixtures: OZ merkle-tree (JS reference) + Python-built ones for forge
 	cd scripts/fixtures && $(NPM) ci --silent && node merkle.mjs ../../tests/fixtures/merkle.json
+	$(UV) run --no-sync python scripts/py_fixtures.py
 
 verifier-install:  ## Install the JS verifier's dependencies
 	cd verifier && $(NPM) ci --silent

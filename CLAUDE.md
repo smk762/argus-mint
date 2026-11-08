@@ -42,6 +42,9 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - Template hash = keccak256 of the canonical JSON of the template **minus `status`**, so retiring a template doesn't change the hash cards already carry. `approved_by`/`approved_at` are included.
 - Ledger commitments are **sha256** (atlas-realms already publishes `sha256(secret)`); Merkle leaves are OpenZeppelin `StandardMerkleTree` `["bytes32"]` (double keccak).
 - Contracts are not upgradeable; a new version is a new deployment.
+- **OpenZeppelin is pinned to v5.4.0 and `evm_version = "cancun"`** on purpose: OZ ≥ 5.5 emits the `clz` opcode, which needs an Osaka-compatible chain. Bump both together only once the target L2 is confirmed to support Osaka.
+- `Deed`: each `recordId` mints once, ever (a burned deed's record stays used), so a retried mint can't duplicate. The consumer makes per-player records with e.g. `keccak256(feat, player)`.
+- `Ledger.reveal` works once per epoch and is open to anyone; `Card.refresh`/`freeze` revert after freeze; `setBaseURI` emits `BatchMetadataUpdate` over all minted ids.
 
 ## Commands
 
@@ -61,7 +64,9 @@ Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.loc
 
 - **Versioning is git-tag-derived** (`hatch-vcs`); `_version.py` is generated. Each milestone ends with a pre-release tag (`v0.0.1a1`, `v0.1.0a1`, …) and a CHANGELOG heading.
 - **ABIs are committed and checked in CI** — after a contract change run `make abi` and commit the result in the same commit.
-- **Fixtures come from the reference implementation**, never from our own code: Merkle fixtures from `@openzeppelin/merkle-tree`. Don't regenerate them to make a failing test pass.
+- **Fixtures:** `tests/fixtures/merkle.json` comes from the reference JS library (`@openzeppelin/merkle-tree`) and must never be regenerated to make a failing test pass. `vouchers.json` and `proofs.json` are Python-built (`scripts/py_fixtures.py`) for the forge tests; `tests/test_fixtures.py` fails if they're stale.
+- **Forge gotcha:** `sha256(...)` / `ecrecover` are precompile *calls*, so they consume a pending `vm.prank` / `vm.expectRevert`. Compute hashes before the cheatcode.
+- Tests marked `anvil` start a local node and deploy from `contracts/out`; they skip without Foundry unless `ARGUS_MINT_REQUIRE_ANVIL=1` (CI's contracts job sets it).
 - `uv.lock` is committed; a dependency change needs `make lock` in the same commit.
 - Template origin: `argus-pkg-template` via copier. The template's Dockerfile and GHCR image jobs were removed on purpose (library, no service); CI is standalone because the shared argus-ci workflow has no Foundry hook. Re-delete those if `copier update` brings them back.
 - Branches: `dev` is the default and takes feature PRs; `main` gets `dev` → `main` release PRs (same as argus-atlas).
