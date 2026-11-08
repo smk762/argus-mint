@@ -60,7 +60,9 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - `render.render` retries **only** safety rejections, with `derive_seed(seed, n)` (attempt 0 = the given seed). A darklight `error` stops at once with the attempt log; transport retries belong inside the client. The prompt is identical across attempts.
 - `indexer.follow` is one stateless pass over blocks `[cursor.next_block, head - confirmations]` (paged by `max_blocks`). The returned `Cursor` carries the hash of the last block read; if that block is later replaced the next pass raises `ReorgTooDeep` rather than continuing on a stale view.
 - `pin.LocalPinner`/`raw_cid` produce real CIDv1 raw ids, equal to IPFS's only for single-chunk (≤ 256 KiB) files; treat them as local ids.
-- The CLI logs to stderr; `mint` prints JSON to stdout. Live (non-dry-run) minting is disabled until darklight's API and the pinning service are settled.
+- The CLI logs to stderr; `mint` prints JSON to stdout. Live minting needs `--darkroom` (or `--image`), `--ipfs-api` and `$ARGUS_MINT_SIGNER_KEY`.
+- Pinning: `compose.yaml` runs a Kubo node (`make ipfs`); its RPC (5001) is admin-level and stays on 127.0.0.1, swarm 4001 is public. A Kubo `add` of a file > 256 KiB returns a dag-pb CID (`bafybei…`), not a raw one; that's expected.
+- darkroom LoRAs need a workflow with `$lora`/`$lora_weight` slots; the deployed plain `sdxl.json` has none, so a template with LoRAs is refused (400) there. Model names come from darkroom's `GET /models`.
 
 ## Commands
 
@@ -74,6 +76,7 @@ make fixtures     # regenerate OZ merkle-tree fixtures (Node) + Python-built for
 make fixtures-rpc # record Ledger JSON-RPC responses from anvil for the verifier tests
 make verifier-install verifier-test   # JS verifier (node --test)
 make check        # lint test forge-test verifier-test — every milestone ends green on this
+make ipfs         # start the local Kubo node (docker compose)
 make deploy       # Base Sepolia (NETWORK=base for mainnet); needs .env from .env.example
 ```
 
@@ -87,5 +90,5 @@ Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.loc
 - **Forge gotcha:** `sha256(...)` / `ecrecover` are precompile *calls*, so they consume a pending `vm.prank` / `vm.expectRevert`. Compute hashes before the cheatcode.
 - Tests marked `anvil` start a local node and deploy from `contracts/out`; they skip without Foundry unless `ARGUS_MINT_REQUIRE_ANVIL=1` (CI's contracts job sets it).
 - `uv.lock` is committed; a dependency change needs `make lock` in the same commit.
-- Template origin: `argus-pkg-template` via copier. The template's Dockerfile and GHCR image jobs were removed on purpose (library, no service); CI is standalone because the shared argus-ci workflow has no Foundry hook. Re-delete those if `copier update` brings them back.
+- Template origin: `argus-pkg-template` via copier. The template's Dockerfile and GHCR image jobs were removed on purpose (library, no service; `compose.yaml` only runs dependencies such as Kubo); CI is standalone because the shared argus-ci workflow has no Foundry hook. Re-delete those if `copier update` brings them back.
 - Branches: `dev` is the default and takes feature PRs; `main` gets `dev` → `main` release PRs (same as argus-atlas).

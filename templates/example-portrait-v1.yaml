@@ -8,9 +8,10 @@ version: 1
 status: draft            # draft | approved | retired
 approved_by: null
 approved_at: null
-model: juggernaut-xl.safetensors          # darkroom checkpoint name
-loras:                                    # file name, weight, trigger words darkroom appends
-  - {name: fantasy-portrait.safetensors, weight: 0.8, trigger_words: []}
+model: sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors   # darkroom checkpoint (GET /models)
+# LoRAs need a darkroom workflow with $lora/$lora_weight slots (the plain sdxl.json has none), e.g.
+#   - {name: sdxl/sfw/aesthetic/dnd_cover_xl/dnd_cover.safetensors, weight: 0.6, trigger_words: []}
+loras: []
 sampling:                                 # fixed here so a render is reproducible
   sampler: euler
   scheduler: normal

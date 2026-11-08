@@ -1,0 +1,27 @@
+# Local services argus-mint talks to. darkroom (rendering) runs in its own stack (argus-darkroom).
+#
+#   docker compose up -d     # or: make ipfs
+#
+# kubo: the IPFS node that pins card images and metadata (`--ipfs-api http://127.0.0.1:5001`).
+# The RPC API is an admin interface (it can pin, unpin, and read the node's keys), so it is
+# published on 127.0.0.1 only; never expose 5001. The swarm port 4001 is public so other
+# peers (wallets, marketplaces, gateways) can fetch what this node pins; behind NAT, forward
+# 4001 tcp+udp on the router or content is reachable only via relays/hole punching.
+
+services:
+  kubo:
+    image: ipfs/kubo:v0.43.1
+    restart: unless-stopped
+    environment:
+      # `server`: don't scan or announce private (LAN) addresses.
+      IPFS_PROFILE: server
+    ports:
+      - "${IPFS_API_PUBLISH:-127.0.0.1:5001}:5001"
+      - "${IPFS_GATEWAY_PUBLISH:-127.0.0.1:8080}:8080"
+      - "${IPFS_SWARM_PORT:-4001}:4001/tcp"
+      - "${IPFS_SWARM_PORT:-4001}:4001/udp"
+    volumes:
+      - ipfs-data:/data/ipfs
+
+volumes:
+  ipfs-data:

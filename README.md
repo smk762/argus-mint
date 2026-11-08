@@ -65,13 +65,16 @@ make deploy                                 # Base Sepolia; `make deploy NETWORK
 
 The script deploys `Card`, `Deed` and `Ledger` over plain JSON-RPC, grants roles, and verifies the sources on Sourcify for free (Blockscout displays them). `VERIFIER=blockscout` verifies on Blockscout directly; `VERIFIER=etherscan` uses Basescan and needs an Etherscan API key.
 
-## Rendering with argus-darkroom
+## Rendering with argus-darkroom, pinning with Kubo
 
 ```bash
+make ipfs                                    # local Kubo node (compose.yaml): RPC 127.0.0.1:5001, gateway :8080
 argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # reviewer check, every combination
 argus-mint mint --template my-template.yaml --var ... --asset unit-17 --to 0x… --name "…" --card 0x… \
   --darkroom http://localhost:8106 --ipfs-api http://127.0.0.1:5001         # live: renders, pins, signs
 ```
+
+The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, forward 4001 (tcp+udp) or add a remote pinning service so cards stay retrievable when this host is offline.
 
 ## License
 

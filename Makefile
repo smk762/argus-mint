@@ -4,7 +4,7 @@ FORGE ?= $(shell command -v forge 2>/dev/null || echo $(HOME)/.foundry/bin/forge
 NPM ?= npm
 RUFF := $(UV)x ruff@0.15.16
 
-.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check
+.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check ipfs ipfs-down
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -69,6 +69,12 @@ deploy: forge-build  ## Deploy + verify (NETWORK=base_sepolia|base, VERIFIER=sou
 	@test -f .env || { echo "copy .env.example to .env first"; exit 1; }
 	set -a; . ./.env; set +a; cd contracts && $(FORGE) script script/Deploy.s.sol \
 		--rpc-url $(NETWORK) --account "$${DEPLOYER_ACCOUNT:-deployer}" --broadcast $(VERIFY_ARGS_$(VERIFIER))
+
+ipfs:  ## Start the local Kubo IPFS node (compose.yaml; RPC on 127.0.0.1:5001)
+	docker compose up -d kubo
+
+ipfs-down:  ## Stop the Kubo node (its data volume is kept)
+	docker compose stop kubo
 
 check: lint test forge-test verifier-test  ## Everything a milestone needs green
 
