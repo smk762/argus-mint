@@ -5,10 +5,10 @@
 #   argus-mint preflight templates/example-portrait-v1.yaml --darkroom http://localhost:8106
 id: example-portrait
 version: 1
-status: draft            # draft | approved | retired
-approved_by: null
-approved_at: null
-model: sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors   # darkroom checkpoint (GET /models)
+status: approved          # draft | approved | retired
+approved_by: dragonhound_dev
+approved_at: 2026-11-08
+model: sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors   # darkroom checkpoint (GET /models)
 # LoRAs need a darkroom workflow with $lora/$lora_weight slots (the plain sdxl.json has none), e.g.
 #   - {name: sdxl/sfw/aesthetic/dnd_cover_xl/dnd_cover.safetensors, weight: 0.6, trigger_words: []}
 loras: []
@@ -19,10 +19,12 @@ sampling:                                 # fixed here so a render is reproducib
   cfg: 5.0
 width: 1024
 height: 1024
-prompt: "portrait of a {role}, {colour} heraldry, {pose}, painted fantasy card art"
+prompt: "portrait of a {gender} {role}, {colour} heraldry, {pose}, {background}, painted fantasy card art"
 negative: "text, watermark, gore"
 variables:
-  role: [knight, ranger, sailor, rider]
-  colour: [crimson, azure, emerald, gold, none]
-  pose: [standing, charging, on guard]
+  role: [knight, ranger, sailor, elf, dark elf, wraith, centaur, cyborg, dwarf, human, orc, goblin, giant, dragon, wizard, priest]
+  gender: [male, female, non-binary]
+  colour: [crimson, azure, emerald, gold, silver, bronze, copper, iron, steel, obsidian, none]
+  pose: [standing, charging, on guard, kneeling, sitting, sleeping, dead, fighting, casting a spell, praying, drinking, eating, reading, writing, sewing, knitting, weaving, cooking, cleaning, gardening, fishing, hunting, gathering, building, repairing, chopping wood, mining]
+  background: [cave, castle, dungeon, forest, garden, library, laboratory, academy, temple, workshop, none]  
 max_attempts: 4
