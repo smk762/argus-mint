@@ -134,7 +134,10 @@ def test_load_template_errors(tmp_path):
         load_template(bad)
 
 
-def test_repo_example_templates_are_valid_drafts():
+def test_repo_example_templates_are_valid():
     reg = load_registry(REPO_TEMPLATES)
     assert reg
-    assert all(t.status == "draft" for t in reg.values())
+    for t in reg.values():
+        assert t.status in ("draft", "approved", "retired")
+        if t.status == "approved":  # approval is a recorded human step
+            assert t.approved_by and t.approved_at

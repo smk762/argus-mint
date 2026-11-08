@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## Unreleased
 
+## 0.1.0 (2026-11-08)
+
+First public release, covering milestones M0–M5. Pre-alpha: the Python API may still change, and the contracts have not had an external review. The Base mainnet deployment is a demo, not a production deployment.
+
 ### Added
 
 - Pre-review demo on Base mainnet: same contract addresses as testnet (deployer's first transaction), Sourcify-verified, six cards rendered fresh, pinned on a VPS node, minted and frozen by `demo/base/mint-batch.sh`.
