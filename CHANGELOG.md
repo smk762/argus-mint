@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- On-chain CLI: `submit` (voucher → `Card.mint`), `freeze` (fix tokenURI at ipfs://), `anchor` (Merkle root → Ledger, with the tree dump). Each pre-checks what the contract would refuse and decodes custom-error reverts. `keys` module: Foundry keystore signers (password file for unattended use, or a hidden prompt) alongside `$ARGUS_MINT_SIGNER_KEY`; `mint --account`. `chain.send(value=)`, `chain.explain_revert`.
 - `compose.yaml` with a pinned Kubo node (`make ipfs` / `make ipfs-down`); the example template now names real darkroom models. Verified end to end: darkroom render → Kubo pin → metadata → signed voucher.
 - darkroom render client (`darkroom.DarkroomClient`): guarded generation over SSE with record and image-hash checks, outcomes mapped onto the retry protocol; `argus-mint preflight` checks every template combination before approval; live `mint` (`--darkroom`, `--ipfs-api`). Templates gain `sampling` and weighted LoRAs with trigger words.
 - Keyless RPC: public Base endpoints with `chain.connect()` failover; contract verification defaults to Sourcify (free), with Blockscout or Basescan as options.

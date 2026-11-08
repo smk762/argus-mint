@@ -74,6 +74,14 @@ argus-mint mint --template my-template.yaml --var ... --asset unit-17 --to 0x…
   --darkroom http://localhost:8106 --ipfs-api http://127.0.0.1:5001         # live: renders, pins, signs
 ```
 
+On-chain, each step signs with a Foundry keystore account (`--account` / `$ARGUS_MINT_ACCOUNT`) or `$ARGUS_MINT_SIGNER_KEY`:
+
+```bash
+argus-mint submit demo-1.json                                         # send the voucher to Card.mint
+argus-mint freeze --card 0x… --token-id 1 --uri <metadata cid>        # fix tokenURI at ipfs://…
+argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Merkle root into the Ledger
+```
+
 The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, forward 4001 (tcp+udp) or add a remote pinning service so cards stay retrievable when this host is offline.
 
 ## License

@@ -27,7 +27,8 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (s
 src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_codec: keccak, canonical JSON, field types)
                   render pin indexer                       # clients behind Protocols (no web3 needed)
                   chain ledger                             # web3 clients (`chain` extra)
-                  cli                                      # Typer: templates, mint --dry-run
+                  keys                                     # signers: Foundry keystore (password file/prompt) or $ARGUS_MINT_SIGNER_KEY
+                  cli                                      # Typer: templates, preflight, mint, submit, freeze, anchor
                   abi/   # committed contract ABIs (`make abi`, abi.load(name)), so pip users never need Foundry
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
@@ -60,7 +61,9 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - `render.render` retries **only** safety rejections, with `derive_seed(seed, n)` (attempt 0 = the given seed). A darklight `error` stops at once with the attempt log; transport retries belong inside the client. The prompt is identical across attempts.
 - `indexer.follow` is one stateless pass over blocks `[cursor.next_block, head - confirmations]` (paged by `max_blocks`). The returned `Cursor` carries the hash of the last block read; if that block is later replaced the next pass raises `ReorgTooDeep` rather than continuing on a stale view.
 - `pin.LocalPinner`/`raw_cid` produce real CIDv1 raw ids, equal to IPFS's only for single-chunk (≤ 256 KiB) files; treat them as local ids.
-- The CLI logs to stderr; `mint` prints JSON to stdout. Live minting needs `--darkroom` (or `--image`), `--ipfs-api` and `$ARGUS_MINT_SIGNER_KEY`.
+- The CLI logs to stderr; every command's result is JSON on stdout (password prompts go to the tty via `getpass`). Live minting needs `--darkroom` (or `--image`), `--ipfs-api` and a signer.
+- Signers (`keys.load_signer`): `--account` / `$ARGUS_MINT_ACCOUNT` names a Foundry keystore (`~/.foundry/keystores/<name>` or a path), password from `$ARGUS_MINT_KEYSTORE_PASSWORD_FILE` or a hidden prompt; else `$ARGUS_MINT_SIGNER_KEY`. Never a key on the command line.
+- `submit` / `freeze` / `anchor` pre-check what the contract would refuse (role, already minted/frozen/anchored, expiry, chain id) before asking for a password or spending gas; a revert that still happens is decoded to the custom error's name by `chain.explain_revert`. `submit` refuses `dry_run` outputs. `anchor --tree` writes the standard-v1 dump *before* sending, so a landed root always has its tree.
 - Pinning: `compose.yaml` runs a Kubo node (`make ipfs`); its RPC (5001) is admin-level and stays on 127.0.0.1, swarm 4001 is public. A Kubo `add` of a file > 256 KiB returns a dag-pb CID (`bafybei…`), not a raw one; that's expected.
 - darkroom LoRAs need a workflow with `$lora`/`$lora_weight` slots; the deployed plain `sdxl.json` has none, so a template with LoRAs is refused (400) there. Model names come from darkroom's `GET /models`.
 

@@ -6,7 +6,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from eth_abi import decode as abi_decode
+
 from argus_mint import abi, networks
+from argus_mint._codec import hex0x, keccak256
 from argus_mint.networks import Network
 
 try:
@@ -15,7 +18,7 @@ try:
 except ImportError as e:  # pragma: no cover - exercised only without the extra
     raise ImportError("the chain clients need the `chain` extra: pip install 'argus-mint[chain]'") from e
 
-__all__ = ["NoRpcAvailable", "TxFailed", "connect", "contract", "send"]
+__all__ = ["NoRpcAvailable", "TxFailed", "connect", "contract", "explain_revert", "send"]
 
 
 class TxFailed(Exception):
@@ -47,25 +50,51 @@ def connect(network: Network | str, urls: Sequence[str] | None = None, *, timeou
     raise NoRpcAvailable(f"no RPC for {net.name}: " + "; ".join(errors))
 
 
+def explain_revert(c: Contract, exc: BaseException) -> str:
+    """A readable reason for a revert: the contract's custom error by name, with its args.
+
+    web3 surfaces a custom error as ``ContractCustomError`` carrying only the raw revert
+    data; this matches its 4-byte selector against the contract's ABI.
+    """
+    data = getattr(exc, "data", None)
+    if isinstance(data, dict):
+        data = data.get("data")
+    if isinstance(data, str) and data.startswith("0x") and len(data) >= 10:
+        raw = bytes.fromhex(data[2:])
+        for entry in c.abi:
+            if entry.get("type") != "error":
+                continue
+            types = [i["type"] for i in entry.get("inputs", [])]
+            if keccak256(f"{entry['name']}({','.join(types)})".encode())[:4] == raw[:4]:
+                args = abi_decode(types, raw[4:]) if types else ()
+                shown = ", ".join(hex0x(a) if isinstance(a, bytes) else str(a) for a in args)
+                return f"{entry['name']}({shown})"
+    return str(exc)
+
+
 def contract(w3: Web3, name: str, address: str) -> Contract:
     """A web3 contract for ``Card``, ``Deed`` or ``Ledger`` at ``address``."""
     return w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi.load(name))
 
 
-def send(w3: Web3, fn: Any, account: Any = None, *, timeout: float = 120) -> Any:
-    """Send a contract function call and return its receipt.
+def send(w3: Web3, fn: Any, account: Any = None, *, value: int = 0, timeout: float = 120) -> Any:
+    """Send a contract function call (with ``value`` wei attached) and return its receipt.
 
     ``account`` is a ``LocalAccount`` (the tx is signed locally) or an address the node
     holds unlocked (dev chains); ``None`` uses ``w3.eth.default_account``.
     """
     if account is not None and hasattr(account, "sign_transaction"):
         tx = fn.build_transaction(
-            {"from": account.address, "nonce": w3.eth.get_transaction_count(account.address, "pending")}
+            {
+                "from": account.address,
+                "nonce": w3.eth.get_transaction_count(account.address, "pending"),
+                "value": value,
+            }
         )
         tx_hash = w3.eth.send_raw_transaction(account.sign_transaction(tx).raw_transaction)
     else:
         sender = account or w3.eth.default_account
-        tx_hash = fn.transact({"from": sender} if sender else {})
+        tx_hash = fn.transact({"from": sender, "value": value} if sender else {"value": value})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=timeout)
     if receipt.status != 1:
         raise TxFailed(f"transaction {tx_hash.hex()} reverted")

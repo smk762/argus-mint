@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import time
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 import typer
 from eth_account import Account
 
 import argus_mint
-from argus_mint import networks
+from argus_mint import merkle, networks
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
 from argus_mint.darkroom import DarkroomClient, DarkroomError
+from argus_mint.keys import KEY_ENV, KeyLoadError, load_signer
 from argus_mint.metadata import Provenance, card_metadata, content_hash
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
 from argus_mint.render import Darklight, GenResult, RenderError, render
@@ -29,16 +29,28 @@ from argus_mint.templates import (
     load_registry,
     load_template,
 )
-from argus_mint.vouchers import Domain, MintVoucher, sign, typed_data
+from argus_mint.vouchers import Domain, MintVoucher, recover, sign, typed_data
 
 app = typer.Typer(help="argus-mint: provenance tokens for game assets.", no_args_is_help=True)
 
-SIGNER_ENV = "ARGUS_MINT_SIGNER_KEY"
 DarkroomOpt = Annotated[
     str | None,
     typer.Option(envvar="ARGUS_MINT_DARKROOM_URL", help="argus-darkroom base URL, e.g. http://localhost:8106"),
 ]
 PolicyOpt = Annotated[str, typer.Option(help="darkroom enforcing policy (default: the SFW policy)")]
+AccountOpt = Annotated[
+    str | None,
+    typer.Option(
+        envvar="ARGUS_MINT_ACCOUNT",
+        help="Foundry keystore account (name in ~/.foundry/keystores, or a path); "
+        f"password from $ARGUS_MINT_KEYSTORE_PASSWORD_FILE or a prompt. Default: ${KEY_ENV}",
+    ),
+]
+NetworkOpt = Annotated[str, typer.Option(help="base | base-sepolia | anvil")]
+RpcOpt = Annotated[
+    str | None,
+    typer.Option(envvar="ARGUS_MINT_RPC_URL", help="JSON-RPC URL (default: the network's public endpoints)"),
+]
 
 
 class _Stderr:
@@ -160,13 +172,15 @@ def mint(
         str | None,
         typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
     ] = None,
+    account: AccountOpt = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Pin locally (no IPFS); allow a throwaway signer")] = False,
 ) -> None:
     """Render, pin, build metadata and sign a mint voucher; print it all as JSON.
 
     Renders through darkroom when --darkroom is given (a placeholder image otherwise, dry run
-    only). A live run pins to IPFS via --ipfs-api and needs $ARGUS_MINT_SIGNER_KEY; a dry run
-    pins locally and uses a throwaway signer when the key is unset.
+    only). A live run pins to IPFS via --ipfs-api and signs with --account (a Foundry keystore)
+    or $ARGUS_MINT_SIGNER_KEY; a dry run pins locally and uses a throwaway signer when neither
+    is set. Send the result on-chain with `argus-mint submit`.
     """
     try:
         resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
@@ -179,20 +193,23 @@ def mint(
     except ValueError as e:
         raise typer.BadParameter(str(e), param_hint="--asset-id") from e
 
-    key_hex = os.environ.get(SIGNER_ENV)
+    try:
+        key = load_signer(account)
+    except KeyLoadError as e:
+        raise _fail(str(e)) from e
     if not dry_run:
         missing = [
             flag
             for flag, have in (
                 ("--darkroom or --image", darkroom or image),
                 ("--ipfs-api", ipfs_api),
-                (f"${SIGNER_ENV}", key_hex),
+                (f"--account or ${KEY_ENV}", key),
             )
             if not have
         ]
         if missing:
             raise _fail(f"a live mint needs {', '.join(missing)} (or use --dry-run)", 2)
-    signer = Account.from_key(key_hex) if key_hex else Account.create()
+    signer = key or Account.create()
     renderer: Darklight = (
         DarkroomClient(darkroom, policy=policy, accept_review=accept_review) if darkroom else _PlaceholderRenderer()
     )
@@ -252,7 +269,7 @@ def mint(
     out = {
         "dry_run": dry_run,
         "signer": signer.address,
-        "signer_is_ephemeral": key_hex is None,
+        "signer_is_ephemeral": key is None,
         "render": {
             "renderer": "darkroom" if darkroom and image is None else ("supplied" if image else "placeholder"),
             "prompt": req.prompt,
@@ -267,3 +284,189 @@ def mint(
         "typed_data": typed_data(voucher, domain),
     }
     typer.echo(json.dumps(out, indent=2, ensure_ascii=False))
+
+
+# --- on-chain: submit a voucher, freeze metadata, anchor a Merkle root ---------------------
+# Each needs the `chain` extra and a sending account (--account or $ARGUS_MINT_SIGNER_KEY).
+# Output is JSON on stdout: the tx hash, block, explorer link and what changed.
+
+
+def _chain(network: str, rpc_url: str | None) -> tuple[Any, networks.Network, Any]:
+    try:
+        from argus_mint import chain
+    except ImportError as e:
+        raise _fail(str(e)) from e
+    try:
+        net = networks.get(network)
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--network") from e
+    try:
+        w3 = chain.connect(net, [rpc_url] if rpc_url else None)
+    except chain.NoRpcAvailable as e:
+        raise _fail(str(e)) from e
+    return chain, net, w3
+
+
+def _sender(account: str | None) -> Any:
+    try:
+        sender = load_signer(account)
+    except KeyLoadError as e:
+        raise _fail(str(e)) from e
+    if sender is None:
+        raise _fail(f"needs a sending account: --account (Foundry keystore) or ${KEY_ENV}", 2)
+    return sender
+
+
+def _transact(chain: Any, w3: Any, c: Any, fn: Any, sender: Any, value: int = 0) -> Any:
+    from web3.exceptions import ContractLogicError, Web3Exception
+
+    try:
+        return chain.send(w3, fn, sender, value=value)
+    except ContractLogicError as e:
+        raise _fail(f"the contract refused: {chain.explain_revert(c, e)}") from e
+    except (chain.TxFailed, Web3Exception, ValueError) as e:  # e.g. insufficient funds for gas
+        raise _fail(f"transaction failed: {e}") from e
+
+
+def _tx(net: networks.Network, receipt: Any, sender: Any) -> dict[str, Any]:
+    tx_hash = hex0x(bytes(receipt["transactionHash"]))
+    return {
+        "network": net.name,
+        "from": sender.address,
+        "tx": tx_hash,
+        "block": receipt["blockNumber"],
+        "gas_used": receipt["gasUsed"],
+        "explorer": net.tx_url(tx_hash),
+    }
+
+
+def _read_input(path: Path) -> str:
+    return sys.stdin.read() if str(path) == "-" else path.read_text()
+
+
+@app.command()
+def submit(
+    mint_json: Annotated[Path, typer.Argument(help="JSON printed by `argus-mint mint` ('-' for stdin)")],
+    network: NetworkOpt = "base-sepolia",
+    rpc_url: RpcOpt = None,
+    account: AccountOpt = None,
+) -> None:
+    """Send a signed mint voucher to its Card contract; print the new token id.
+
+    Any account may submit a voucher (normally the player's wallet); it pays the gas and the
+    voucher's price. The card goes to the voucher's `to` address, not the sender.
+    """
+    try:
+        data = json.loads(_read_input(mint_json))
+        voucher = MintVoucher.model_validate(data["voucher"])
+        sig = bytes.fromhex(data["signature"].removeprefix("0x"))
+        dom = data["typed_data"]["domain"]
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise _fail(f"not a `mint` output: {e}") from e
+    if data.get("dry_run"):
+        raise _fail("this voucher is from a dry run (placeholder art, local pins); mint it live first")
+    chain, net, w3 = _chain(network, rpc_url)
+    if dom["chainId"] != net.chain_id:
+        raise _fail(f"the voucher is for chain {dom['chainId']}, but {net.name} is chain {net.chain_id}")
+    card = chain.contract(w3, "Card", dom["verifyingContract"])
+    domain = Domain(chain_id=dom["chainId"], verifying_contract=dom["verifyingContract"])
+
+    # Check what the contract would refuse first, so the error says why (and costs no gas).
+    signer = recover(voucher, domain, sig)
+    if not card.functions.hasRole(card.functions.SIGNER_ROLE().call(), signer).call():
+        raise _fail(f"the voucher's signer {signer} does not hold SIGNER_ROLE on {card.address}")
+    if existing := card.functions.tokenOfAsset(voucher.asset_id).call():
+        raise _fail(f"asset {hex0x(voucher.asset_id)} is already minted as token {existing}")
+    if voucher.deadline < w3.eth.get_block("latest")["timestamp"]:
+        raise _fail(f"the voucher expired at {voucher.deadline}; sign a new one")
+
+    sender = _sender(account)
+    v = voucher
+    fn = card.functions.mint((v.to, v.asset_id, v.content_hash, v.price, v.deadline), sig)
+    receipt = _transact(chain, w3, card, fn, sender, value=v.price)
+
+    from web3.logs import DISCARD
+
+    minted = card.events.Minted().process_receipt(receipt, errors=DISCARD)
+    token_id = minted[0]["args"]["tokenId"] if minted else None
+    out = {
+        **_tx(net, receipt, sender),
+        "card": card.address,
+        "token_id": token_id,
+        "to": v.to,
+        "asset_id": hex0x(v.asset_id),
+        "metadata_uri": f"ipfs://{data['metadata_cid']}" if data.get("metadata_cid") else None,
+        "token_url": f"{net.explorer}/nft/{card.address}/{token_id}" if net.explorer and token_id else None,
+    }
+    typer.echo(json.dumps(out, indent=2))
+
+
+@app.command()
+def freeze(
+    card: Annotated[str, typer.Option(help="Card contract address")],
+    token_id: Annotated[int, typer.Option(help="Token to freeze")],
+    uri: Annotated[str, typer.Option(help="Final metadata: ipfs://<cid> or a bare CID")],
+    network: NetworkOpt = "base-sepolia",
+    rpc_url: RpcOpt = None,
+    account: AccountOpt = None,
+) -> None:
+    """Fix a card's metadata at an IPFS URI for good (METADATA_ROLE; once per token).
+
+    After this, tokenURI returns URI, wallets and explorers can show the card, and the
+    metadata can no longer be refreshed.
+    """
+    uri = uri if uri.startswith("ipfs://") else f"ipfs://{uri}"
+    chain, net, w3 = _chain(network, rpc_url)
+    c = chain.contract(w3, "Card", card)
+    if c.functions.isFrozen(token_id).call():
+        raise _fail(f"token {token_id} is already frozen at {c.functions.tokenURI(token_id).call()}")
+    sender = _sender(account)
+    receipt = _transact(chain, w3, c, c.functions.freeze(token_id, uri), sender)
+    out = {**_tx(net, receipt, sender), "card": c.address, "token_id": token_id, "token_uri": uri}
+    typer.echo(json.dumps(out, indent=2))
+
+
+@app.command()
+def anchor(
+    leaves: Annotated[Path, typer.Argument(help="File of 32-byte 0x leaf values, one per line ('-' for stdin)")],
+    ledger: Annotated[str, typer.Option(help="Ledger contract address")],
+    epoch: Annotated[int, typer.Option(help="Epoch to anchor (once per epoch)", min=0, max=2**64 - 1)],
+    tree_out: Annotated[
+        Path | None, typer.Option("--tree", help="Write the tree (standard-v1 dump, for proofs) here")
+    ] = None,
+    network: NetworkOpt = "base-sepolia",
+    rpc_url: RpcOpt = None,
+    account: AccountOpt = None,
+) -> None:
+    """Build a Merkle tree over LEAVES and anchor its root in the Ledger (COMMITTER_ROLE).
+
+    Leaves are the consumer's 32-byte record hashes; blank lines and # comments are skipped.
+    Keep the --tree dump: proofs for individual records come from it.
+    """
+    try:
+        values = [
+            ln.strip() for ln in _read_input(leaves).splitlines() if ln.strip() and not ln.lstrip().startswith("#")
+        ]
+        tree = merkle.build(values)
+    except (OSError, ValueError) as e:
+        raise _fail(f"bad leaves: {e}") from e
+    if len(tree) > 2**32 - 1:
+        raise _fail("too many leaves for one anchor (uint32 count)")
+    chain, net, w3 = _chain(network, rpc_url)
+    c = chain.contract(w3, "Ledger", ledger)
+    root, count, at = c.functions.root(epoch).call()
+    if at:
+        raise _fail(f"epoch {epoch} is already anchored (root {hex0x(bytes(root))}, {count} leaves)")
+    if tree_out is not None:  # written before sending, so a landed anchor always has its tree
+        tree_out.write_text(json.dumps(tree.dump(), indent=2) + "\n")
+    sender = _sender(account)
+    receipt = _transact(chain, w3, c, c.functions.anchor(epoch, tree.root, len(tree)), sender)
+    out = {
+        **_tx(net, receipt, sender),
+        "ledger": c.address,
+        "epoch": epoch,
+        "root": hex0x(tree.root),
+        "count": len(tree),
+        "tree": str(tree_out) if tree_out else None,
+    }
+    typer.echo(json.dumps(out, indent=2))

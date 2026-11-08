@@ -124,13 +124,31 @@ Sourcify is the default. Blockscout (`base-sepolia.blockscout.com`, `base.blocks
    ```bash
    cast call <CARD> "hasRole(bytes32,address)(bool)" $(cast keccak SIGNER_ROLE) <SIGNER> --rpc-url https://sepolia.base.org
    ```
-3. Mint a test card. The voucher must name this chain and the Card address:
+3. Mint a test card, end to end. Each step that sends a transaction or signs asks for the keystore password (step 6 below avoids the prompts).
    ```bash
-   make ipfs
-   export ARGUS_MINT_SIGNER_KEY=…        # the SIGNER's key; in a shell, not a file
-   argus-mint mint --network base-sepolia --card <CARD> --template … --var … \
-     --darkroom http://127.0.0.1:8106 --ipfs-api http://127.0.0.1:5001 …
+   make ipfs                                   # local Kubo node for the image and metadata
+   export ARGUS_MINT_ACCOUNT=deployer          # sign and send as the keystore account
+
+   # render through darkroom, pin, build metadata, sign a voucher (SIGNER_ROLE)
+   argus-mint mint --network base-sepolia --card <CARD> --template templates/example-portrait-v1.yaml \
+     --var role=ranger --var colour=emerald --var "pose=on guard" --seed 42 --asset demo-1 \
+     --to <PLAYER> --name "Demo Ranger" \
+     --darkroom http://127.0.0.1:8106 --ipfs-api http://127.0.0.1:5001 > demo-1.json
+
+   argus-mint submit demo-1.json               # sends the voucher; prints the token id
+   argus-mint freeze --card <CARD> --token-id 1 --uri <metadata_cid from demo-1.json>   # METADATA_ROLE
    ```
-4. On mainnet, once the multisig admin works, the deployer can be emptied. It holds no roles if `ADMIN` was set.
+   `submit` checks first what the contract would refuse: a signer without the role, an asset already minted, an expired voucher, or the wrong chain. Those cost no gas. Any account may submit; in production that's the player's wallet.
+4. Anchor a Merkle root. The leaves are 32-byte record hashes, one per line:
+   ```bash
+   argus-mint anchor leaves.txt --ledger <LEDGER> --epoch 1 --tree epoch-1.json   # COMMITTER_ROLE
+   ```
+   Keep the `--tree` file: proofs for individual records come from it.
+5. On mainnet, once the multisig admin works, the deployer can be emptied. It holds no roles if `ADMIN` was set.
+6. Unattended signing (servers, cron): put the keystore password in a file only that user can read, and point at it:
+   ```bash
+   export ARGUS_MINT_KEYSTORE_PASSWORD_FILE=/run/secrets/argus-mint-signer   # mode 600
+   ```
+   Or give the raw key in `$ARGUS_MINT_SIGNER_KEY`, if your secret store hands out environment variables. A key is never accepted as a command-line argument: it would end up in shell history and in `ps`.
 
 Contracts are not upgradeable: a new version is a new deployment, with new addresses.
