@@ -1,5 +1,5 @@
 {
-  "id": "d96a76856b70b142",
+  "id": "6f4c1bca02a49a76",
   "status": "approved",
   "awaiting": [],
   "draft": {
@@ -40,9 +40,9 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x89964876bb9e20b0262233b1c023a63554302b2f1653191a12c0e63e3fdc0608",
-    "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+    "to": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
     "name": "Azure Stormcaller",
-    "description": "Azure Stormcaller once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+    "description": "Azure Stormcaller mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
     "external_url": null,
     "consumer": "argus-mint",
     "frame": {
@@ -57,12 +57,12 @@
         "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
         "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
       },
-      "text": "Azure Stormcaller once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+      "text": "Azure Stormcaller mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
       "attempts": [
         {
           "outcome": "ok",
           "detail": "",
-          "text": "{name} once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised."
+          "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
         }
       ]
     },
@@ -71,23 +71,23 @@
       "stats": "No. 3"
     },
     "art_sha256": "d572b28f3837b5077dd5dc294ed85e109607731c51735ab8837993bc64869c1b",
-    "image_sha256": "3180412ba22cef72d7fe30cbc2274231688cd4b4b45b38a6e75d2ab2e122205b",
-    "created_at": "2026-11-09T04:09:57.139382Z",
+    "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
+    "created_at": "2026-11-09T04:22:51.900754Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-09T04:09:57.147270Z",
-        "image_sha256": "3180412ba22cef72d7fe30cbc2274231688cd4b4b45b38a6e75d2ab2e122205b",
+        "at": "2026-11-09T04:22:51.908336Z",
+        "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
-        "at": "2026-11-09T04:09:57.165665Z",
-        "image_sha256": "3180412ba22cef72d7fe30cbc2274231688cd4b4b45b38a6e75d2ab2e122205b",
+        "by": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
+        "at": "2026-11-09T04:22:51.927129Z",
+        "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
         "note": ""
       }
     ]

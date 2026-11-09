@@ -5,7 +5,9 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 
 - One draft per state: pending, approved, rejected, published (the published one has its
   `publish.json` result: pins, metadata, signed voucher).
-- The template, frame and bio template are the repo's examples, marked approved for the fixture.
+- The template (v2), card-green frame and bio template are the repo's examples, marked approved
+  for the fixture. Two drafts await catalogue review: template v3 (v2 with one more negative
+  term) and the placeholder example-plain frame. One sample job renders v3 in the frame.
 - Backends were stand-ins: art from files, canned bios, local (non-IPFS) CIDs, a throwaway owner
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs

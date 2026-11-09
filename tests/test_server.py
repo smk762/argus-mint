@@ -67,7 +67,7 @@ def setup(tmp_path, template_doc):
 
     def make(**over):
         cfg = Settings(
-            drafts_dir=tmp_path / "drafts", templates_dir=tmp_path / "templates", frames_dir=fdir,
+            drafts_dir=tmp_path / "drafts", samples_dir=tmp_path / "samples", templates_dir=tmp_path / "templates", frames_dir=fdir,
             bios_dir=tmp_path / "bios", darkroom_url="http://darkroom", writer_url="http://writer",
             ipfs_api="http://ipfs", network="base-sepolia", card=CARD, moderator_token=TOKEN,
             siwe_domain="assay.example", **over,
@@ -103,7 +103,8 @@ def _owner_review(c, draft_id, wallet, approve=True):
 def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
-    assert h["wire_version"] == "1.0" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
+    assert h["wire_version"] == "1.1" and h["chain_id"] == 84532 and h["card"] == CARD
     assert all(h["capabilities"].values())
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
@@ -196,6 +197,7 @@ def test_cross_site_writes_and_read_only(setup, owner):
     ro = setup(read_only=True)
     assert ro.get("/health").json()["capabilities"] == {
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
+        "sample": False, "review_catalogue": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403
 
@@ -214,3 +216,68 @@ def test_wire_schema_is_committed():
 
     committed = (Path(__file__).resolve().parents[1] / "schema" / "mint-wire.schema.json").read_text()
     assert committed == render_schema(WIRE_MODELS, title=f"argus-mint wire {WIRE_VERSION}")
+
+
+def _wait(c, job_id):
+    import time
+
+    for _ in range(200):
+        job = c.get(f"/samples/{job_id}").json()
+        if job["status"] in ("done", "failed"):
+            return job
+        time.sleep(0.02)
+    raise AssertionError("sample job did not finish")
+
+
+def test_samples_render_drafts_to_local_jobs(setup, tmp_path):
+    c = setup()
+    t = tmp_path / "templates" / "t.yaml"
+    t.write_text(t.read_text().replace("status: approved", "status: draft"))  # samples are for drafts
+    body = {
+        "template": {"id": "test-portrait", "version": 1}, "frame": {"id": "test-frame", "version": 1},
+        "bio": {"id": "test-bio", "version": 1}, "count": 3, "variables": {"role": "ranger"}, "name": "Hana",
+    }  # fmt: skip
+    assert c.post("/samples", json=body).status_code == 401
+    r = c.post("/samples", json=body, headers=AUTH)
+    assert r.status_code == 202, r.text
+    job = _wait(c, r.json()["id"])
+    assert job["status"] == "done" and len(job["items"]) == 3
+    assert all(i["variables"]["role"] == "ranger" and i["framed"] and i["bio"].startswith("Hana") for i in job["items"])
+    assert c.get(f"/samples/{job['id']}/1/framed").content[:4] == b"\x89PNG"
+    assert c.get("/samples").json()["total"] == 1
+    assert c.post("/samples", json=body | {"variables": {"role": "wizard"}}, headers=AUTH).status_code == 422
+    assert c.get("/samples/not-an-id").status_code == 400
+
+    preview = {"art": {"sample": job["id"], "n": 1}, "name": "Hana", "bio": "A lyrical line."}
+    r = c.post("/frames/test-frame/1/preview", json=preview)
+    assert r.status_code == 200 and r.content[:4] == b"\x89PNG"
+    assert c.post("/frames/test-frame/1/preview", json=preview | {"texts": {"stats": "1"}}).status_code == 422
+
+
+def test_catalogue_decisions_edit_the_file(setup, tmp_path):
+    c = setup()
+    t = tmp_path / "templates" / "t.yaml"
+    t.write_text(
+        "# reviewed by a human\n"
+        + t.read_text()
+        .replace("status: approved", "status: draft  # draft | approved | retired")
+        .replace("approved_by: reviewer\n", "")
+        .replace("approved_at: '2026-11-08'\n", "")
+    )
+    url = "/templates/test-portrait/1/review"
+    assert c.post(url, json={"decision": "approve", "by": "mod"}).status_code == 401
+    assert c.post(url, json={"decision": "retire", "by": "mod"}, headers=AUTH).status_code == 409  # still a draft
+    r = c.post(url, json={"decision": "approve", "by": "dragonhound_dev"}, headers=AUTH)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved"
+    text = t.read_text()
+    assert text.startswith("# reviewed by a human") and "# draft | approved | retired" in text  # comments kept
+    assert 'approved_by: "dragonhound_dev"' in text and "approved_at: " in text
+    approved_hash = r.json()["hash"]
+    r = c.post(url, json={"decision": "retire", "by": "mod"}, headers=AUTH)
+    assert r.json()["status"] == "retired" and r.json()["hash"] == approved_hash  # retiring keeps the hash
+    assert (
+        c.post("/frames/test-frame/1/review", json={"decision": "retire", "by": "m"}, headers=AUTH).json()["status"]
+        == "retired"
+    )
+    assert c.post("/bios/nope/1/review", json={"decision": "approve", "by": "m"}, headers=AUTH).status_code == 404

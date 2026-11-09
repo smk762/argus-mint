@@ -1,5 +1,5 @@
 {
-  "id": "20306cb0b5b6c77a",
+  "id": "45ea47864d5bf95d",
   "status": "published",
   "awaiting": [],
   "draft": {
@@ -40,9 +40,9 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
-    "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+    "to": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
     "name": "Emerald Wizard",
-    "description": "Emerald Wizard hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+    "description": "Emerald Wizard mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
     "external_url": null,
     "consumer": "argus-mint",
     "frame": {
@@ -57,12 +57,12 @@
         "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
         "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
       },
-      "text": "Emerald Wizard hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+      "text": "Emerald Wizard mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
       "attempts": [
         {
           "outcome": "ok",
           "detail": "",
-          "text": "{name} hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen."
+          "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
         }
       ]
     },
@@ -71,23 +71,23 @@
       "stats": "No. 1"
     },
     "art_sha256": "d572b28f3837b5077dd5dc294ed85e109607731c51735ab8837993bc64869c1b",
-    "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
-    "created_at": "2026-11-09T04:09:56.147056Z",
+    "image_sha256": "b3b8bd05d8bbcc00809d2066b3dfff74b3365f2c3320e39313302b7305530a27",
+    "created_at": "2026-11-09T04:22:50.913029Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-09T04:09:56.156937Z",
-        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "at": "2026-11-09T04:22:50.923045Z",
+        "image_sha256": "b3b8bd05d8bbcc00809d2066b3dfff74b3365f2c3320e39313302b7305530a27",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
-        "at": "2026-11-09T04:09:56.179354Z",
-        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "by": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
+        "at": "2026-11-09T04:22:50.946799Z",
+        "image_sha256": "b3b8bd05d8bbcc00809d2066b3dfff74b3365f2c3320e39313302b7305530a27",
         "note": ""
       }
     ]
@@ -107,30 +107,30 @@
         }
       ],
       "art_cid": "bafkreigvokzi6obxwudx3vo4ffhnqxqqsydxghcronnlra3zso6gjbu4dm",
-      "image_cid": "bafkreic26typfwj24drlvezrvbfmewfi7hz5qcgddrofzp5odaniawxlbi"
+      "image_cid": "bafkreiftxc6qlwf3zqaibhjam2z5773uwm3f6lbtedrzgezqfnzqkuyke4"
     },
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-09T04:09:56.156937Z",
-        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "at": "2026-11-09T04:22:50.923045Z",
+        "image_sha256": "b3b8bd05d8bbcc00809d2066b3dfff74b3365f2c3320e39313302b7305530a27",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
-        "at": "2026-11-09T04:09:56.179354Z",
-        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "by": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
+        "at": "2026-11-09T04:22:50.946799Z",
+        "image_sha256": "b3b8bd05d8bbcc00809d2066b3dfff74b3365f2c3320e39313302b7305530a27",
         "note": ""
       }
     ],
     "metadata": {
       "name": "Emerald Wizard",
-      "description": "Emerald Wizard hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
-      "image": "ipfs://bafkreic26typfwj24drlvezrvbfmewfi7hz5qcgddrofzp5odaniawxlbi",
+      "description": "Emerald Wizard mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+      "image": "ipfs://bafkreiftxc6qlwf3zqaibhjam2z5773uwm3f6lbtedrzgezqfnzqkuyke4",
       "attributes": [],
       "provenance": {
         "template": "example-portrait",
@@ -154,15 +154,15 @@
         }
       }
     },
-    "metadata_cid": "bafkreifsxpmqvloswhyc2sjitekwd7xq4pqcrpwvmfvohsbsdw56ddpe7m",
+    "metadata_cid": "bafkreian5fssm6yx25wyinivnvwvsxbvaltjhnwxcetlvg6bb6isagkzei",
     "voucher": {
-      "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+      "to": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
       "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
-      "content_hash": "0xbfb359bc4fd2f49199f3bf702808227eb46efb687150e3ec52f0d02075fa129c",
+      "content_hash": "0xcd5724de874d0e5761851dd2099ae7c2987b182d9cb171317634633ba093a05f",
       "price": 0,
       "deadline": 1900000000
     },
-    "signature": "0x6b9fff8a5c3be7407d18d9512b2f8a57a3d9d44d15564284111f54c6a7dea10b71630c39edc26a402b11bd93ae1605d8ec3334615de1b06aea5ec0f811f169671b",
+    "signature": "0x78eb4f5f73da7394380de033a96a54a91dbda3e454ffc04e5742ceed5be12dbf5acfb7fc847754836a3f44d950c9af1a6b5792326313681a2e58483d8d235c171b",
     "typed_data": {
       "types": {
         "EIP712Domain": [
@@ -214,9 +214,9 @@
         "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
       },
       "message": {
-        "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+        "to": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
         "assetId": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
-        "contentHash": "0xbfb359bc4fd2f49199f3bf702808227eb46efb687150e3ec52f0d02075fa129c",
+        "contentHash": "0xcd5724de874d0e5761851dd2099ae7c2987b182d9cb171317634633ba093a05f",
         "price": 0,
         "deadline": 1900000000
       }

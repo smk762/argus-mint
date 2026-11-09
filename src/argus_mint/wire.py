@@ -36,9 +36,17 @@ __all__ = [
     "ReviewRequest",
     "TemplateInfo",
     "WIRE_MODELS",
+    "ArtSource",
+    "CatalogueDecision",
+    "CatalogueEntry",
+    "FramePreviewRequest",
+    "SampleItem",
+    "SampleJob",
+    "SampleJobList",
+    "SampleRequest",
 ]
 
-WIRE_VERSION = "1.0"
+WIRE_VERSION = "1.1"  # 1.1: sample jobs, frame previews, catalogue decisions
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -54,6 +62,8 @@ class Capabilities(_Wire):
     moderate: bool  # moderator token set, not read-only
     owner_review: bool  # SIWE domain set, not read-only
     publish: bool  # IPFS, signer and Card address configured, moderator token set, not read-only
+    sample: bool = False  # darkroom configured, moderator token set, not read-only
+    review_catalogue: bool = False  # moderator token set, catalogue files writable, not read-only
 
 
 class Health(_Wire):
@@ -73,11 +83,14 @@ class Health(_Wire):
 
 class TemplateInfo(_Wire):
     hash: str
+    file: str  # path relative to the templates directory
+    combinations: int  # how many variable combinations a reviewer is approving
     template: Template
 
 
 class FrameInfo(_Wire):
     hash: str
+    file: str
     width: int
     height: int
     frame: Frame
@@ -85,6 +98,7 @@ class FrameInfo(_Wire):
 
 class BioInfo(_Wire):
     hash: str
+    file: str
     bio: BioTemplate
 
 
@@ -178,6 +192,81 @@ class PublishRequest(_Wire):
     deadline: int | None = None  # unix seconds; default now + the server's voucher TTL
 
 
+class SampleRequest(_Wire):
+    """POST /samples: render sample cards of a template (any status) for its reviewer."""
+
+    template: Ref
+    frame: Ref | None = None
+    bio: Ref | None = None
+    count: int = Field(default=4, ge=1, le=12)
+    variables: dict[str, str] = Field(default_factory=dict)  # fixed values; the rest vary
+    seed: int = Field(default=0, ge=0, le=2**32 - 1)  # picks the combinations, and the first render seed
+    name: str = Field(default="Sample", min_length=1, max_length=120)
+    texts: dict[str, str] = Field(default_factory=dict)
+
+
+class SampleItem(_Wire):
+    n: int
+    variables: dict[str, str]
+    prompt: str | None = None
+    seed: int | None = None
+    attempts: list[dict[str, Any]] = Field(default_factory=list)
+    bio: str | None = None
+    bio_attempts: list[dict[str, Any]] = Field(default_factory=list)
+    error: str | None = None  # the render failed (every attempt rejected, or darkroom refused)
+    bio_error: str | None = None
+    art: bool = False  # GET /samples/{id}/{n}/art exists
+    framed: bool = False  # GET /samples/{id}/{n}/framed exists
+
+
+class SampleJob(_Wire):
+    id: str
+    status: Literal["queued", "running", "done", "failed"]
+    created_at: datetime
+    finished_at: datetime | None = None
+    error: str | None = None
+    request: SampleRequest
+    items: list[SampleItem] = Field(default_factory=list)
+
+
+class SampleJobList(_Wire):
+    items: list[SampleJob]
+    total: int
+
+
+class ArtSource(_Wire):
+    """Existing art to preview a frame on: a draft's render, or a sample's."""
+
+    draft: str | None = None
+    sample: str | None = None
+    n: int | None = None
+
+
+class FramePreviewRequest(_Wire):
+    """POST /frames/{id}/{version}/preview: a frame (any status) on existing art; returns a PNG."""
+
+    art: ArtSource
+    name: str = Field(default="Sample", min_length=1, max_length=120)
+    bio: str | None = Field(default=None, max_length=2000)
+    texts: dict[str, str] = Field(default_factory=dict)
+
+
+class CatalogueDecision(_Wire):
+    """POST /{templates,frames,bios}/{id}/{version}/review (moderator token)."""
+
+    decision: Literal["approve", "retire"]
+    by: str = Field(min_length=1, max_length=128)
+
+
+class CatalogueEntry(_Wire):
+    kind: Literal["template", "frame", "bio"]
+    id: str
+    version: int
+    status: Literal["draft", "approved", "retired"]
+    hash: str
+    file: str
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -191,4 +280,10 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     ReviewRequest,
     PublishRequest,
     PublishResult,
+    SampleRequest,
+    SampleJob,
+    SampleJobList,
+    FramePreviewRequest,
+    CatalogueDecision,
+    CatalogueEntry,
 )

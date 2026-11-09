@@ -1,10 +1,58 @@
 {
   "$defs": {
+    "ArtSource": {
+      "additionalProperties": false,
+      "description": "Existing art to preview a frame on: a draft's render, or a sample's.",
+      "properties": {
+        "draft": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Draft"
+        },
+        "n": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N"
+        },
+        "sample": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample"
+        }
+      },
+      "title": "ArtSource",
+      "type": "object"
+    },
     "BioInfo": {
       "additionalProperties": false,
       "properties": {
         "bio": {
           "$ref": "#/$defs/BioTemplate"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
         },
         "hash": {
           "title": "Hash",
@@ -13,6 +61,7 @@
       },
       "required": [
         "hash",
+        "file",
         "bio"
       ],
       "title": "BioInfo",
@@ -202,6 +251,16 @@
           "title": "Publish",
           "type": "boolean"
         },
+        "review_catalogue": {
+          "default": false,
+          "title": "Review Catalogue",
+          "type": "boolean"
+        },
+        "sample": {
+          "default": false,
+          "title": "Sample",
+          "type": "boolean"
+        },
         "write_bios": {
           "title": "Write Bios",
           "type": "boolean"
@@ -344,6 +403,81 @@
         "created_at"
       ],
       "title": "CardDraft",
+      "type": "object"
+    },
+    "CatalogueDecision": {
+      "additionalProperties": false,
+      "description": "POST /{templates,frames,bios}/{id}/{version}/review (moderator token).",
+      "properties": {
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "retire"
+          ],
+          "title": "Decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "by"
+      ],
+      "title": "CatalogueDecision",
+      "type": "object"
+    },
+    "CatalogueEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "template",
+            "frame",
+            "bio"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "status",
+        "hash",
+        "file"
+      ],
+      "title": "CatalogueEntry",
       "type": "object"
     },
     "Challenge": {
@@ -716,6 +850,10 @@
     "FrameInfo": {
       "additionalProperties": false,
       "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
         "frame": {
           "$ref": "#/$defs/Frame"
         },
@@ -734,11 +872,53 @@
       },
       "required": [
         "hash",
+        "file",
         "width",
         "height",
         "frame"
       ],
       "title": "FrameInfo",
+      "type": "object"
+    },
+    "FramePreviewRequest": {
+      "additionalProperties": false,
+      "description": "POST /frames/{id}/{version}/preview: a frame (any status) on existing art; returns a PNG.",
+      "properties": {
+        "art": {
+          "$ref": "#/$defs/ArtSource"
+        },
+        "bio": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "name": {
+          "default": "Sample",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "art"
+      ],
+      "title": "FramePreviewRequest",
       "type": "object"
     },
     "FrameRef": {
@@ -837,7 +1017,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.0",
+          "default": "1.1",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1226,6 +1406,274 @@
       "title": "ReviewRequest",
       "type": "object"
     },
+    "SampleItem": {
+      "additionalProperties": false,
+      "properties": {
+        "art": {
+          "default": false,
+          "title": "Art",
+          "type": "boolean"
+        },
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "bio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "bio_attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Bio Attempts",
+          "type": "array"
+        },
+        "bio_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio Error"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "framed": {
+          "default": false,
+          "title": "Framed",
+          "type": "boolean"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "n",
+        "variables"
+      ],
+      "title": "SampleItem",
+      "type": "object"
+    },
+    "SampleJob": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SampleItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "request": {
+          "$ref": "#/$defs/SampleRequest"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "created_at",
+        "request"
+      ],
+      "title": "SampleJob",
+      "type": "object"
+    },
+    "SampleJobList": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SampleJob"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "SampleJobList",
+      "type": "object"
+    },
+    "SampleRequest": {
+      "additionalProperties": false,
+      "description": "POST /samples: render sample cards of a template (any status) for its reviewer.",
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "count": {
+          "default": 4,
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "default": "Sample",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        },
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "title": "SampleRequest",
+      "type": "object"
+    },
     "Sampling": {
       "additionalProperties": false,
       "description": "Sampler settings, fixed by the reviewed template so a render is reproducible.",
@@ -1397,6 +1845,14 @@
     "TemplateInfo": {
       "additionalProperties": false,
       "properties": {
+        "combinations": {
+          "title": "Combinations",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
         "hash": {
           "title": "Hash",
           "type": "string"
@@ -1407,6 +1863,8 @@
       },
       "required": [
         "hash",
+        "file",
+        "combinations",
         "template"
       ],
       "title": "TemplateInfo",
@@ -1510,5 +1968,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.0"
+  "title": "argus-mint wire 1.1"
 }

@@ -11,6 +11,10 @@
 ``POST /drafts/{id}/challenge``        the SIWE message the owner signs to approve or reject
 ``POST /drafts/{id}/review``           a decision: moderator by token, owner by signed challenge
 ``POST /drafts/{id}/publish``          pin and sign an approved draft (moderator token)
+``POST /samples`` ``GET /samples[/{id}]``  sample cards of a draft template/frame/bio, as background jobs
+``GET  /samples/{id}/{n}/art|framed``  a sample's images (local only: never pinned, signed or minted)
+``POST /frames/{id}/{version}/preview``  a frame (any status) on a draft's or sample's art, as a PNG
+``POST /{templates,frames,bios}/{id}/{version}/review``  approve a draft or retire an approved file
 =====================================  =============================================================================
 
 Who may do what: the moderator token (``ARGUS_MINT_MODERATOR_TOKEN``) creates drafts, reviews
@@ -25,7 +29,11 @@ refused (cortex's ``WriteGuard``: CORS alone is not a write boundary), and with
 
 from __future__ import annotations
 
+import math
 import os
+import queue
+import random
+import re
 import secrets
 import threading
 import urllib.error
@@ -35,6 +43,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
 
+import structlog
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
 from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -56,15 +65,18 @@ from argus_mint.cards import (
     review,
     sha256_hex,
 )
+from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
-from argus_mint.frames import FrameError, LoadedFrame, load_frame
+from argus_mint.frames import FrameError, LoadedFrame, compose, load_frame
 from argus_mint.keys import KeyLoadError, load_signer
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
-from argus_mint.templates import Template, TemplateError, load_registry
+from argus_mint.templates import Template, TemplateError, combinations, load_template
 from argus_mint.wire import (
     BioInfo,
     Capabilities,
+    CatalogueDecision,
+    CatalogueEntry,
     Challenge,
     ChallengeRequest,
     CreateDraft,
@@ -72,16 +84,23 @@ from argus_mint.wire import (
     DraftList,
     DraftSummary,
     FrameInfo,
+    FramePreviewRequest,
     Health,
     PublishRequest,
     PublishResult,
     Ref,
     ReviewRequest,
+    SampleItem,
+    SampleJob,
+    SampleJobList,
+    SampleRequest,
     TemplateInfo,
 )
-from argus_mint.workflow import create_draft, publish
+from argus_mint.workflow import card_texts, check_texts, create_draft, publish, sample_card
 
 __all__ = ["DEFAULT_PORT", "Settings", "create_app"]
+
+log = structlog.get_logger(__name__)
 
 DEFAULT_PORT = 8108
 PREFIX = "ARGUS_MINT_"
@@ -96,6 +115,7 @@ class Settings:
     """Server configuration, normally from ``ARGUS_MINT_*`` environment variables."""
 
     drafts_dir: Path = Path("drafts")
+    samples_dir: Path = Path("samples")
     templates_dir: Path = Path("templates")
     frames_dir: Path = Path("frames")
     bios_dir: Path = Path("bios")
@@ -125,6 +145,7 @@ class Settings:
         origins = tuple(o.strip() for o in get("CORS_ORIGINS").split(",") if o.strip())
         return cls(
             drafts_dir=Path(get("DRAFTS_DIR", "drafts")),
+            samples_dir=Path(get("SAMPLES_DIR", "samples")),
             templates_dir=Path(get("TEMPLATES_DIR", "templates")),
             frames_dir=Path(get("FRAMES_DIR", "frames")),
             bios_dir=Path(get("BIOS_DIR", "bios")),
@@ -225,6 +246,10 @@ def create_app(
             moderate=writable and has_token,
             owner_review=writable and bool(cfg.siwe_domain),
             publish=writable and has_token and pinner is not None and signer_configured and bool(cfg.card),
+            sample=writable and has_token and darkroom is not None,
+            review_catalogue=writable
+            and has_token
+            and all(d.is_dir() and os.access(d, os.W_OK) for d in (cfg.templates_dir, cfg.frames_dir, cfg.bios_dir)),
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -248,34 +273,42 @@ def create_app(
         if scheme.lower() != "bearer" or not secrets.compare_digest(token.strip(), cfg.moderator_token):
             raise HTTPException(401, "a valid moderator token is required", headers={"WWW-Authenticate": "Bearer"})
 
-    def templates() -> dict[tuple[str, int], Template]:
-        try:
-            return load_registry(cfg.templates_dir) if cfg.templates_dir.is_dir() else {}
-        except TemplateError as e:
-            raise HTTPException(500, f"template directory is invalid: {e}") from e
-
     def yaml_files(root: Path) -> list[Path]:
         return sorted([*root.rglob("*.yaml"), *root.rglob("*.yml")]) if root.is_dir() else []
 
-    def frames() -> dict[tuple[str, int], LoadedFrame]:
-        out = {}
-        for f in yaml_files(cfg.frames_dir):
+    kinds: dict[str, tuple[Path, Any, type[Exception]]] = {
+        "template": (cfg.templates_dir, load_template, TemplateError),
+        "frame": (cfg.frames_dir, load_frame, FrameError),
+        "bio": (cfg.bios_dir, load_bio, BioError),
+    }
+
+    def load_kind(kind: str) -> dict[tuple[str, int], tuple[Any, Path]]:
+        """Every file of one kind (any status), keyed by (id, version), with its path."""
+        root, loader, error = kinds[kind]
+        out: dict[tuple[str, int], tuple[Any, Path]] = {}
+        for f in yaml_files(root):
             try:
-                lf = load_frame(f)
-            except FrameError as e:
-                raise HTTPException(500, f"frame directory is invalid: {e}") from e
-            out[(lf.frame.id, lf.frame.version)] = lf
+                obj = loader(f)
+            except error as e:
+                raise HTTPException(500, f"{kind} directory is invalid: {e}") from e
+            meta = obj.frame if kind == "frame" else obj
+            key = (meta.id, meta.version)
+            if key in out:
+                raise HTTPException(500, f"duplicate {kind} {key[0]} v{key[1]}: {out[key][1]} and {f}")
+            out[key] = (obj, f)
         return out
 
+    def templates() -> dict[tuple[str, int], Template]:
+        return {k: v[0] for k, v in load_kind("template").items()}
+
+    def frames() -> dict[tuple[str, int], LoadedFrame]:
+        return {k: v[0] for k, v in load_kind("frame").items()}
+
     def bios() -> dict[tuple[str, int], BioTemplate]:
-        out = {}
-        for f in yaml_files(cfg.bios_dir):
-            try:
-                bt = load_bio(f)
-            except BioError as e:
-                raise HTTPException(500, f"bio directory is invalid: {e}") from e
-            out[(bt.id, bt.version)] = bt
-        return out
+        return {k: v[0] for k, v in load_kind("bio").items()}
+
+    def rel(kind: str, path: Path) -> str:
+        return str(path.relative_to(kinds[kind][0]))
 
     def pick(table: dict[tuple[str, int], Any], ref: Ref, kind: str) -> Any:
         try:
@@ -325,13 +358,21 @@ def create_app(
 
     @app.get("/templates")
     def list_templates() -> list[TemplateInfo]:
-        return [TemplateInfo(hash=hex0x(t.hash()), template=t) for _k, t in sorted(templates().items())]
+        return [
+            TemplateInfo(
+                hash=hex0x(t.hash()),
+                file=rel("template", path),
+                combinations=math.prod(len(v) for v in t.variables.values()),
+                template=t,
+            )
+            for _k, (t, path) in sorted(load_kind("template").items())
+        ]
 
     @app.get("/frames")
     def list_frames() -> list[FrameInfo]:
         return [
-            FrameInfo(hash=hex0x(f.hash()), width=f.size[0], height=f.size[1], frame=f.frame)
-            for _k, f in sorted(frames().items())
+            FrameInfo(hash=hex0x(f.hash()), file=rel("frame", path), width=f.size[0], height=f.size[1], frame=f.frame)
+            for _k, (f, path) in sorted(load_kind("frame").items())
         ]
 
     @app.get("/frames/{frame_id}/{version}/overlay")
@@ -341,7 +382,10 @@ def create_app(
 
     @app.get("/bios")
     def list_bios() -> list[BioInfo]:
-        return [BioInfo(hash=hex0x(b.hash()), bio=b) for _k, b in sorted(bios().items())]
+        return [
+            BioInfo(hash=hex0x(b.hash()), file=rel("bio", path), bio=b)
+            for _k, (b, path) in sorted(load_kind("bio").items())
+        ]
 
     @app.get("/drafts")
     def list_drafts(
@@ -555,8 +599,211 @@ def create_app(
             raise HTTPException(502, str(e)) from e
         return detail(draft_id)
 
+    # -- reviewing the catalogue: samples, frame previews, approve / retire -----------------------
+
+    samples = _SampleRunner(cfg.samples_dir)
+
+    def catalogue_entry(kind: str, obj: Any, path: Path) -> CatalogueEntry:
+        meta = obj.frame if kind == "frame" else obj
+        return CatalogueEntry(
+            kind=kind,  # type: ignore[arg-type]
+            id=meta.id,
+            version=meta.version,
+            status=meta.status,
+            hash=hex0x(obj.hash()),
+            file=rel(kind, path),
+        )
+
+    def decision_handler(kind: str) -> Any:
+        def decide(
+            item_id: str, version: int, body: CatalogueDecision, authorization: Annotated[str | None, Header()] = None
+        ) -> CatalogueEntry:
+            require_token(authorization)
+            table = load_kind(kind)
+            if (item_id, version) not in table:
+                raise HTTPException(404, f"no {kind} {item_id} v{version}")
+            _obj, path = table[(item_id, version)]
+            if not os.access(path, os.W_OK):
+                raise HTTPException(503, f"{rel(kind, path)} is not writable on this server")
+            loader = kinds[kind][1]
+            with lock:
+                try:
+                    record_decision(path, body.decision, by=body.by, today=datetime.now(UTC).date(), validate=loader)
+                except CatalogueError as e:
+                    raise HTTPException(409, str(e)) from e
+            return catalogue_entry(kind, loader(path), path)
+
+        return decide
+
+    for kind, prefix in (("template", "templates"), ("frame", "frames"), ("bio", "bios")):
+        app.post(f"/{prefix}/{{item_id}}/{{version}}/review", name=f"review_{kind}")(decision_handler(kind))
+
+    @app.post("/samples", status_code=202)
+    def post_samples(body: SampleRequest, authorization: Annotated[str | None, Header()] = None) -> SampleJob:
+        require_token(authorization)
+        if darkroom is None:
+            raise HTTPException(503, "no darkroom is configured (ARGUS_MINT_DARKROOM_URL)")
+        t = pick(templates(), body.template, "template")
+        lf = pick(frames(), body.frame, "frame") if body.frame else None
+        bt = pick(bios(), body.bio, "bio template") if body.bio else None
+        if bt is not None and writer is None:
+            raise HTTPException(503, "no bio writer is configured (ARGUS_MINT_WRITER_URL)")
+        try:
+            check_texts(body.texts, lf)
+        except FrameError as e:
+            raise HTTPException(422, str(e)) from e
+        unknown = sorted(body.variables.keys() - t.variables.keys())
+        bad = sorted(k for k, v in body.variables.items() if k in t.variables and v not in t.variables[k])
+        if unknown or bad:
+            raise HTTPException(422, f"unknown variables {unknown}, or values not in the template's lists {bad}")
+        pool = [c for c in combinations(t) if all(c[k] == v for k, v in body.variables.items())]
+        picks = random.Random(body.seed).sample(pool, min(body.count, len(pool)))
+
+        def run_one(n: int, values: dict[str, str]) -> Any:
+            return sample_card(
+                renderer=darkroom, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
+                writer=writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
+            )  # fmt: skip
+
+        return samples.submit(body, picks, run_one)
+
+    @app.get("/samples")
+    def list_samples(
+        limit: Annotated[int, Query(ge=1, le=200)] = 50, offset: Annotated[int, Query(ge=0)] = 0
+    ) -> SampleJobList:
+        jobs = samples.all()
+        return SampleJobList(items=jobs[offset : offset + limit], total=len(jobs))
+
+    @app.get("/samples/{job_id}")
+    def get_sample(job_id: str) -> SampleJob:
+        return samples.get(job_id)
+
+    @app.get("/samples/{job_id}/{n}/{which}")
+    def sample_image(job_id: str, n: int, which: str) -> Response:
+        if which not in ("art", "framed"):
+            raise HTTPException(404, "art or framed")
+        return Response(samples.image(job_id, n, which), media_type="image/png")
+
+    @app.post("/frames/{frame_id}/{version}/preview")
+    async def frame_preview(frame_id: str, version: int, body: FramePreviewRequest) -> Response:
+        lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
+        src = body.art
+        if (src.draft is None) == (src.sample is None):
+            raise HTTPException(422, "give art.draft, or art.sample with art.n")
+        if src.draft is not None:
+            try:
+                _d, art, _image = store.load(src.draft)
+            except DraftNotFound as e:
+                raise HTTPException(404, str(e)) from e
+            except DraftError as e:
+                raise HTTPException(400, str(e)) from e
+        else:
+            art = samples.image(src.sample or "", src.n or 0, "art")
+        try:
+            check_texts(body.texts, lf)
+            png = await run_in_threadpool(compose, lf, art, card_texts(lf, body.name, body.bio, body.texts))
+        except FrameError as e:
+            raise HTTPException(422, str(e)) from e
+        return Response(png, media_type="image/png")
+
     return app
 
 
 def _no_prompt(_prompt: str) -> str:
     raise KeyLoadError("the server can't prompt for a keystore password: set ARGUS_MINT_KEYSTORE_PASSWORD_FILE")
+
+
+class _SampleRunner:
+    """Sample jobs, run one at a time on a background thread (darkroom renders one at a time).
+
+    Each job is a directory under ``root``: ``job.json`` plus ``<n>-art.png`` and
+    ``<n>-framed.png``. Nothing here is pinned, signed or minted. A job that was queued or
+    running when the server stopped is marked failed when next listed.
+    """
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+        self.queue: queue.Queue[tuple[str, list[dict[str, str]], Any]] = queue.Queue()
+        self.thread: threading.Thread | None = None
+        self.lock = threading.Lock()
+        self.live: set[str] = set()
+
+    def _dir(self, job_id: str) -> Path:
+        if not _JOB_ID.match(job_id):
+            raise HTTPException(400, f"not a sample job id: {job_id!r}")
+        return self.root / job_id
+
+    def _save(self, job: SampleJob) -> None:
+        d = self._dir(job.id)
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "job.json").write_text(job.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+    def get(self, job_id: str) -> SampleJob:
+        f = self._dir(job_id) / "job.json"
+        if not f.is_file():
+            raise HTTPException(404, f"no sample job {job_id}")
+        job = SampleJob.model_validate_json(f.read_text(encoding="utf-8"))
+        if job.status in ("queued", "running") and job.id not in self.live:
+            job = job.model_copy(update={"status": "failed", "error": "interrupted: the server stopped"})
+        return job
+
+    def all(self) -> list[SampleJob]:
+        if not self.root.is_dir():
+            return []
+        found = [p for p in self.root.iterdir() if _JOB_ID.match(p.name) and (p / "job.json").is_file()]
+        ordered = sorted(found, key=lambda p: (p / "job.json").stat().st_mtime, reverse=True)
+        return [self.get(p.name) for p in ordered]
+
+    def image(self, job_id: str, n: int, which: str) -> bytes:
+        f = self._dir(job_id) / f"{int(n)}-{which}.png"
+        if not f.is_file():
+            raise HTTPException(404, f"sample {job_id} #{n} has no {which} image")
+        return f.read_bytes()
+
+    def submit(self, request: SampleRequest, picks: list[dict[str, str]], run_one: Any) -> SampleJob:
+        job = SampleJob(id=secrets.token_hex(8), status="queued", created_at=datetime.now(UTC), request=request)
+        with self.lock:
+            self.live.add(job.id)
+            self._save(job)
+            self.queue.put((job.id, picks, run_one))
+            if self.thread is None or not self.thread.is_alive():
+                self.thread = threading.Thread(target=self._work, name="argus-mint-samples", daemon=True)
+                self.thread.start()
+        return job
+
+    def _work(self) -> None:
+        while True:
+            try:
+                job_id, picks, run_one = self.queue.get(timeout=5)
+            except queue.Empty:
+                return
+            try:
+                self._run(job_id, picks, run_one)
+            finally:
+                self.live.discard(job_id)
+
+    def _run(self, job_id: str, picks: list[dict[str, str]], run_one: Any) -> None:
+        job = self.get(job_id).model_copy(update={"status": "running"})
+        self._save(job)
+        items: list[SampleItem] = []
+        try:
+            for n, values in enumerate(picks, 1):
+                sample = run_one(n, values)
+                d = self._dir(job_id)
+                if sample.art is not None:
+                    (d / f"{n}-art.png").write_bytes(sample.art)
+                if sample.framed is not None:
+                    (d / f"{n}-framed.png").write_bytes(sample.framed)
+                items.append(
+                    SampleItem(n=n, art=sample.art is not None, framed=sample.framed is not None, **sample.item)
+                )
+                job = job.model_copy(update={"items": list(items)})
+                self._save(job)
+        except Exception as e:  # a backend failure ends the job; it is reported, not raised
+            log.warning("sample_job_failed", job=job_id, error=str(e))
+            self._save(job.model_copy(update={"status": "failed", "error": str(e), "finished_at": datetime.now(UTC)}))
+            return
+        self._save(job.model_copy(update={"status": "done", "finished_at": datetime.now(UTC)}))
+
+
+_JOB_ID = re.compile(r"^[0-9a-f]{16}$")

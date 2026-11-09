@@ -1,6 +1,7 @@
 [
   {
     "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48",
+    "file": "card-green-v1.yaml",
     "width": 969,
     "height": 1352,
     "frame": {
@@ -68,6 +69,42 @@
           "size": 34,
           "min_size": 16,
           "colour": "#26301a",
+          "align": "center",
+          "valign": "middle",
+          "wrap": false,
+          "line_spacing": 1.15
+        }
+      }
+    }
+  },
+  {
+    "hash": "0x69063f4bdaaa1dd446ccd800c23cb3911d916ca5e7e2c3b6f582d0fb5bf06a60",
+    "file": "example-plain-v1.yaml",
+    "width": 1000,
+    "height": 1400,
+    "frame": {
+      "id": "example-plain",
+      "version": 1,
+      "status": "draft",
+      "approved_by": null,
+      "approved_at": null,
+      "overlay": "example-plain-v1.png",
+      "window": {
+        "x": 60,
+        "y": 60,
+        "width": 880,
+        "height": 880
+      },
+      "texts": {
+        "name": {
+          "x": 80,
+          "y": 990,
+          "width": 840,
+          "height": 100,
+          "font": null,
+          "size": 64,
+          "min_size": 12,
+          "colour": "#5c4026",
           "align": "center",
           "valign": "middle",
           "wrap": false,

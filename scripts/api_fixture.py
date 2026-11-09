@@ -6,6 +6,7 @@ a UI reads, plus the images, under fixtures/api/:
 
     health.json templates.json frames.json bios.json drafts.json
     drafts/<id>.json drafts/<id>/image.png drafts/<id>/art.png frames/<id>/<version>/overlay.png
+    samples.json samples/<id>.json samples/<id>/<n>-art.png samples/<id>/<n>-framed.png
 
     uv run python scripts/api_fixture.py ART.png [ART.png ...]
 
@@ -19,6 +20,7 @@ import json
 import shutil
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import yaml
@@ -63,7 +65,9 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 
 - One draft per state: pending, approved, rejected, published (the published one has its
   `publish.json` result: pins, metadata, signed voucher).
-- The template, frame and bio template are the repo's examples, marked approved for the fixture.
+- The template (v2), card-green frame and bio template are the repo's examples, marked approved
+  for the fixture. Two drafts await catalogue review: template v3 (v2 with one more negative
+  term) and the placeholder example-plain frame. One sample job renders v3 in the frame.
 - Backends were stand-ins: art from files, canned bios, local (non-IPFS) CIDs, a throwaway owner
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
@@ -108,6 +112,12 @@ def main(arts: list[Path]) -> None:
         approved(ROOT / "templates" / "example-portrait-v2.yaml", work / "templates" / "t.yaml")
         approved(ROOT / "frames" / "card-green-v1.yaml", work / "frames" / "card-green-v1.yaml")
         shutil.copy(ROOT / "frames" / "card-green-v1.png", work / "frames")
+        # drafts awaiting review, for the catalogue pages: the placeholder frame, and a v3 of the template
+        shutil.copy(ROOT / "frames" / "example-plain-v1.yaml", work / "frames")
+        shutil.copy(ROOT / "frames" / "example-plain-v1.png", work / "frames")
+        v3 = yaml.safe_load((ROOT / "templates" / "example-portrait-v2.yaml").read_text())
+        v3 |= {"version": 3, "status": "draft", "negative": v3["negative"] + ", blurry"}
+        (work / "templates" / "t3.yaml").write_text(yaml.safe_dump(v3, sort_keys=False))
         shutil.copytree(ROOT / "frames" / "fonts", work / "frames" / "fonts")
         approved(ROOT / "bios" / "example-bio-v1.yaml", work / "bios" / "b.yaml")
 
@@ -121,11 +131,14 @@ def main(arts: list[Path]) -> None:
                 return True, ""
 
         class Writer:
+            calls = 0
+
             def write(self, **kw):
-                return BIOS[state["n"] % len(BIOS)]
+                Writer.calls += 1
+                return BIOS[(state["n"] + Writer.calls) % len(BIOS)]
 
         cfg = Settings(
-            drafts_dir=work / "drafts", templates_dir=work / "templates", frames_dir=work / "frames",
+            drafts_dir=work / "drafts", samples_dir=work / "samples", templates_dir=work / "templates", frames_dir=work / "frames",
             bios_dir=work / "bios", darkroom_url="http://darkroom:8106", writer_url="http://writer:9150",
             ipfs_api="http://kubo:5001", network="base-sepolia", card=CARD, moderator_token=TOKEN,
             siwe_domain="localhost:3108",
@@ -164,6 +177,23 @@ def main(arts: list[Path]) -> None:
             if fate == "published":
                 c.post(f"/drafts/{draft_id}/publish", headers=AUTH, json={"deadline": 1900000000}).raise_for_status()
 
+        state["n"] = 0
+        sample = c.post(
+            "/samples",
+            headers=AUTH,
+            json={
+                "template": {"id": "example-portrait", "version": 3}, "frame": {"id": "card-green", "version": 1},
+                "bio": {"id": "example-bio", "version": 1}, "count": 2, "seed": 3, "name": "Sample",
+                "texts": {"class": "Sample class", "stats": "No. 0"},
+            },
+        )  # fmt: skip
+        sample.raise_for_status()
+        job_id = sample.json()["id"]
+        for _ in range(500):
+            if c.get(f"/samples/{job_id}").json()["status"] in ("done", "failed"):
+                break
+            time.sleep(0.02)
+
         if OUT.exists():
             shutil.rmtree(OUT)
         (OUT / "drafts").mkdir(parents=True)
@@ -184,6 +214,16 @@ def main(arts: list[Path]) -> None:
             for which in ("image", "art"):
                 png = preview(c.get(f"/drafts/{item['id']}/{which}").content)
                 (OUT / "drafts" / item["id"] / f"{which}.png").write_bytes(png)
+        jobs = dump("samples.json", "/samples")
+        (OUT / "samples").mkdir()
+        for job in jobs["items"]:  # type: ignore[index]
+            dump(f"samples/{job['id']}.json", f"/samples/{job['id']}")
+            (OUT / "samples" / job["id"]).mkdir()
+            for item in job["items"]:
+                for which in ("art", "framed"):
+                    if item[which]:
+                        png = preview(c.get(f"/samples/{job['id']}/{item['n']}/{which}").content)
+                        (OUT / "samples" / job["id"] / f"{item['n']}-{which}.png").write_bytes(png)
         for f in frames:  # type: ignore[union-attr]
             fid, ver = f["frame"]["id"], f["frame"]["version"]
             (OUT / "frames" / fid / str(ver)).mkdir(parents=True)

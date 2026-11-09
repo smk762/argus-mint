@@ -14,16 +14,25 @@ from typing import Any
 from eth_account.signers.local import LocalAccount
 
 from argus_mint._codec import hex0x
-from argus_mint.bios import Bio, BioTemplate, TextGuard, Writer, write_bio
+from argus_mint.bios import Bio, BioFailed, BioTemplate, TextGuard, Writer, write_bio
 from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
 from argus_mint.frames import FrameError, LoadedFrame, compose, require_approved
 from argus_mint.metadata import card_metadata, content_hash
 from argus_mint.pin import Pinner
-from argus_mint.render import Darklight, render
+from argus_mint.render import Darklight, RenderError, render, render_for_review
 from argus_mint.templates import Template, fill
 from argus_mint.vouchers import Domain, MintVoucher, sign, typed_data
 
-__all__ = ["RESERVED_SLOTS", "Made", "card_texts", "check_texts", "create_draft", "publish"]
+__all__ = [
+    "RESERVED_SLOTS",
+    "Made",
+    "Sample",
+    "card_texts",
+    "check_texts",
+    "create_draft",
+    "publish",
+    "sample_card",
+]
 
 RESERVED_SLOTS = ("name", "bio")  # filled by argus-mint, never by the consumer
 
@@ -100,9 +109,7 @@ def create_draft(
         assert renderer is not None
         rendered = render(renderer, template, values, seed)
         art, req = rendered.image, rendered.request
-        attempts = [
-            {"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in rendered.attempts
-        ]
+        attempts = _render_attempts(rendered.attempts)
     b = write_bio(writer, guard, bio, values, template, name) if bio and writer and guard else None
     card_image = compose(frame, art, card_texts(frame, name, b.text if b else None, texts)) if frame else art
     draft = CardDraft(
@@ -183,3 +190,54 @@ def publish(
         "signature": hex0x(sign(voucher, domain, signer)),
         "typed_data": typed_data(voucher, domain),
     }
+
+
+class Sample:
+    """One sample card for a reviewer: never pinned, signed or minted (hard rule 2)."""
+
+    def __init__(self, item: dict[str, Any], art: bytes | None, framed: bytes | None):
+        self.item, self.art, self.framed = item, art, framed
+
+
+def sample_card(
+    *,
+    renderer: Darklight,
+    template: Template,
+    values: dict[str, str],
+    seed: int,
+    frame: LoadedFrame | None = None,
+    bio: BioTemplate | None = None,
+    writer: Writer | None = None,
+    guard: TextGuard | None = None,
+    name: str = "Sample",
+    texts: dict[str, str] | None = None,
+) -> Sample:
+    """Render a sample of a template (any status), with an optional bio and frame (any status).
+
+    A failed render or bio is reported in the item (``error``), not raised, so a batch of
+    samples keeps going; a backend failure (``DarkroomError``, ``BioError``) is raised.
+    """
+    texts = dict(texts or {})
+    check_texts(texts, frame)
+    item: dict[str, Any] = {"variables": dict(sorted(values.items()))}
+    try:
+        r = render_for_review(renderer, template, values, seed)
+    except RenderError as e:
+        item |= {"error": str(e), "attempts": _render_attempts(e.attempts)}
+        return Sample(item, None, None)
+    item |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": _render_attempts(r.attempts)}
+    bio_text = None
+    if bio is not None and writer is not None and guard is not None:
+        try:
+            b = write_bio(writer, guard, bio, values, template, name, review=True)
+        except BioFailed as e:
+            item |= {"bio_error": str(e), "bio_attempts": bio_attempts(e.attempts)}
+        else:
+            bio_text = b.text
+            item |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
+    framed = compose(frame, r.image, card_texts(frame, name, bio_text, texts)) if frame else None
+    return Sample(item, r.image, framed)
+
+
+def _render_attempts(attempts: Any) -> list[dict[str, Any]]:
+    return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
