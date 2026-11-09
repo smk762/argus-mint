@@ -32,6 +32,9 @@ from argus_mint.cards import (
 from argus_mint.darkroom import DarkroomClient, DarkroomError
 from argus_mint.frames import FrameError, compose, load_frame
 from argus_mint.keys import KEY_ENV, KeyLoadError, load_signer
+from argus_mint.library import Library, LibraryError
+from argus_mint.library import build as build_library
+from argus_mint.library import describe as describe_library
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
 from argus_mint.render import GenResult, RenderError, render_for_review
 from argus_mint.templates import (
@@ -165,6 +168,7 @@ IpfsOpt = Annotated[
     str | None,
     typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
 ]
+ModelOpt = Annotated[str | None, typer.Option(help="Checkpoint: the template's default, or one of its `models`")]
 BioOpt = Annotated[Path | None, typer.Option(help="Bio template YAML: a language model writes the card's bio")]
 WriterOpt = Annotated[
     str | None,
@@ -227,6 +231,7 @@ def sample(
     count: Annotated[int, typer.Option(min=1, max=64, help="How many combinations to render")] = 6,
     var: Annotated[list[str], typer.Option(help="Fix a variable to key=value (repeat); the rest vary")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="Picks the combinations, and the first render seed")] = 0,
+    model: ModelOpt = None,
     frame: Annotated[Path | None, typer.Option(help="Frame YAML to preview (any status)")] = None,
     name: Annotated[str, typer.Option(help="Name drawn in the frame's name slot")] = "Sample",
     bio: BioOpt = None,
@@ -268,7 +273,7 @@ def sample(
     for i, values in enumerate(picks, 1):
         entry: dict[str, Any] = {"n": i, "variables": values}
         try:
-            r = render_for_review(client, t, values, seed + i)
+            r = render_for_review(client, t, values, seed + i, model)
             b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
         except (DarkroomError, BioFailed) as e:
             if isinstance(e, BioFailed):
@@ -309,6 +314,9 @@ def draft(
     name: Annotated[str, typer.Option(help="Card name (free text: metadata and image only, never sent to a model)")],
     var: Annotated[list[str], typer.Option(help="Template variable key=value (repeat)")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="First render seed")] = 0,
+    model: ModelOpt = None,
+    library: Annotated[Path | None, typer.Option(help="Pre-rendered library directory (with --entry)")] = None,
+    entry: Annotated[str | None, typer.Option(help="Library entry id: its art, variables and seed")] = None,
     asset_id: Annotated[str | None, typer.Option(help="0x 32-byte asset id")] = None,
     asset: Annotated[str | None, typer.Option(help="Asset key; asset id = keccak256(utf8 key)")] = None,
     description: Annotated[str, typer.Option(help="Metadata description (default: the bio, if one is written)")] = "",
@@ -340,10 +348,19 @@ def draft(
         aid = to_bytes32(asset_id) if asset_id is not None else keccak256(asset.encode())  # type: ignore[union-attr]
     except ValueError as e:
         raise typer.BadParameter(str(e), param_hint="--asset-id") from e
-    if image is not None and placeholder:
-        raise _fail("give one of --image or --placeholder, not both", 2)
-    if image is None and not placeholder and not darkroom:
-        raise _fail("give --darkroom (render), --image or --placeholder", 2)
+    if (library is None) != (entry is None):
+        raise _fail("--library and --entry go together", 2)
+    if sum(x for x in (image is not None, placeholder, library is not None)) > 1:
+        raise _fail("give one of --image, --placeholder or --library", 2)
+    if image is None and not placeholder and library is None and not darkroom:
+        raise _fail("give --darkroom (render), --library/--entry, --image or --placeholder", 2)
+    lib_entry, lib_image = None, None
+    if library is not None and entry is not None:
+        try:
+            lib = Library(library)
+            lib_entry, lib_image = lib.entry(entry), lib.image(entry)
+        except LibraryError as e:
+            raise _fail(str(e)) from e
     if bio and not darkroom:
         raise _fail("--bio needs --darkroom: darkroom's text check screens every bio", 2)
     extra = _parse_texts(text)
@@ -356,14 +373,14 @@ def draft(
     try:
         made = create_draft(
             template=load_template(template),
-            values=_parse_vars(var),
-            seed=seed,
+            values=lib_entry.variables if lib_entry else _parse_vars(var),
+            seed=lib_entry.seed if lib_entry else seed,
             asset_id=aid,
             to=to,
             name=name,
-            renderer=None if image is not None else (_PlaceholderRenderer() if placeholder else client),
+            renderer=None if (image is not None or lib_entry) else (_PlaceholderRenderer() if placeholder else client),
             renderer_name="placeholder" if placeholder else "darkroom",
-            image=image.read_bytes() if image is not None else None,
+            image=lib_image if lib_entry else (image.read_bytes() if image is not None else None),
             image_ref=str(image) if image is not None else "",
             description=description,
             external_url=external_url,
@@ -373,8 +390,10 @@ def draft(
             writer=bio_writer,
             guard=client,
             texts=extra,
+            model=lib_entry.model if lib_entry else model,
+            library=lib_entry,
         )
-    except (TemplateError, FrameError) as e:
+    except (TemplateError, FrameError, LibraryError) as e:
         raise _fail(str(e)) from e
     except BioFailed as e:
         for a in e.attempts:
@@ -724,3 +743,48 @@ def schema(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     typer.echo(str(path), err=True)
+
+
+# --- the pre-rendered library: cards without a GPU ------------------------------------------
+
+library_app = typer.Typer(help="Pre-rendered portraits, for a demo without a GPU.", no_args_is_help=True)
+app.add_typer(library_app, name="library")
+
+
+@library_app.command("build")
+def library_build(
+    template: Annotated[Path, typer.Argument(help="Template YAML (any status)")],
+    out: Annotated[Path, typer.Option(help="Library directory (resumes if it exists)")] = Path("library"),
+    count: Annotated[int, typer.Option(min=1, max=512, help="Variable combinations per checkpoint")] = 48,
+    seed: Annotated[int, typer.Option(help="Picks the combinations; group n renders with seed*1000+n")] = 0,
+    model: Annotated[list[str], typer.Option(help="Checkpoint (repeat); default: all the template allows")] = [],  # noqa: B006
+    darkroom: DarkroomOpt = None,
+    policy: PolicyOpt = "default",
+) -> None:
+    """Render COUNT combinations of TEMPLATE on each checkpoint, same variables and seeds on each.
+
+    Model by model, so each checkpoint loads once; interrupted builds resume. Every image goes
+    through darkroom's safety check, with the usual retries.
+    """
+    if not darkroom:
+        raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
+    try:
+        t = load_template(template)
+        lib = build_library(
+            DarkroomClient(darkroom, policy=policy), t, out, models=model or None, count=count, seed=seed,
+            progress=lambda m: typer.echo(m, err=True),
+        )  # fmt: skip
+    except (TemplateError, LibraryError) as e:
+        raise _fail(str(e)) from e
+    except DarkroomError as e:
+        raise _fail(f"{e} (the library so far is kept; run again to resume)") from e
+    typer.echo(json.dumps(describe_library(lib), indent=2))
+
+
+@library_app.command("list")
+def library_list(directory: Annotated[Path, typer.Argument(help="Library directory")] = Path("library")) -> None:
+    """Summarise a library: template, checkpoints, entries."""
+    try:
+        typer.echo(json.dumps(describe_library(Library(directory)), indent=2))
+    except LibraryError as e:
+        raise _fail(str(e)) from e

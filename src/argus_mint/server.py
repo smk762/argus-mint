@@ -12,6 +12,7 @@
 ``POST /drafts/{id}/review``           a decision: moderator by token, owner by signed challenge
 ``POST /drafts/{id}/publish``          pin and sign an approved draft (moderator token)
 ``POST /drafts/{id}/edit``             the owner changes the card's text or style: redrawn, reviewed again
+``GET  /library``  ``/library/{id}/image``  pre-rendered portraits (and thumbnails), for drafts without a GPU
 ``POST /samples`` ``GET /samples[/{id}]``  sample cards of a draft template/frame/bio, as background jobs
 ``GET  /samples/{id}/{n}/art|framed``  a sample's images (local only: never pinned, signed or minted)
 ``POST /frames/{id}/{version}/preview``  a frame (any status) on a draft's or sample's art, as a PNG
@@ -73,6 +74,7 @@ from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
 from argus_mint.frames import FrameError, LoadedFrame, compose, layout, load_frame
 from argus_mint.keys import KeyLoadError, load_signer
+from argus_mint.library import Library, LibraryError
 from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
@@ -94,6 +96,8 @@ from argus_mint.wire import (
     FramePreviewRequest,
     Health,
     LayoutRequest,
+    LibraryItem,
+    LibraryListing,
     PublishRequest,
     PublishResult,
     Ref,
@@ -124,6 +128,7 @@ class Settings:
     """Server configuration, normally from ``ARGUS_MINT_*`` environment variables."""
 
     drafts_dir: Path = Path("drafts")
+    library_dir: Path = Path("library")  # pre-rendered portraits (argus-mint library build)
     samples_dir: Path = Path("samples")
     templates_dir: Path = Path("templates")
     frames_dir: Path = Path("frames")
@@ -157,6 +162,7 @@ class Settings:
         return cls(
             drafts_dir=Path(get("DRAFTS_DIR", "drafts")),
             samples_dir=Path(get("SAMPLES_DIR", "samples")),
+            library_dir=Path(get("LIBRARY_DIR", "library")),
             templates_dir=Path(get("TEMPLATES_DIR", "templates")),
             frames_dir=Path(get("FRAMES_DIR", "frames")),
             bios_dir=Path(get("BIOS_DIR", "bios")),
@@ -277,7 +283,8 @@ def create_app(
 
     def capabilities() -> Capabilities:
         return Capabilities(
-            create_drafts=writable and has_token and darkroom is not None,
+            create_drafts=writable and has_token and (darkroom is not None or bool(library_entries())),
+            library=bool(library_entries()),
             write_bios=writable and has_token and darkroom is not None and writer is not None,
             moderate=writable and has_token,
             owner_review=writable and bool(cfg.siwe_domain),
@@ -374,6 +381,25 @@ def create_app(
             published=PublishResult.model_validate(pub) if pub else None,
         )
 
+    lib_cache: dict[str, Any] = {"mtime": None, "lib": None}
+
+    def library() -> Library | None:
+        """The served library, reloaded when its manifest changes (a build may still be adding to it)."""
+        manifest = cfg.library_dir / "manifest.json"
+        mtime = manifest.stat().st_mtime if manifest.is_file() else None
+        if mtime != lib_cache["mtime"]:
+            try:
+                lib_cache["lib"] = Library.maybe(cfg.library_dir)
+            except LibraryError as e:
+                log.warning("library_unreadable", error=str(e))
+                lib_cache["lib"] = None
+            lib_cache["mtime"] = mtime
+        return lib_cache["lib"]
+
+    def library_entries() -> list[Any]:
+        lib = library()
+        return lib.entries if lib else []
+
     # -- reads -----------------------------------------------------------------------------------
 
     @app.get("/health")
@@ -425,6 +451,38 @@ def create_app(
             BioInfo(hash=hex0x(b.hash()), file=rel("bio", path), bio=b)
             for _k, (b, path) in sorted(load_kind("bio").items())
         ]
+
+    @app.get("/library")
+    def get_library() -> LibraryListing:
+        lib = library()
+        if lib is None:
+            raise HTTPException(404, "no pre-rendered library is served here")
+        m = lib.manifest
+        return LibraryListing(
+            template=Ref(id=m.template, version=m.template_version),
+            models=m.models,
+            count=m.count,
+            items=[
+                LibraryItem(id=e.id, group=e.group, model=e.model, variables=e.variables, seed=e.seed, sha256=e.sha256)
+                for e in lib.entries
+            ],
+        )
+
+    @app.get("/library/{entry_id}/image")
+    def library_image(entry_id: str, thumb: Annotated[int, Query(ge=0, le=1024)] = 0) -> Response:
+        """The entry's PNG, or with ``thumb=<width>`` a JPEG preview of that width."""
+        lib = library()
+        if lib is None:
+            raise HTTPException(404, "no pre-rendered library is served here")
+        try:
+            if thumb:
+                return Response(
+                    lib.thumbnail(entry_id, thumb), media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=86400"},
+                )  # fmt: skip
+            return Response(lib.image(entry_id), media_type="image/png")
+        except LibraryError as e:
+            raise HTTPException(404, str(e)) from e
 
     @app.get("/drafts")
     def list_drafts(
@@ -485,8 +543,21 @@ def create_app(
     @app.post("/drafts", status_code=201)
     def post_draft(body: CreateDraft, authorization: Annotated[str | None, Header()] = None) -> DraftDetail:
         require_token(authorization)
-        if darkroom is None:
-            raise HTTPException(503, "no darkroom is configured (ARGUS_MINT_DARKROOM_URL)")
+        entry, entry_image = None, None
+        if body.library is not None:
+            lib = library()
+            if lib is None:
+                raise HTTPException(503, "no pre-rendered library is served here (ARGUS_MINT_LIBRARY_DIR)")
+            try:
+                entry, entry_image = lib.entry(body.library), lib.image(body.library)
+            except LibraryError as e:
+                raise HTTPException(404, str(e)) from e
+            if body.variables and body.variables != entry.variables:
+                raise HTTPException(422, "a library entry brings its own variables; leave them out or match them")
+            if body.model not in (None, entry.model):
+                raise HTTPException(422, f"library entry {entry.id} was rendered with {entry.model}")
+        elif darkroom is None:
+            raise HTTPException(503, "no darkroom is configured (ARGUS_MINT_DARKROOM_URL); pick a library entry")
         if (body.asset is None) == (body.asset_id is None):
             raise HTTPException(422, "give exactly one of asset or asset_id")
         try:
@@ -501,16 +572,20 @@ def create_app(
             if writer is None:
                 raise HTTPException(503, "no bio writer is configured (ARGUS_MINT_WRITER_URL)")
             try:
-                check_bio(bt, body.variables, t)  # the request's fault: a BioError past here is the writer's
+                if darkroom is None:
+                    raise BioError("a bio needs darkroom's text check, and no darkroom is configured")
+                check_bio(bt, entry.variables if entry else body.variables, t)  # the request's fault
             except BioError as e:
                 raise HTTPException(422, str(e)) from e
         # BioError (and so BioFailed) is a ValueError: the specific handlers come before the 422 catch-all.
         try:
             made = create_draft(
-                template=t, values=body.variables, seed=body.seed, asset_id=aid, to=to, name=body.name,
-                renderer=darkroom, description=body.description, external_url=body.external_url,
-                consumer=cfg.consumer, frame=lf, bio=bt, writer=writer if bt else None,
-                guard=darkroom if bt else None, texts=body.texts, style=body.style,
+                template=t, values=entry.variables if entry else body.variables,
+                seed=entry.seed if entry else body.seed, asset_id=aid, to=to, name=body.name,
+                renderer=None if entry else darkroom, image=entry_image, library=entry,
+                model=entry.model if entry else body.model, description=body.description,
+                external_url=body.external_url, consumer=cfg.consumer, frame=lf, bio=bt,
+                writer=writer if bt else None, guard=darkroom if bt else None, texts=body.texts, style=body.style,
             )  # fmt: skip
         except RenderError as e:
             raise HTTPException(
@@ -520,7 +595,7 @@ def create_app(
             raise HTTPException(422, {"error": str(e), "bio_attempts": [a.__dict__ for a in e.attempts]}) from e
         except (DarkroomError, BioError) as e:
             raise HTTPException(502, str(e)) from e
-        except (TemplateError, FrameError, ValueError) as e:
+        except (TemplateError, FrameError, LibraryError, ValueError) as e:
             raise HTTPException(422, str(e)) from e
         with lock:
             draft_id = store.new_id()
@@ -743,7 +818,7 @@ def create_app(
             return sample_card(
                 renderer=darkroom, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
                 writer=writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
-                style=body.style,
+                style=body.style, model=body.model,
             )  # fmt: skip
 
         return samples.submit(body, picks, run_one)

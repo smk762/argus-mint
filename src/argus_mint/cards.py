@@ -131,6 +131,7 @@ class CardDraft(BaseModel):
     bio: BioRecord | None = None
     texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot (class, stats...)
     style: CardStyle | None = None  # the owner's styling of the frame
+    library: str | None = None  # the pre-rendered library entry the art came from, if any
     edits: tuple[Edit, ...] = ()
     auto_check: AutoCheck | None = None
     art_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
