@@ -23,8 +23,9 @@ All notable changes to this project are documented here. Versions come from git 
 - **LoRA choices and sampling per checkpoint family (wire 1.5).**
   - **LoRAs:** templates offer `lora_options` (reviewed: allowed weights, trigger words, compatible checkpoints) and `max_loras`. Renders choose from them with `--lora NAME[@WEIGHT]` or `loras` on `POST /drafts` and `/samples`.
   - **Sampling per family:** `sampling_by_family` sets sampling per checkpoint family, and `Sampling.guidance` covers Flux.
+  - **Negative per family:** `negative_by_family` sets the negative prompt per checkpoint family (`""` for Flux, which has no slot for one).
   - **Hashes:** templates that use none of this keep their hash.
-  - **darkroom:** renders that use these need it to choose a workflow per request (smk762/argus-darkroom#29).
+  - **darkroom:** LoRAs and families other than SDXL need argus-darkroom 0.1.3 or later with a workflow directory (its Docker image's default), which picks a workflow per family and LoRA count.
 - **Selectable checkpoints and a pre-rendered library (wire 1.4).**
   - **Checkpoints:** templates gain `models`, a reviewed list of checkpoints a card may use. Choose one with `draft --model`, `sample --model`, or `model` on `POST /drafts` and `/samples`.
   - **Building:** `argus-mint library build` renders diverse combinations on each checkpoint, with the same variables and seeds, safety-checked and resumable.

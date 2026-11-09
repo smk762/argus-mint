@@ -9,6 +9,7 @@ templates fill (hard rule 2). Pure apart from reading the YAML files.
 from __future__ import annotations
 
 import itertools
+import posixpath
 import re
 import string
 from datetime import date
@@ -126,8 +127,13 @@ class Sampling(BaseModel):
 
 
 def family(model: str) -> str:
-    """A checkpoint's family: its top-level directory under darkroom's models root (``sdxl``, ``flux``…)."""
-    return model.split("/", 1)[0] if "/" in model else ""
+    """A checkpoint's family: its top-level directory under darkroom's models root (``sdxl``, ``flux``…).
+
+    The path is normalised first, as darkroom does, so ``sdxl/../flux/f`` is in ``flux``. "" for a
+    checkpoint at the top.
+    """
+    head, sep, _ = posixpath.normpath(model).partition("/")
+    return head if sep and head else ""
 
 
 class Template(BaseModel):
@@ -154,6 +160,9 @@ class Template(BaseModel):
     height: int = Field(gt=0, le=8192)
     prompt: str = Field(min_length=1)
     negative: str = ""
+    # The negative prompt for another family, when it differs; "" for none (Flux's workflows have no
+    # slot for one, and darkroom refuses a negative prompt it can't use).
+    negative_by_family: dict[str, str] = Field(default_factory=dict)
     variables: dict[str, tuple[str, ...]]
     max_attempts: int = Field(default=4, ge=1, le=16)
 
@@ -177,7 +186,7 @@ class Template(BaseModel):
         in_prompt = placeholders(self.prompt)
         if len(set(in_prompt)) != len(in_prompt):
             raise ValueError("a placeholder appears more than once in the prompt")
-        if placeholders(self.negative):
+        if any(placeholders(n) for n in (self.negative, *self.negative_by_family.values())):
             raise ValueError("the negative prompt must not contain placeholders")
         missing = set(in_prompt) - self.variables.keys()
         unused = self.variables.keys() - set(in_prompt)
@@ -214,6 +223,7 @@ class Template(BaseModel):
             ("lora_options", not self.lora_options),
             ("max_loras", not self.lora_options),
             ("sampling_by_family", not self.sampling_by_family),
+            ("negative_by_family", not self.negative_by_family),
         ):
             if unused:
                 doc.pop(key, None)
@@ -225,6 +235,10 @@ class Template(BaseModel):
     def sampling_for(self, model: str) -> Sampling | None:
         """The sampling for ``model``: its family's, if the template sets one, else the default."""
         return self.sampling_by_family.get(family(model), self.sampling)
+
+    def negative_for(self, model: str) -> str:
+        """The negative prompt for ``model``: its family's, if the template sets one, else the default."""
+        return self.negative_by_family.get(family(model), self.negative)
 
     def resolve_loras(self, choices: tuple[LoraChoice, ...] | list[LoraChoice], model: str) -> tuple[LoraRef, ...]:
         """The template's own LoRAs plus the chosen options, as the renderer gets them.
@@ -366,7 +380,7 @@ def _build(
         width=t.width,
         height=t.height,
         prompt=t.prompt.format(**values),
-        negative=t.negative,
+        negative=t.negative_for(model or t.model),
         variables=dict(sorted(values.items())),
         seed=seed,
     )
