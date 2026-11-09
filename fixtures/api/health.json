@@ -1,0 +1,31 @@
+{
+  "service": "argus-mint",
+  "version": "0.1.0a6.dev15+gbf38682b4.d20261109",
+  "wire_version": "1.3",
+  "read_only": false,
+  "network": "base_sepolia",
+  "chain_id": 84532,
+  "card": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7",
+  "consumer": "argus-mint",
+  "reviewers": [
+    "moderator",
+    "owner"
+  ],
+  "siwe_domain": "localhost:3108",
+  "capabilities": {
+    "create_drafts": true,
+    "write_bios": true,
+    "moderate": true,
+    "owner_review": true,
+    "publish": true,
+    "sample": true,
+    "review_catalogue": true,
+    "edit_text": true,
+    "auto_moderate": false
+  },
+  "backends": {
+    "darkroom": true,
+    "writer": true,
+    "ipfs": true
+  }
+}

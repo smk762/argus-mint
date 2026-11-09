@@ -1,6 +1,8 @@
-# Local services argus-mint talks to. darkroom (rendering) runs in its own stack (argus-darkroom).
+# Local services argus-mint talks to, and argus-mint's own HTTP service. darkroom (rendering)
+# runs in its own stack (argus-darkroom).
 #
-#   docker compose up -d     # or: make ipfs
+#   docker compose up -d                    # kubo only (or: make ipfs)
+#   docker compose --profile server up -d   # + argus-mint serve on 127.0.0.1:8108 (or: make serve-up)
 #
 # kubo: the IPFS node that pins card images and metadata (`--ipfs-api http://127.0.0.1:5001`).
 # The RPC API is an admin interface (it can pin, unpin, and read the node's keys), so it is
@@ -23,5 +25,38 @@ services:
     volumes:
       - ipfs-data:/data/ipfs
 
+  # argus-mint serve: drafts, reviews and publishing over HTTP (argus-studio, argus-assay).
+  # Settings come from .env (ARGUS_MINT_*: MODERATOR_TOKEN, SIWE_DOMAIN, CARD, NETWORK, WRITER_URL...).
+  # Signing: mount a keystore and its password file (below), or set ARGUS_MINT_SIGNER_KEY.
+  mint:
+    profiles: [server]
+    image: ghcr.io/smk762/argus-mint:${MINT_TAG:-latest}
+    build: .
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ARGUS_MINT_IPFS_API: ${ARGUS_MINT_IPFS_API:-http://kubo:5001}
+      ARGUS_MINT_DARKROOM_URL: ${ARGUS_MINT_DARKROOM_URL:-http://host.docker.internal:8106}
+      ARGUS_MINT_ACCOUNT: ${ARGUS_MINT_ACCOUNT:-}
+      ARGUS_MINT_KEYSTORE_PASSWORD_FILE: ${ARGUS_MINT_KEYSTORE_PASSWORD_FILE:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${MINT_PUBLISH:-127.0.0.1:8108}:8108"
+    volumes:
+      - mint-data:/data
+      # your reviewed files instead of the examples (uncomment):
+      # - ./templates:/app/templates:ro
+      # - ./frames:/app/frames:ro
+      # - ./bios:/app/bios:ro
+      # a keystore and its password file, e.g. ARGUS_MINT_ACCOUNT=/run/keys/signer:
+      # - ~/.foundry/keystores/signer:/run/keys/signer:ro
+      # - ./secrets/signer-password:/run/keys/signer-password:ro
+    depends_on:
+      - kubo
+
 volumes:
   ipfs-data:
+  mint-data:

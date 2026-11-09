@@ -12,8 +12,9 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 
 | Part | What it does |
 | --- | --- |
-| `argus_mint` (Python) | template registry, darklight render client with retries, IPFS pinning, canonical metadata, OpenZeppelin-compatible Merkle trees, EIP-712 mint vouchers, SIWE, a reorg-safe event indexer |
+| `argus_mint` (Python) | template registry, darklight render client with retries, card frames, a draft → review → publish flow, IPFS pinning, canonical metadata, OpenZeppelin-compatible Merkle trees, EIP-712 mint vouchers, SIWE, a reorg-safe event indexer |
 | `contracts/` (Foundry) | `Card` (ERC-721 + ERC-4906 + ERC-2981, voucher mint), `Deed` (ERC-721 + ERC-5192 soulbound), `Ledger` (commit/reveal/anchor notary) |
+| `argus-mint serve` (HTTP) | the draft → review → publish flow for argus-studio and argus-assay, with a pinned wire schema and a Docker image |
 | `verifier/` (ES module) | verify Merkle proofs against a Ledger root, revealed secrets against commitments, and drand quicknet beacons |
 
 ## Install
@@ -22,16 +23,20 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 uv pip install argus-mint            # pure Python core
 uv pip install "argus-mint[chain]"   # + web3 for the indexer and ledger client
 uv pip install "argus-mint[cli]"     # + the argus-mint command
+uv pip install "argus-mint[frames]"  # + Pillow, to composite frames onto renders
+uv pip install "argus-mint[server]"  # + the HTTP service (argus-mint serve)
 ```
 
 ## Quick look
 
 ```bash
 argus-mint templates templates/                 # validate templates, show status and hash
-argus-mint mint --template my-approved.yaml \
+argus-mint draft --template my-approved.yaml --out drafts/unit-17 --placeholder \
   --var role=ranger --var colour=none --var pose=standing --seed 81234 \
-  --asset unit-17 --to 0x7099…79C8 --name "Hana of the Strait" \
-  --card 0x5FbD…0aa3 --chain-id 31337 --dry-run  # prints metadata, voucher and signature
+  --asset unit-17 --to 0x7099…79C8 --name "Hana of the Strait"
+argus-mint review drafts/unit-17 --as moderator --by mod-1 --approve
+argus-mint review drafts/unit-17 --as owner --by 0x7099…79C8 --approve
+argus-mint publish drafts/unit-17 --card 0x5FbD…0aa3 --chain-id 31337 --dry-run   # metadata, voucher, signature
 ```
 
 ```python
@@ -65,24 +70,116 @@ make deploy                                 # Base Sepolia; `make deploy NETWORK
 
 The script deploys `Card`, `Deed` and `Ledger` over plain JSON-RPC, grants roles, and verifies the sources on Sourcify for free (Blockscout displays them). `VERIFIER=blockscout` verifies on Blockscout directly; `VERIFIER=etherscan` uses Basescan and needs an Etherscan API key. Step by step, including wallet backup, funding and role setup: [docs/deploy.md](docs/deploy.md).
 
-## Rendering with argus-darkroom, pinning with Kubo
+## Making a card: draft, review, publish
+
+Every card image is seen by people before it is published. Rendering makes a local **draft**. The moderator and the card's owner each **review** that exact image (its sha256), and only when both approve does **publish** pin it and sign the mint voucher. A rejection closes the draft; render a new one.
 
 ```bash
 make ipfs                                    # local Kubo node (compose.yaml): RPC 127.0.0.1:5001, gateway :8080
-argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # reviewer check, every combination
-argus-mint mint --template my-template.yaml --var ... --asset unit-17 --to 0x… --name "…" --card 0x… \
-  --darkroom http://localhost:8106 --ipfs-api http://127.0.0.1:5001         # live: renders, pins, signs
+
+# reviewing a template or frame, before approving it
+argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # text check, every combination
+argus-mint sample my-template.yaml --out samples/ --count 6 --frame frames/my-frame.yaml \
+  --darkroom http://localhost:8106                                          # sample images, local files only
+
+# a card
+argus-mint draft --template my-template.yaml --frame frames/my-frame.yaml --out drafts/unit-17 \
+  --var ... --asset unit-17 --to 0x… --name "…" --darkroom http://localhost:8106 \
+  --bio bios/my-bio.yaml --writer http://<chat api> --text "class=Ranger of the Strait" --text "stats=No. 17"
+argus-mint review drafts/unit-17 --as moderator --by <name> --approve       # or --reject --note "why"
+argus-mint review drafts/unit-17 --as owner --by <name> --approve
+argus-mint publish drafts/unit-17 --card 0x… --ipfs-api http://127.0.0.1:5001 > unit-17.json   # pins, signs
 ```
+
+**Frames.** Renders are clean, full-bleed art. A frame is a reviewed PNG overlay, transparent inside its art window, with an optional slot for the card's name. It's described in a YAML file next to it, which goes through the same `draft | approved | retired` review as templates ([frames/card-green-v1.yaml](frames/card-green-v1.yaml)). Render at the art window's aspect ratio (the template's `width`/`height`): the art is scaled to cover the window and the overflow is cropped. A framed card's provenance names the frame and its hash, and points to the unframed art on IPFS.
+
+**Card text.** A frame has text slots, each with a font, size and box; text shrinks to fit and is clipped with an ellipsis if it still doesn't. argus-mint fills `name` and `bio`. The consumer fills the rest (`--text class=…`, `--text stats=…`) with display text from its own records. That text is shown on the card, never written into the metadata as stats.
+
+**Bios.** A language model writes each card's flavour text from a reviewed bio template ([bios/example-bio-v1.yaml](bios/example-bio-v1.yaml): Mistral NeMo, fruity). It sees only the template's fixed-list values and writes a `{name}` token; argus-mint puts the real name in afterwards, so a player's name never reaches a model. darkroom's text check screens every bio, and flagged ones are rewritten. The moderator and the owner then read it on the card during review. The bio becomes the card's `description`.
 
 On-chain, each step signs with a Foundry keystore account (`--account` / `$ARGUS_MINT_ACCOUNT`) or `$ARGUS_MINT_SIGNER_KEY`:
 
 ```bash
-argus-mint submit demo-1.json                                         # send the voucher to Card.mint
+argus-mint submit unit-17.json                                        # send the voucher to Card.mint
 argus-mint freeze --card 0x… --token-id 1 --uri <metadata cid>        # fix tokenURI at ipfs://…
 argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Merkle root into the Ledger
 ```
 
 The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, pin on a VPS (native Kubo, reached through an SSH tunnel) ([docs/deploy.md §6](docs/deploy.md#6-pin-on-a-vps-optional)) so cards stay retrievable when this host is offline.
+
+## Running the service
+
+`argus-mint serve` puts the card workflow behind HTTP for the suite's UIs: argus-studio's pages and argus-assay, the standalone review UI. The server decides; a UI only shows what it says.
+
+```bash
+make serve                                  # local, 127.0.0.1:8108, settings from .env
+make serve-up                               # or in docker with Kubo (compose profile `server`)
+```
+
+| Endpoint | |
+|---|---|
+| `GET /health` | version, wire version, network, Card, what it can do (`capabilities`), which backends answer |
+| `GET /templates` `/frames` `/bios` | the reviewed files, every status, with hashes; `GET /frames/{id}/{version}/overlay` |
+| `GET /drafts` | newest first, `?status=pending\|approved\|rejected\|published`, paged |
+| `GET /drafts/{id}` | the draft and its reviews; the pins and signed voucher once published |
+| `GET /drafts/{id}/image` `/art` | the card image reviewers approve, and the unframed render |
+| `POST /drafts` | render, write the bio, frame: a new pending draft (moderator token) |
+| `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs to approve or reject |
+| `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
+| `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
+| `POST /drafts/{id}/edit` | the owner changes the card's text or style, with a wallet signature covering exactly that change. The card is redrawn on the same art and needs both approvals again. The moderator only approves or rejects |
+| `POST /frames/{id}/{version}/layout`, `GET /frames/{id}/{version}/fonts/…` | where each line of text goes, and the frame's fonts, so a browser can preview a restyled card as SVG before it is baked |
+| `GET /library`, `GET /library/{id}/image[?thumb=w]` | pre-rendered portraits; `POST /drafts` with `library: <id>` makes a card from one without a GPU |
+| `POST /samples`, `GET /samples[/{id}]` | sample cards of a template, frame and bio (any status) for their reviewer, as background jobs; local only (moderator token) |
+| `POST /frames/{id}/{version}/preview` | a frame (any status) on a draft's or sample's art, as a PNG |
+| `POST /{templates,frames,bios}/{id}/{version}/review` | approve a draft or retire an approved file. This writes `status`, `approved_by` and `approved_at` into the YAML, keeping its comments (moderator token) |
+
+**Who can do what.** The moderator token (`ARGUS_MINT_MODERATOR_TOKEN`) creates drafts, renders samples, approves or retires templates, frames and bio templates, reviews as the moderator, and publishes. The owner reviews by signing an EIP-4361 (Sign-In with Ethereum) message with the wallet the card will be minted to. The message names the draft, the decision and the image's sha256, and works once. Neither role can act as the other.
+
+**Checkpoints, sampling and LoRAs.** A template lists the checkpoints a card may use (`models`, reviewed with it; `model` is the default). `draft --model`, `sample --model` and `POST /drafts` with `model` choose one; anything else is refused.
+
+The template's `sampling` applies unless `sampling_by_family` has an entry for the checkpoint's family. The family is its top folder: `sdxl`, `flux`, `sd35`. Flux sets `guidance`.
+
+A template can also offer `lora_options`, each with:
+- allowed `weights`
+- `trigger_words`
+- the checkpoints it pairs with
+
+A card may choose up to `max_loras` of them (`--lora NAME[@WEIGHT]`, or `loras` in the API).
+
+Rendering other families, and LoRAs, also needs darkroom to choose its workflow per request (smk762/argus-darkroom#29). Until then, darkroom refuses those renders.
+
+**A library for demos without a GPU.** `argus-mint library build TEMPLATE --out library --count 48` renders COUNT diverse combinations on every checkpoint the template allows. The same combination gets the same seed on each, so they compare like for like. It renders one checkpoint at a time, so each loads once, and an interrupted build resumes. Every image passes darkroom's safety check, as always. `argus-mint serve` offers the library at `/library` (`ARGUS_MINT_LIBRARY_DIR`), and `draft --library DIR --entry ID` uses it from the CLI.
+
+An entry can make a card only if the approved template renders exactly the request the entry was rendered from. The draft then records the entry, and its provenance is that of a live render.
+
+**Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`, off by default): the platform gates on safety, the owner on quality.
+- **When it approves:** if darkroom's image guards passed the art, its text check passed the bio, and the name and display text pass a word filter, the moderator's approval is recorded as `auto: platform checks`.
+- **When it holds:** anything else waits for a human moderator, with the reason in `auto_check.held`.
+- **The word filter:** better-profanity's list, which catches letter swaps, plus your own terms in `ARGUS_MINT_BLOCKLIST`, one per line.
+- **The owner** always reviews.
+
+**Editing and styling are the owner's.** The owner can change the name, the bio and the display text. They can also restyle the frame:
+- **Border:** a tint colour and strength.
+- **Each text slot:** colour, an effect (shadow, outline or glow) and a background (colour, opacity, rounded corners).
+
+Any colours are allowed; if the owner wants black on black, so be it. A frame can set `style_locked: true` to refuse restyling.
+
+The browser previews a restyle as SVG from `/layout` and the fonts, using the same tint matrix as the server. argus-mint bakes the PNG when the owner confirms, and that PNG is what gets reviewed and published. Provenance records the style, so the card can be redrawn exactly. Edited text never reaches a model, so an edited bio goes through the word filter rather than darkroom.
+
+**Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
+- **Files:** `DRAFTS_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.
+- **Backends:** `DARKROOM_URL`, `WRITER_URL`, `IPFS_API`.
+- **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`.
+- **Chain:** `NETWORK`, `CARD`.
+- **Access:** `MODERATOR_TOKEN`, `SIWE_DOMAIN` (the UI's host, as wallets show it), `CORS_ORIGINS`, `READ_ONLY`.
+
+Like the other suite services, it binds to localhost and refuses writes from browser origins it wasn't told about.
+
+**For UI authors:**
+- The wire contract is [schema/mint-wire.schema.json](schema/mint-wire.schema.json) (`argus-mint schema`), pinned by release tag and sha256 the way argus-studio pins the other services.
+- [fixtures/api/](fixtures/api/) holds recorded responses with a draft in each state, for demo mode.
+- The image is `ghcr.io/smk762/argus-mint`.
 
 ## Live demo (Base Sepolia)
 
@@ -127,7 +224,7 @@ assert content_hash(doc) == bytes(card.functions.contentHashOf(1).call())
 
 The same script was deployed to Base (8453) on 2026-11-08. It was the deployer's first transaction there, so the addresses equal the testnet ones, and all three contracts are verified on Sourcify. This is a demo: the contracts and deployment get a review before anything goes live, and the deployer still holds every role.
 
-Six cards were rendered fresh from the approved `example-portrait` v1 template, one darkroom attempt each. They were pinned on a VPS Kubo node, minted and frozen by [demo/base/mint-batch.sh](demo/base/mint-batch.sh), and every step's output is in [demo/base/](demo/base/). Each card's on-chain `contentHash` matches its pinned metadata.
+Six cards were rendered fresh from the approved `example-portrait` v1 template, one darkroom attempt each. They were pinned on a VPS Kubo node, minted and frozen by [demo/base/mint-batch.sh](demo/base/mint-batch.sh), and every step's output is in [demo/base/](demo/base/). Each card's on-chain `contentHash` matches its pinned metadata. Both demos predate the review step: they used the one-shot `mint` command that `draft` / `review` / `publish` replaced, and their template drew its own card frames, which led to frames becoming a separate step.
 
 | Token | Name | Mint | Freeze |
 |---|---|---|---|

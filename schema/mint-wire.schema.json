@@ -1,0 +1,2807 @@
+{
+  "$defs": {
+    "ArtSource": {
+      "additionalProperties": false,
+      "description": "Existing art to preview a frame on: a draft's render, or a sample's.",
+      "properties": {
+        "draft": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Draft"
+        },
+        "n": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N"
+        },
+        "sample": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample"
+        }
+      },
+      "title": "ArtSource",
+      "type": "object"
+    },
+    "AutoCheck": {
+      "additionalProperties": false,
+      "description": "What auto-moderation found for the current image. ``passed`` recorded the moderator's approval.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "held": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Held",
+          "type": "array"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "at",
+        "image_sha256",
+        "passed",
+        "checks"
+      ],
+      "title": "AutoCheck",
+      "type": "object"
+    },
+    "BioInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "bio": {
+          "$ref": "#/$defs/BioTemplate"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hash",
+        "file",
+        "bio"
+      ],
+      "title": "BioInfo",
+      "type": "object"
+    },
+    "BioRecord": {
+      "additionalProperties": false,
+      "description": "The bio written for this card: its template and model, the text, and every attempt.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "edited": {
+          "default": false,
+          "title": "Edited",
+          "type": "boolean"
+        },
+        "ref": {
+          "$ref": "#/$defs/BioRef"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref",
+        "text",
+        "attempts"
+      ],
+      "title": "BioRecord",
+      "type": "object"
+    },
+    "BioRef": {
+      "additionalProperties": false,
+      "description": "The reviewed bio template (and model) that wrote the card's bio (see :mod:`argus_mint.bios`).",
+      "properties": {
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "hash",
+        "model"
+      ],
+      "title": "BioRef",
+      "type": "object"
+    },
+    "BioTemplate": {
+      "additionalProperties": false,
+      "description": "One version of a bio template, as reviewed and recorded in its YAML file.",
+      "properties": {
+        "approved_at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved At"
+        },
+        "approved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved By"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "max_attempts": {
+          "default": 4,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_chars": {
+          "default": 400,
+          "maximum": 4000,
+          "minimum": 40,
+          "title": "Max Chars",
+          "type": "integer"
+        },
+        "max_tokens": {
+          "default": 200,
+          "maximum": 2000,
+          "minimum": 16,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "prompt": {
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "system": {
+          "minLength": 1,
+          "title": "System",
+          "type": "string"
+        },
+        "temperature": {
+          "default": 0.9,
+          "maximum": 2.0,
+          "minimum": 0.0,
+          "title": "Temperature",
+          "type": "number"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "status",
+        "model",
+        "system",
+        "prompt"
+      ],
+      "title": "BioTemplate",
+      "type": "object"
+    },
+    "Capabilities": {
+      "additionalProperties": false,
+      "description": "What this server will do. A client disables a control whose capability is false.",
+      "properties": {
+        "auto_moderate": {
+          "default": false,
+          "title": "Auto Moderate",
+          "type": "boolean"
+        },
+        "create_drafts": {
+          "title": "Create Drafts",
+          "type": "boolean"
+        },
+        "edit_text": {
+          "default": false,
+          "title": "Edit Text",
+          "type": "boolean"
+        },
+        "library": {
+          "default": false,
+          "title": "Library",
+          "type": "boolean"
+        },
+        "moderate": {
+          "title": "Moderate",
+          "type": "boolean"
+        },
+        "owner_review": {
+          "title": "Owner Review",
+          "type": "boolean"
+        },
+        "publish": {
+          "title": "Publish",
+          "type": "boolean"
+        },
+        "review_catalogue": {
+          "default": false,
+          "title": "Review Catalogue",
+          "type": "boolean"
+        },
+        "sample": {
+          "default": false,
+          "title": "Sample",
+          "type": "boolean"
+        },
+        "write_bios": {
+          "title": "Write Bios",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "create_drafts",
+        "write_bios",
+        "moderate",
+        "owner_review",
+        "publish"
+      ],
+      "title": "Capabilities",
+      "type": "object"
+    },
+    "CardDraft": {
+      "additionalProperties": false,
+      "description": "Everything needed to publish a card, except the pins and the signature.",
+      "properties": {
+        "art_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Art Sha256",
+          "type": "string"
+        },
+        "asset_id": {
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "auto_check": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutoCheck"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BioRecord"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "consumer": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Consumer",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "edits": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Edit"
+          },
+          "title": "Edits",
+          "type": "array"
+        },
+        "external_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Url"
+        },
+        "format": {
+          "const": 1,
+          "default": 1,
+          "title": "Format",
+          "type": "integer"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FrameRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "library": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Library"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "renderer": {
+          "title": "Renderer",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/RenderRequest"
+        },
+        "reviews": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Review"
+          },
+          "title": "Reviews",
+          "type": "array"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request",
+        "attempts",
+        "renderer",
+        "asset_id",
+        "to",
+        "name",
+        "consumer",
+        "art_sha256",
+        "image_sha256",
+        "created_at"
+      ],
+      "title": "CardDraft",
+      "type": "object"
+    },
+    "CardStyle": {
+      "additionalProperties": false,
+      "description": "The owner's styling of a framed card: any colours, so be it if that's black on black.",
+      "properties": {
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotStyle"
+          },
+          "title": "Slots",
+          "type": "object"
+        },
+        "tint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "CardStyle",
+      "type": "object"
+    },
+    "CatalogueDecision": {
+      "additionalProperties": false,
+      "description": "POST /{templates,frames,bios}/{id}/{version}/review (moderator token).",
+      "properties": {
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "retire"
+          ],
+          "title": "Decision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "by"
+      ],
+      "title": "CatalogueDecision",
+      "type": "object"
+    },
+    "CatalogueEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "template",
+            "frame",
+            "bio"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "status",
+        "hash",
+        "file"
+      ],
+      "title": "CatalogueEntry",
+      "type": "object"
+    },
+    "Challenge": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "nonce": {
+          "title": "Nonce",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "nonce",
+        "expires_at"
+      ],
+      "title": "Challenge",
+      "type": "object"
+    },
+    "ChallengeRequest": {
+      "additionalProperties": false,
+      "description": "POST /drafts/{id}/challenge: the owner asks for the message to sign.\n\n``action: review`` with ``approve``; ``action: edit`` with the exact ``edit`` it will authorise.",
+      "properties": {
+        "action": {
+          "default": "review",
+          "enum": [
+            "review",
+            "edit"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "approve": {
+          "default": true,
+          "title": "Approve",
+          "type": "boolean"
+        },
+        "edit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextEdit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ChallengeRequest",
+      "type": "object"
+    },
+    "CreateDraft": {
+      "additionalProperties": false,
+      "description": "POST /drafts. The template, frame and bio are named by id and version, never by path.\n\nEither render (``variables``, ``seed``, optionally ``model``), or take a pre-rendered\n``library`` entry, whose variables, seed and checkpoint then apply.",
+      "properties": {
+        "asset": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset"
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
+        },
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Description",
+          "type": "string"
+        },
+        "external_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Url"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "library": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Library"
+        },
+        "loras": {
+          "items": {
+            "$ref": "#/$defs/LoraChoice"
+          },
+          "title": "Loras",
+          "type": "array"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        },
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template",
+        "to",
+        "name"
+      ],
+      "title": "CreateDraft",
+      "type": "object"
+    },
+    "DraftDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "awaiting": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Awaiting",
+          "type": "array"
+        },
+        "draft": {
+          "$ref": "#/$defs/CardDraft"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PublishResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "published"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "awaiting",
+        "draft"
+      ],
+      "title": "DraftDetail",
+      "type": "object"
+    },
+    "DraftList": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/DraftSummary"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "DraftList",
+      "type": "object"
+    },
+    "DraftSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "awaiting": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Awaiting",
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image_sha256": {
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "published"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "to",
+        "status",
+        "awaiting",
+        "created_at",
+        "template",
+        "frame",
+        "image_sha256"
+      ],
+      "title": "DraftSummary",
+      "type": "object"
+    },
+    "Edit": {
+      "additionalProperties": false,
+      "description": "A change to the card's text, which redraws the card image on the same art.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "moderator",
+            "owner"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "by",
+        "at",
+        "fields",
+        "image_sha256"
+      ],
+      "title": "Edit",
+      "type": "object"
+    },
+    "EditTextRequest": {
+      "additionalProperties": false,
+      "description": "POST /drafts/{id}/edit: only the owner edits, with the signed challenge for exactly this edit.\n\nThe moderator approves or rejects; they don't change the card.",
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "signature": {
+          "title": "Signature",
+          "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "texts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Texts"
+        }
+      },
+      "required": [
+        "message",
+        "signature"
+      ],
+      "title": "EditTextRequest",
+      "type": "object"
+    },
+    "Frame": {
+      "additionalProperties": false,
+      "description": "One version of a frame, as reviewed and recorded in its YAML file.",
+      "properties": {
+        "approved_at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved At"
+        },
+        "approved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved By"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "overlay": {
+          "minLength": 1,
+          "title": "Overlay",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "style_locked": {
+          "default": false,
+          "title": "Style Locked",
+          "type": "boolean"
+        },
+        "texts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TextSlot"
+          },
+          "title": "Texts",
+          "type": "object"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "window": {
+          "$ref": "#/$defs/Rect"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "status",
+        "overlay",
+        "window"
+      ],
+      "title": "Frame",
+      "type": "object"
+    },
+    "FrameInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "frame": {
+          "$ref": "#/$defs/Frame"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hash",
+        "file",
+        "width",
+        "height",
+        "frame"
+      ],
+      "title": "FrameInfo",
+      "type": "object"
+    },
+    "FrameLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotLayout"
+          },
+          "title": "Slots",
+          "type": "object"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "slots"
+      ],
+      "title": "FrameLayout",
+      "type": "object"
+    },
+    "FramePreviewRequest": {
+      "additionalProperties": false,
+      "description": "POST /frames/{id}/{version}/preview: a frame (any status) on existing art; returns a PNG.",
+      "properties": {
+        "art": {
+          "$ref": "#/$defs/ArtSource"
+        },
+        "bio": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "name": {
+          "default": "Sample",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "art"
+      ],
+      "title": "FramePreviewRequest",
+      "type": "object"
+    },
+    "FrameRef": {
+      "additionalProperties": false,
+      "description": "The reviewed frame composited onto the render (see :mod:`argus_mint.frames`).",
+      "properties": {
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "hash"
+      ],
+      "title": "FrameRef",
+      "type": "object"
+    },
+    "Health": {
+      "additionalProperties": false,
+      "properties": {
+        "backends": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "title": "Backends",
+          "type": "object"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "card": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Card"
+        },
+        "chain_id": {
+          "title": "Chain Id",
+          "type": "integer"
+        },
+        "consumer": {
+          "title": "Consumer",
+          "type": "string"
+        },
+        "network": {
+          "title": "Network",
+          "type": "string"
+        },
+        "read_only": {
+          "title": "Read Only",
+          "type": "boolean"
+        },
+        "reviewers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reviewers",
+          "type": "array"
+        },
+        "service": {
+          "const": "argus-mint",
+          "default": "argus-mint",
+          "title": "Service",
+          "type": "string"
+        },
+        "siwe_domain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Siwe Domain"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        },
+        "wire_version": {
+          "default": "1.5",
+          "title": "Wire Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "read_only",
+        "network",
+        "chain_id",
+        "card",
+        "consumer",
+        "reviewers",
+        "siwe_domain",
+        "capabilities",
+        "backends"
+      ],
+      "title": "Health",
+      "type": "object"
+    },
+    "LayoutRequest": {
+      "additionalProperties": false,
+      "description": "POST /frames/{id}/{version}/layout: where these texts go, for a browser preview.",
+      "properties": {
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "texts"
+      ],
+      "title": "LayoutRequest",
+      "type": "object"
+    },
+    "LibraryItem": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "title": "Group",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "group",
+        "model",
+        "variables",
+        "seed",
+        "sha256"
+      ],
+      "title": "LibraryItem",
+      "type": "object"
+    },
+    "LibraryListing": {
+      "additionalProperties": false,
+      "description": "GET /library: pre-rendered portraits, for drafts without a GPU (``CreateDraft.library``).",
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/LibraryItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        }
+      },
+      "required": [
+        "template",
+        "models",
+        "count",
+        "items"
+      ],
+      "title": "LibraryListing",
+      "type": "object"
+    },
+    "LineLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "x",
+        "y"
+      ],
+      "title": "LineLayout",
+      "type": "object"
+    },
+    "LoraChoice": {
+      "additionalProperties": false,
+      "description": "A render's pick from the template's ``lora_options``. ``weight`` defaults to the first allowed.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "LoraChoice",
+      "type": "object"
+    },
+    "LoraOption": {
+      "additionalProperties": false,
+      "description": "A LoRA a card may choose (reviewed with the template), at one of its allowed weights.\n\n``models``: the checkpoints it may pair with (a LoRA belongs to one family); empty means any\nthe template allows.",
+      "properties": {
+        "models": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "trigger_words": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Trigger Words",
+          "type": "array"
+        },
+        "weights": {
+          "default": [
+            1.0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "title": "Weights",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "LoraOption",
+      "type": "object"
+    },
+    "LoraRef": {
+      "additionalProperties": false,
+      "description": "A LoRA by file name, with its weight and the trigger words the renderer appends.\n\nA bare string in YAML means ``{name: <string>, weight: 1.0}``.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "trigger_words": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Trigger Words",
+          "type": "array"
+        },
+        "weight": {
+          "default": 1.0,
+          "maximum": 4.0,
+          "minimum": -4.0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "LoraRef",
+      "type": "object"
+    },
+    "PublishRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "deadline": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deadline"
+        },
+        "price": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Price",
+          "type": "integer"
+        }
+      },
+      "title": "PublishRequest",
+      "type": "object"
+    },
+    "PublishResult": {
+      "additionalProperties": false,
+      "properties": {
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        },
+        "metadata_cid": {
+          "title": "Metadata Cid",
+          "type": "string"
+        },
+        "render": {
+          "additionalProperties": true,
+          "title": "Render",
+          "type": "object"
+        },
+        "reviews": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Reviews",
+          "type": "array"
+        },
+        "signature": {
+          "title": "Signature",
+          "type": "string"
+        },
+        "signer": {
+          "title": "Signer",
+          "type": "string"
+        },
+        "typed_data": {
+          "additionalProperties": true,
+          "title": "Typed Data",
+          "type": "object"
+        },
+        "voucher": {
+          "additionalProperties": true,
+          "title": "Voucher",
+          "type": "object"
+        }
+      },
+      "required": [
+        "signer",
+        "render",
+        "reviews",
+        "metadata",
+        "metadata_cid",
+        "voucher",
+        "signature",
+        "typed_data"
+      ],
+      "title": "PublishResult",
+      "type": "object"
+    },
+    "Rect": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        },
+        "x": {
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "Rect",
+      "type": "object"
+    },
+    "Ref": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "Ref",
+      "type": "object"
+    },
+    "RenderRequest": {
+      "additionalProperties": false,
+      "description": "Everything a renderer needs, fully determined by template version + values + seed.",
+      "properties": {
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "loras": {
+          "items": {
+            "$ref": "#/$defs/LoraRef"
+          },
+          "title": "Loras",
+          "type": "array"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "negative": {
+          "title": "Negative",
+          "type": "string"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "sampling": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sampling"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "seed": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "template_hash": {
+          "title": "Template Hash",
+          "type": "string"
+        },
+        "template_id": {
+          "title": "Template Id",
+          "type": "string"
+        },
+        "template_version": {
+          "title": "Template Version",
+          "type": "integer"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "template_id",
+        "template_version",
+        "template_hash",
+        "model",
+        "loras",
+        "sampling",
+        "width",
+        "height",
+        "prompt",
+        "negative",
+        "variables",
+        "seed"
+      ],
+      "title": "RenderRequest",
+      "type": "object"
+    },
+    "Review": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "moderator",
+            "owner"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "decision",
+        "by",
+        "at",
+        "image_sha256"
+      ],
+      "title": "Review",
+      "type": "object"
+    },
+    "ReviewRequest": {
+      "additionalProperties": false,
+      "description": "POST /drafts/{id}/review.\n\nThe moderator sends ``Authorization: Bearer <token>`` and ``by``; the owner sends the\nsigned challenge (``message`` + ``signature``), and ``by`` is their address.",
+      "properties": {
+        "approve": {
+          "title": "Approve",
+          "type": "boolean"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "By"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "moderator",
+            "owner"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "signature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signature"
+        }
+      },
+      "required": [
+        "role",
+        "approve"
+      ],
+      "title": "ReviewRequest",
+      "type": "object"
+    },
+    "SampleItem": {
+      "additionalProperties": false,
+      "properties": {
+        "art": {
+          "default": false,
+          "title": "Art",
+          "type": "boolean"
+        },
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "bio": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "bio_attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Bio Attempts",
+          "type": "array"
+        },
+        "bio_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio Error"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "framed": {
+          "default": false,
+          "title": "Framed",
+          "type": "boolean"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "n",
+        "variables"
+      ],
+      "title": "SampleItem",
+      "type": "object"
+    },
+    "SampleJob": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SampleItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "request": {
+          "$ref": "#/$defs/SampleRequest"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "created_at",
+        "request"
+      ],
+      "title": "SampleJob",
+      "type": "object"
+    },
+    "SampleJobList": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/SampleJob"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "SampleJobList",
+      "type": "object"
+    },
+    "SampleRequest": {
+      "additionalProperties": false,
+      "description": "POST /samples: render sample cards of a template (any status) for its reviewer.",
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "count": {
+          "default": 4,
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ref"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "loras": {
+          "items": {
+            "$ref": "#/$defs/LoraChoice"
+          },
+          "title": "Loras",
+          "type": "array"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "name": {
+          "default": "Sample",
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "seed": {
+          "default": 0,
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        },
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "template"
+      ],
+      "title": "SampleRequest",
+      "type": "object"
+    },
+    "Sampling": {
+      "additionalProperties": false,
+      "description": "Sampler settings, fixed by the reviewed template so a render is reproducible.",
+      "properties": {
+        "cfg": {
+          "exclusiveMinimum": 0,
+          "maximum": 30,
+          "title": "Cfg",
+          "type": "number"
+        },
+        "clip_skip": {
+          "default": 1,
+          "maximum": 12,
+          "minimum": 1,
+          "title": "Clip Skip",
+          "type": "integer"
+        },
+        "guidance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 30,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guidance"
+        },
+        "sampler": {
+          "minLength": 1,
+          "title": "Sampler",
+          "type": "string"
+        },
+        "scheduler": {
+          "minLength": 1,
+          "title": "Scheduler",
+          "type": "string"
+        },
+        "steps": {
+          "exclusiveMinimum": 0,
+          "maximum": 200,
+          "title": "Steps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sampler",
+        "scheduler",
+        "steps",
+        "cfg"
+      ],
+      "title": "Sampling",
+      "type": "object"
+    },
+    "SlotBackground": {
+      "additionalProperties": false,
+      "description": "A filled, rounded box behind a text slot.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Colour",
+          "type": "string"
+        },
+        "opacity": {
+          "default": 0.6,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "padding": {
+          "default": 4,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Padding",
+          "type": "integer"
+        },
+        "radius": {
+          "default": 8,
+          "maximum": 200,
+          "minimum": 0,
+          "title": "Radius",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "title": "SlotBackground",
+      "type": "object"
+    },
+    "SlotLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "ascent": {
+          "title": "Ascent",
+          "type": "integer"
+        },
+        "descent": {
+          "title": "Descent",
+          "type": "integer"
+        },
+        "effects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Effects",
+          "type": "object"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Font"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/LineLayout"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "font",
+        "size",
+        "ascent",
+        "descent",
+        "effects",
+        "lines"
+      ],
+      "title": "SlotLayout",
+      "type": "object"
+    },
+    "SlotStyle": {
+      "additionalProperties": false,
+      "description": "How one text slot is drawn. Unset fields keep the frame's own choices.",
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SlotBackground"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "colour": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Colour"
+        },
+        "effect": {
+          "default": "none",
+          "enum": [
+            "none",
+            "shadow",
+            "outline",
+            "glow"
+          ],
+          "title": "Effect",
+          "type": "string"
+        },
+        "effect_colour": {
+          "default": "#000000",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Effect Colour",
+          "type": "string"
+        }
+      },
+      "title": "SlotStyle",
+      "type": "object"
+    },
+    "Template": {
+      "additionalProperties": false,
+      "description": "One version of a render template, as reviewed and recorded in its YAML file.",
+      "properties": {
+        "approved_at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved At"
+        },
+        "approved_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved By"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 8192,
+          "title": "Height",
+          "type": "integer"
+        },
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "lora_options": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LoraOption"
+          },
+          "title": "Lora Options",
+          "type": "array"
+        },
+        "loras": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LoraRef"
+          },
+          "title": "Loras",
+          "type": "array"
+        },
+        "max_attempts": {
+          "default": 4,
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_loras": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Max Loras",
+          "type": "integer"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "models": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "negative": {
+          "default": "",
+          "title": "Negative",
+          "type": "string"
+        },
+        "prompt": {
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "sampling": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sampling"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sampling_by_family": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Sampling"
+          },
+          "title": "Sampling By Family",
+          "type": "object"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "variables": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Variables",
+          "type": "object"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 8192,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "status",
+        "model",
+        "width",
+        "height",
+        "prompt",
+        "variables"
+      ],
+      "title": "Template",
+      "type": "object"
+    },
+    "TemplateInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "combinations": {
+          "title": "Combinations",
+          "type": "integer"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "template": {
+          "$ref": "#/$defs/Template"
+        }
+      },
+      "required": [
+        "hash",
+        "file",
+        "combinations",
+        "template"
+      ],
+      "title": "TemplateInfo",
+      "type": "object"
+    },
+    "TextEdit": {
+      "additionalProperties": false,
+      "description": "The owner's change to the card: text and style. ``None`` leaves a field as it is; an empty\nslot text clears it; ``style`` replaces the whole style (an empty one clears it).",
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "texts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Texts"
+        }
+      },
+      "title": "TextEdit",
+      "type": "object"
+    },
+    "TextSlot": {
+      "additionalProperties": false,
+      "description": "A box for one piece of card text.\n\nThe text is drawn at ``size`` if it fits, else at the largest size down to ``min_size``\nthat fits; with ``wrap`` it breaks across lines. If it doesn't fit even at ``min_size``,\nit is clipped and ends in an ellipsis.",
+      "properties": {
+        "align": {
+          "default": "center",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "title": "Align",
+          "type": "string"
+        },
+        "colour": {
+          "default": "#000000",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Colour",
+          "type": "string"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Font"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "line_spacing": {
+          "default": 1.15,
+          "maximum": 3.0,
+          "minimum": 0.8,
+          "title": "Line Spacing",
+          "type": "number"
+        },
+        "min_size": {
+          "default": 12,
+          "maximum": 512,
+          "minimum": 6,
+          "title": "Min Size",
+          "type": "integer"
+        },
+        "size": {
+          "default": 48,
+          "maximum": 512,
+          "minimum": 6,
+          "title": "Size",
+          "type": "integer"
+        },
+        "valign": {
+          "default": "middle",
+          "enum": [
+            "top",
+            "middle"
+          ],
+          "title": "Valign",
+          "type": "string"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        },
+        "wrap": {
+          "default": false,
+          "title": "Wrap",
+          "type": "boolean"
+        },
+        "x": {
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "TextSlot",
+      "type": "object"
+    },
+    "Tint": {
+      "additionalProperties": false,
+      "description": "Recolour the frame overlay: every pixel moves toward ``colour`` at its own brightness.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Colour",
+          "type": "string"
+        },
+        "strength": {
+          "default": 0.6,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Strength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "title": "Tint",
+      "type": "object"
+    }
+  },
+  "title": "argus-mint wire 1.5"
+}

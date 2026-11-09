@@ -4,6 +4,45 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## Unreleased
 
+### Changed (breaking)
+
+- `argus-mint mint` is gone. A card is now `draft` → `review` (the moderator and the owner each approve the exact image) → `publish`, and nothing is pinned or signed before both approvals. Scripts that called `mint` need the three steps; `submit` takes `publish`'s output as it took `mint`'s.
+
+### Added
+
+- **Image review before publishing.** `argus-mint mint` is replaced by `draft` (render and frame into a local draft), `review` (the moderator and the owner each approve or reject the exact image, bound to its sha256) and `publish` (pin, metadata, signed voucher). `cards.check_publishable` refuses a draft that lacks either approval, was rejected, or whose files changed. Nothing reaches IPFS or a voucher before both approvals.
+- **Frames.** `frames` module and `[frames]` extra (Pillow): a reviewed PNG overlay with an art window and an optional name slot, composited onto the render. Provenance gains optional `frame` (id, version, hash) and `art` (the unframed render's ipfs:// URI). Both are omitted when unset, so existing cards' `contentHash` is unchanged. `argus-mint frames` validates a directory of frames; there's a placeholder `frames/example-plain-v1`.
+- **Card text and bios.** Frames have named text slots (`texts:`) with fonts, wrapping, shrink-to-fit and ellipsis clipping. `bios` module: a reviewed bio template prompts a language model (`ChatWriter`, OpenAI-style `/chat`; the example uses Mistral NeMo). The model sees only fixed-list values and a `{name}` token, and the real name goes in afterwards. darkroom's text pre-flight screens each bio (`DarkroomClient.check_text`), retrying flagged replies. `draft --bio --writer --text slot=value`. Provenance gains optional `bio` (template id, version, hash, model); the bio becomes the metadata `description`. The card-green frame ships with Cinzel and Crimson Text (SIL OFL).
+- **`argus-mint sample`** renders a few combinations of a draft template (optionally framed) to local files for its reviewer, through `render.render_for_review`. It never pins, signs or mints.
+- **`argus-mint serve`**: the card workflow over HTTP for argus-studio and argus-assay (`server` extra, port 8108). It lists templates, frames and bios; creates, lists and shows drafts and their images; takes reviews; and publishes. The moderator authenticates with a bearer token. The owner signs an EIP-4361 challenge naming the draft, the decision and the image hash, so neither can act as the other. It uses cortex's write guard and CORS, a read-only mode, and `/health` capabilities. The wire contract `schema/mint-wire.schema.json` comes from `argus-mint schema`, and demo-mode fixtures live in `fixtures/api/`. A Docker image (`ghcr.io/smk762/argus-mint`, published on tags) and a compose profile run it. The CLI and the server share `workflow.create_draft`/`publish`.
+- **Catalogue review over HTTP (wire 1.1).**
+  - **Samples:** `POST /samples` runs sample cards of a draft template, frame or bio template as a background job, with `GET /samples` to fetch them.
+  - **Frame previews:** `POST /frames/{id}/{v}/preview` shows a frame on a draft's or sample's art.
+  - **Decisions:** `POST /{templates,frames,bios}/{id}/{v}/review` approves or retires a file. `catalogue.record_decision` writes the decision into the YAML, keeping its comments, and restores the file if it no longer validates.
+  - **Listings:** they gain `file` and, for templates, `combinations`; `/health` gains the `sample` and `review_catalogue` capabilities.
+- **LoRA choices and sampling per checkpoint family (wire 1.5).**
+  - **LoRAs:** templates offer `lora_options` (reviewed: allowed weights, trigger words, compatible checkpoints) and `max_loras`. Renders choose from them with `--lora NAME[@WEIGHT]` or `loras` on `POST /drafts` and `/samples`.
+  - **Sampling per family:** `sampling_by_family` sets sampling per checkpoint family, and `Sampling.guidance` covers Flux.
+  - **Hashes:** templates that use none of this keep their hash.
+  - **darkroom:** renders that use these need it to choose a workflow per request (smk762/argus-darkroom#29).
+- **Selectable checkpoints and a pre-rendered library (wire 1.4).**
+  - **Checkpoints:** templates gain `models`, a reviewed list of checkpoints a card may use. Choose one with `draft --model`, `sample --model`, or `model` on `POST /drafts` and `/samples`.
+  - **Building:** `argus-mint library build` renders diverse combinations on each checkpoint, with the same variables and seeds, safety-checked and resumable.
+  - **Serving:** `/library` and `/library/{id}/image` serve the library, and `POST /drafts` with `library` (or `draft --library --entry`) makes cards from it without a GPU, if the approved template renders exactly that request.
+  - **Template v2** lists the eight SDXL checkpoints.
+- **Owner edits and styling (wire 1.3).**
+  - **Endpoint:** `POST /drafts/{id}/edit` lets the card's owner change its name, bio, display text and style, by signing a challenge that covers exactly that change. The moderator only approves or rejects.
+  - **Styles** (`metadata.CardStyle`): a border tint (`frames.tint_matrix`, the same numbers Pillow and an SVG `feColorMatrix` use), plus per-slot text colour, an effect (shadow, outline or glow) and a background box. Any colours; `style_locked` frames refuse them.
+  - **Browser preview:** `POST /frames/{id}/{v}/layout` and `GET /frames/{id}/{v}/fonts/…` let a browser draw the card as SVG while it is styled. The baked PNG is what's reviewed.
+  - **Provenance** gains optional `style`. Create, samples and frame previews accept a style too.
+  - **Redraw:** the card is redrawn on the same art, and both approvals are needed again.
+  - **History:** `CardDraft.edits` records each change, and `BioRecord.edited` marks a bio a person changed.
+- **Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`): the platform gates on safety, the owner on quality.
+  - **When it approves:** when darkroom's image and text checks passed and the name and display text pass the word filter, the moderator's approval is recorded automatically.
+  - **When it holds:** otherwise the draft waits for a human moderator, with the reasons in `CardDraft.auto_check`.
+  - **The word filter:** `moderation.WordFilter` is better-profanity (new in the `server` extra) plus `ARGUS_MINT_BLOCKLIST`.
+- `templates/example-portrait-v2.yaml` (draft): clean full-bleed portraits for framing, without the card frames, lettering and badges v1's "card art" produced.
+
 ## 0.1.0 (2026-11-08)
 
 First public release, covering milestones M0–M5. Pre-alpha: the Python API may still change, and the contracts have not had an external review. The Base mainnet deployment is a demo, not a production deployment.

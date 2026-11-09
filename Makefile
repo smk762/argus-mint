@@ -4,7 +4,7 @@ FORGE ?= $(shell command -v forge 2>/dev/null || echo $(HOME)/.foundry/bin/forge
 NPM ?= npm
 RUFF := $(UV)x ruff@0.15.16
 
-.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check ipfs ipfs-down
+.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check ipfs ipfs-down serve serve-up schema
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -75,6 +75,15 @@ ipfs:  ## Start the local Kubo IPFS node (compose.yaml; RPC on 127.0.0.1:5001)
 
 ipfs-down:  ## Stop the Kubo node (its data volume is kept)
 	docker compose stop kubo
+
+serve:  ## Run the HTTP service locally (argus-mint serve on 127.0.0.1:8108; ARGUS_MINT_* from .env)
+	set -a; [ -f .env ] && . ./.env; set +a; $(UV) run argus-mint serve
+
+serve-up:  ## Build and start the service + Kubo in docker (compose profile `server`)
+	docker compose --profile server up -d --build
+
+schema:  ## Write the HTTP wire schema (schema/mint-wire.schema.json); commit it
+	$(UV) run argus-mint schema
 
 check: lint test forge-test verifier-test  ## Everything a milestone needs green
 

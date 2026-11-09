@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+import random
 import sys
-import time
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -15,21 +16,39 @@ from eth_account import Account
 import argus_mint
 from argus_mint import merkle, networks
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
+from argus_mint.bios import WRITER_KEY_ENV, BioError, BioFailed, ChatWriter, load_bio, write_bio
+from argus_mint.cards import (
+    ART_FILE,
+    CARD_FILE,
+    DRAFT_FILE,
+    REVIEWERS,
+    DraftError,
+    check_publishable,
+    load_draft,
+    review,
+    save_draft,
+    sha256_hex,
+)
 from argus_mint.darkroom import DarkroomClient, DarkroomError
+from argus_mint.frames import FrameError, compose, load_frame
 from argus_mint.keys import KEY_ENV, KeyLoadError, load_signer
-from argus_mint.metadata import Provenance, card_metadata, content_hash
+from argus_mint.library import Library, LibraryError
+from argus_mint.library import build as build_library
+from argus_mint.library import describe as describe_library
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
-from argus_mint.render import Darklight, GenResult, RenderError, render
+from argus_mint.render import GenResult, RenderError, render_for_review
 from argus_mint.templates import (
+    LoraChoice,
     RenderRequest,
     TemplateError,
     combinations,
-    fill,
     fill_for_review,
     load_registry,
     load_template,
 )
-from argus_mint.vouchers import Domain, MintVoucher, recover, sign, typed_data
+from argus_mint.vouchers import Domain, MintVoucher, recover
+from argus_mint.workflow import bio_attempts, card_texts, create_draft
+from argus_mint.workflow import publish as publish_draft
 
 app = typer.Typer(help="argus-mint: provenance tokens for game assets.", no_args_is_help=True)
 
@@ -146,143 +165,364 @@ def _parse_vars(pairs: list[str]) -> dict[str, str]:
     return values
 
 
+IpfsOpt = Annotated[
+    str | None,
+    typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
+]
+LoraOpt = Annotated[
+    list[str], typer.Option(help="A LoRA from the template's lora_options, NAME or NAME@WEIGHT (repeat)")
+]
+ModelOpt = Annotated[str | None, typer.Option(help="Checkpoint: the template's default, or one of its `models`")]
+BioOpt = Annotated[Path | None, typer.Option(help="Bio template YAML: a language model writes the card's bio")]
+WriterOpt = Annotated[
+    str | None,
+    typer.Option(envvar="ARGUS_MINT_WRITER_URL", help="Bio writer base URL (OpenAI-style POST /chat)"),
+]
+TextOpt = Annotated[
+    list[str],
+    typer.Option("--text", help="Display text for a frame slot, slot=text (repeat), e.g. class=Ranger"),
+]
+
+
+def _attempts_json(attempts: Any) -> list[dict[str, Any]]:
+    return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
+
+
+def _render_failed(e: RenderError) -> typer.Exit:
+    for a in e.attempts:
+        typer.echo(f"  attempt seed={a.seed} {a.outcome} {a.ref} {a.detail}", err=True)
+    return _fail(str(e))
+
+
+def _parse_loras(items: list[str]) -> tuple[LoraChoice, ...]:
+    out = []
+    for item in items:
+        name, sep, weight = item.rpartition("@") if "@" in item else (item, "", "")
+        try:
+            out.append(LoraChoice(name=name, weight=float(weight) if sep else None))
+        except ValueError as e:
+            raise typer.BadParameter(f"expected NAME or NAME@WEIGHT, got {item!r}", param_hint="--lora") from e
+    return tuple(out)
+
+
+def _parse_texts(pairs: list[str]) -> dict[str, str]:
+    texts: dict[str, str] = {}
+    for p in pairs:
+        key, sep, value = p.partition("=")
+        if not sep or not key:
+            raise typer.BadParameter(f"expected slot=text, got {p!r}", param_hint="--text")
+        if key in ("name", "bio"):
+            raise typer.BadParameter(f"the {key} slot is filled by argus-mint", param_hint="--text")
+        if key in texts:
+            raise typer.BadParameter(f"{key} given twice", param_hint="--text")
+        texts[key] = value
+    return texts
+
+
+def _writer(writer_url: str | None) -> ChatWriter:
+    if not writer_url:
+        raise _fail("--bio needs --writer (or $ARGUS_MINT_WRITER_URL)", 2)
+    return ChatWriter(writer_url, api_key=os.environ.get(WRITER_KEY_ENV) or None)
+
+
 @app.command()
-def mint(
+def frames(directory: Annotated[Path, typer.Argument(help="Directory of frame YAML files")]) -> None:
+    """Validate every frame under DIRECTORY and list id, version, status, size, text slots and hash."""
+    files = sorted([*directory.rglob("*.yaml"), *directory.rglob("*.yml")])
+    for f in files:
+        try:
+            lf = load_frame(f)
+        except FrameError as e:
+            raise _fail(str(e)) from e
+        w, h = lf.size
+        slots = ",".join(lf.frame.texts) or "-"
+        typer.echo(f"{lf.frame.id}\tv{lf.frame.version}\t{lf.frame.status}\t{w}x{h}\t{slots}\t{hex0x(lf.hash())}")
+
+
+@app.command()
+def sample(
+    template: Annotated[Path, typer.Argument(help="Template YAML file (any status: drafts are what this is for)")],
+    out: Annotated[Path, typer.Option(help="Directory for the sample images")],
+    count: Annotated[int, typer.Option(min=1, max=64, help="How many combinations to render")] = 6,
+    var: Annotated[list[str], typer.Option(help="Fix a variable to key=value (repeat); the rest vary")] = [],  # noqa: B006
+    seed: Annotated[int, typer.Option(help="Picks the combinations, and the first render seed")] = 0,
+    model: ModelOpt = None,
+    lora: LoraOpt = [],  # noqa: B006
+    frame: Annotated[Path | None, typer.Option(help="Frame YAML to preview (any status)")] = None,
+    name: Annotated[str, typer.Option(help="Name drawn in the frame's name slot")] = "Sample",
+    bio: BioOpt = None,
+    writer: WriterOpt = None,
+    text: TextOpt = [],  # noqa: B006
+    darkroom: DarkroomOpt = None,
+    policy: PolicyOpt = "default",
+) -> None:
+    """Render sample cards of TEMPLATE for its reviewer. Local files only: never pins, signs or mints.
+
+    Picks COUNT combinations (deterministic for --seed) among those matching --var, renders
+    each through darkroom with the usual safety check and retries, and writes the images to
+    --out. With --frame it also writes framed previews; --bio adds a written bio (any status
+    of template, frame or bio template may be previewed). Prints a JSON summary.
+    """
+    if not darkroom:
+        raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
+    try:
+        t = load_template(template)
+        fixed = _parse_vars(var)
+        extra = _parse_texts(text)
+        lf = load_frame(frame) if frame else None
+        bt = load_bio(bio) if bio else None
+    except (TemplateError, FrameError, BioError) as e:
+        raise _fail(str(e)) from e
+    if extra and lf is None:
+        raise typer.BadParameter("display text needs a --frame to draw it on", param_hint="--text")
+    bio_writer = _writer(writer) if bt else None
+    unknown = fixed.keys() - t.variables.keys()
+    if unknown:
+        raise typer.BadParameter(f"unknown variables: {sorted(unknown)}", param_hint="--var")
+    if model is not None and model not in t.allowed_models():
+        raise typer.BadParameter(f"not one this template allows: {list(t.allowed_models())}", param_hint="--model")
+    pool = [c for c in combinations(t) if all(c[k] == v for k, v in fixed.items())]
+    if not pool:
+        raise _fail("no combination matches the fixed --var values")
+    picks = random.Random(seed).sample(pool, min(count, len(pool)))
+    client = DarkroomClient(darkroom, policy=policy)
+    out.mkdir(parents=True, exist_ok=True)
+    results = []
+    for i, values in enumerate(picks, 1):
+        entry: dict[str, Any] = {"n": i, "variables": values}
+        try:
+            r = render_for_review(client, t, values, seed + i, model, _parse_loras(lora))
+            b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
+        except (DarkroomError, BioFailed) as e:
+            if isinstance(e, BioFailed):
+                entry |= {"error": str(e), "bio_attempts": bio_attempts(e.attempts)}
+                results.append(entry)
+                typer.echo(f"{i}: {e}", err=True)
+                continue
+            raise _fail(str(e)) from e
+        except BioError as e:
+            raise _fail(str(e)) from e
+        except RenderError as e:
+            entry |= {"error": str(e), "attempts": _attempts_json(e.attempts)}
+            results.append(entry)
+            typer.echo(f"{i}: {e}", err=True)
+            continue
+        art = out / f"{i:02d}-{r.seed}.png"
+        art.write_bytes(r.image)
+        entry |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": _attempts_json(r.attempts), "art": str(art)}
+        if b is not None:
+            entry |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
+        if lf is not None:
+            framed = out / f"{i:02d}-{r.seed}-framed.png"
+            try:
+                framed.write_bytes(compose(lf, r.image, card_texts(lf, name, b.text if b else None, extra)))
+            except FrameError as e:
+                raise _fail(str(e)) from e
+            entry["framed"] = str(framed)
+        results.append(entry)
+        typer.echo(f"{i}: {entry.get('framed', art)}", err=True)
+    typer.echo(json.dumps({"template": f"{t.id} v{t.version}", "status": t.status, "samples": results}, indent=2))
+
+
+@app.command()
+def draft(
     template: Annotated[Path, typer.Option(help="Template YAML file (must be approved)")],
-    to: Annotated[str, typer.Option(help="Address the card is minted to")],
-    name: Annotated[str, typer.Option(help="Card name (free text: metadata only, never sent to the model)")],
-    card: Annotated[str, typer.Option(help="Card contract address (EIP-712 verifyingContract)")],
-    network: Annotated[str, typer.Option(help="base | base-sepolia | anvil (sets the chain id)")] = "base-sepolia",
-    chain_id: Annotated[int | None, typer.Option(help="Chain id override (default: from --network)")] = None,
+    out: Annotated[Path, typer.Option(help="Draft directory to create (art.png, card.png, draft.json)")],
+    to: Annotated[str, typer.Option(help="Address the card will be minted to (the owner who reviews it)")],
+    name: Annotated[str, typer.Option(help="Card name (free text: metadata and image only, never sent to a model)")],
     var: Annotated[list[str], typer.Option(help="Template variable key=value (repeat)")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="First render seed")] = 0,
+    model: ModelOpt = None,
+    lora: LoraOpt = [],  # noqa: B006
+    library: Annotated[Path | None, typer.Option(help="Pre-rendered library directory (with --entry)")] = None,
+    entry: Annotated[str | None, typer.Option(help="Library entry id: its art, variables and seed")] = None,
     asset_id: Annotated[str | None, typer.Option(help="0x 32-byte asset id")] = None,
     asset: Annotated[str | None, typer.Option(help="Asset key; asset id = keccak256(utf8 key)")] = None,
-    description: Annotated[str, typer.Option()] = "",
+    description: Annotated[str, typer.Option(help="Metadata description (default: the bio, if one is written)")] = "",
     consumer: Annotated[str, typer.Option(help="Consumer name recorded in provenance")] = "argus-mint",
     external_url: Annotated[str | None, typer.Option()] = None,
-    price: Annotated[int, typer.Option(help="Mint price in wei")] = 0,
-    ttl: Annotated[int, typer.Option(help="Voucher lifetime in seconds")] = 3600,
-    deadline: Annotated[int | None, typer.Option(help="Voucher deadline (unix seconds); overrides --ttl")] = None,
+    frame: Annotated[Path | None, typer.Option(help="Frame YAML to composite on top (must be approved)")] = None,
+    bio: BioOpt = None,
+    writer: WriterOpt = None,
+    text: TextOpt = [],  # noqa: B006
     image: Annotated[Path | None, typer.Option(help="Use this image instead of rendering")] = None,
     darkroom: DarkroomOpt = None,
     policy: PolicyOpt = "default",
     accept_review: Annotated[bool, typer.Option(help="Accept darkroom 'review' images (default: retry)")] = False,
-    ipfs_api: Annotated[
-        str | None,
-        typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
-    ] = None,
-    account: AccountOpt = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Pin locally (no IPFS); allow a throwaway signer")] = False,
+    placeholder: Annotated[
+        bool, typer.Option("--placeholder", help="Placeholder art (for dry runs; publish needs --dry-run)")
+    ] = False,
 ) -> None:
-    """Render, pin, build metadata and sign a mint voucher; print it all as JSON.
+    """Step 1 of 3: render a card, write its bio and frame it into a local draft for review.
 
-    Renders through darkroom when --darkroom is given (a placeholder image otherwise, dry run
-    only). A live run pins to IPFS via --ipfs-api and signs with --account (a Foundry keystore)
-    or $ARGUS_MINT_SIGNER_KEY; a dry run pins locally and uses a throwaway signer when neither
-    is set. Send the result on-chain with `argus-mint submit`.
+    The art comes from darkroom (--darkroom), a file (--image) or a placeholder. With --bio, a
+    language model at --writer writes the bio, screened by darkroom's text check (so --bio
+    needs --darkroom too). --text fills the frame's other slots (class, stats...) with the
+    consumer's display text. Nothing is pinned or signed: next the moderator and the owner
+    each run `argus-mint review`, then `argus-mint publish`.
     """
-    try:
-        resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
-    except ValueError as e:
-        raise typer.BadParameter(str(e), param_hint="--network") from e
     if (asset_id is None) == (asset is None):
         raise typer.BadParameter("give exactly one of --asset-id or --asset")
     try:
         aid = to_bytes32(asset_id) if asset_id is not None else keccak256(asset.encode())  # type: ignore[union-attr]
     except ValueError as e:
         raise typer.BadParameter(str(e), param_hint="--asset-id") from e
+    if (library is None) != (entry is None):
+        raise _fail("--library and --entry go together", 2)
+    if sum(x for x in (image is not None, placeholder, library is not None)) > 1:
+        raise _fail("give one of --image, --placeholder or --library", 2)
+    if image is None and not placeholder and library is None and not darkroom:
+        raise _fail("give --darkroom (render), --library/--entry, --image or --placeholder", 2)
+    lib_entry, lib_image = None, None
+    if library is not None and entry is not None:
+        try:
+            lib = Library(library)
+            lib_entry, lib_image = lib.entry(entry), lib.image(entry)
+        except LibraryError as e:
+            raise _fail(str(e)) from e
+        # The entry brings its variables and checkpoint: refuse others rather than ignore them.
+        if var and _parse_vars(var) != lib_entry.variables:
+            raise _fail(f"library entry {lib_entry.id} shows {lib_entry.variables}; leave --var out or match it", 2)
+        if model not in (None, lib_entry.model):
+            raise _fail(f"library entry {lib_entry.id} was rendered with {lib_entry.model}, not {model}", 2)
+    if bio and not darkroom:
+        raise _fail("--bio needs --darkroom: darkroom's text check screens every bio", 2)
+    extra = _parse_texts(text)
+    if extra and frame is None:
+        raise typer.BadParameter("display text needs a --frame to draw it on", param_hint="--text")
+    if (out / DRAFT_FILE).exists():
+        raise _fail(f"{out} already holds a draft; use a new directory")
+    bio_writer = _writer(writer) if bio else None
+    client = DarkroomClient(darkroom, policy=policy, accept_review=accept_review) if darkroom else None
+    try:
+        made = create_draft(
+            template=load_template(template),
+            values=lib_entry.variables if lib_entry else _parse_vars(var),
+            seed=lib_entry.seed if lib_entry else seed,
+            asset_id=aid,
+            to=to,
+            name=name,
+            renderer=None if (image is not None or lib_entry) else (_PlaceholderRenderer() if placeholder else client),
+            renderer_name="placeholder" if placeholder else "darkroom",
+            image=lib_image if lib_entry else (image.read_bytes() if image is not None else None),
+            image_ref=str(image) if image is not None else "",
+            description=description,
+            external_url=external_url,
+            consumer=consumer,
+            frame=load_frame(frame) if frame else None,
+            bio=load_bio(bio) if bio else None,
+            writer=bio_writer,
+            guard=client,
+            texts=extra,
+            model=lib_entry.model if lib_entry else model,
+            library=lib_entry,
+            loras=_parse_loras(lora),
+        )
+    except (TemplateError, FrameError, LibraryError) as e:
+        raise _fail(str(e)) from e
+    except BioFailed as e:
+        for a in e.attempts:
+            typer.echo(f"  bio attempt {a.outcome} {a.detail}: {a.text}", err=True)
+        raise _fail(str(e)) from e
+    except (DarkroomError, BioError) as e:
+        raise _fail(str(e)) from e
+    except RenderError as e:
+        raise _render_failed(e) from e
+    d = made.draft
+    save_draft(out, d, made.art, made.image)
+    typer.echo(
+        json.dumps(
+            {
+                "draft": str(out),
+                "image": str(out / (CARD_FILE if d.frame else ART_FILE)),
+                "image_sha256": d.image_sha256,
+                "prompt": d.request.prompt,
+                "seed": d.request.seed,
+                "attempts": list(d.attempts),
+                "bio": d.bio.text if d.bio else None,
+                "status": d.status,
+                "awaiting": d.awaiting(),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
 
+
+@app.command("review")
+def review_cmd(
+    draft_dir: Annotated[Path, typer.Argument(help="Draft directory (from `argus-mint draft`)")],
+    role: Annotated[str, typer.Option("--as", help="Who is reviewing: moderator | owner")],
+    by: Annotated[str, typer.Option(help="Reviewer's name or id, recorded in the draft")],
+    approve: Annotated[bool, typer.Option("--approve/--reject", help="The decision")] = ...,  # type: ignore[assignment]
+    note: Annotated[str, typer.Option(help="Reason, especially for a rejection")] = "",
+) -> None:
+    """Step 2 of 3: approve or reject a draft's card image (look at it first).
+
+    The moderator and the owner each review once. Both must approve before `publish`; a
+    rejection closes the draft. The decision is bound to the image's sha256.
+    """
+    if role not in REVIEWERS:
+        raise typer.BadParameter(f"must be one of {', '.join(REVIEWERS)}", param_hint="--as")
+    try:
+        d, _art, image = load_draft(draft_dir)
+        if sha256_hex(image) != d.image_sha256:
+            raise DraftError("the card image on disk differs from the one rendered for this draft")
+        d = review(d, role=role, approve=approve, by=by, note=note)  # type: ignore[arg-type]
+    except DraftError as e:
+        raise _fail(str(e)) from e
+    save_draft(draft_dir, d)
+    typer.echo(json.dumps({"draft": str(draft_dir), "status": d.status, "awaiting": d.awaiting()}, indent=2))
+
+
+@app.command()
+def publish(
+    draft_dir: Annotated[Path, typer.Argument(help="Approved draft directory")],
+    card: Annotated[str, typer.Option(help="Card contract address (EIP-712 verifyingContract)")],
+    network: Annotated[str, typer.Option(help="base | base-sepolia | anvil (sets the chain id)")] = "base-sepolia",
+    chain_id: Annotated[int | None, typer.Option(help="Chain id override (default: from --network)")] = None,
+    price: Annotated[int, typer.Option(help="Mint price in wei")] = 0,
+    ttl: Annotated[int, typer.Option(help="Voucher lifetime in seconds")] = 3600,
+    deadline: Annotated[int | None, typer.Option(help="Voucher deadline (unix seconds); overrides --ttl")] = None,
+    ipfs_api: IpfsOpt = None,
+    account: AccountOpt = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Pin locally (no IPFS); allow a throwaway signer")] = False,
+) -> None:
+    """Step 3 of 3: pin an approved draft, build its metadata and sign the mint voucher; print JSON.
+
+    Refuses a draft the moderator and the owner haven't both approved, or whose files changed
+    since. A live run pins via --ipfs-api and signs with --account (a Foundry keystore) or
+    $ARGUS_MINT_SIGNER_KEY. Send the result on-chain with `argus-mint submit`.
+    """
+    try:
+        resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--network") from e
+    try:
+        d, art, image = load_draft(draft_dir)
+        check_publishable(d, art, image)
+    except DraftError as e:
+        raise _fail(str(e)) from e
     try:
         key = load_signer(account)
     except KeyLoadError as e:
         raise _fail(str(e)) from e
     if not dry_run:
-        missing = [
-            flag
-            for flag, have in (
-                ("--darkroom or --image", darkroom or image),
-                ("--ipfs-api", ipfs_api),
-                (f"--account or ${KEY_ENV}", key),
-            )
-            if not have
-        ]
+        if d.renderer == "placeholder":
+            raise _fail("this draft has placeholder art; only a dry run can publish it", 2)
+        missing = [f for f, have in (("--ipfs-api", ipfs_api), (f"--account or ${KEY_ENV}", key)) if not have]
         if missing:
-            raise _fail(f"a live mint needs {', '.join(missing)} (or use --dry-run)", 2)
+            raise _fail(f"a live publish needs {', '.join(missing)} (or use --dry-run)", 2)
     signer = key or Account.create()
-    renderer: Darklight = (
-        DarkroomClient(darkroom, policy=policy, accept_review=accept_review) if darkroom else _PlaceholderRenderer()
-    )
     pinner: Pinner = KuboPinner(ipfs_api) if (ipfs_api and not dry_run) else LocalPinner()
-
     try:
-        t = load_template(template)
-        values = _parse_vars(var)
-        if image is not None:
-            req = fill(t, values, seed)
-            img, attempts_out = image.read_bytes(), [{"seed": req.seed, "outcome": "supplied", "ref": str(image)}]
-        else:
-            rendered = render(renderer, t, values, seed)
-            img, req = rendered.image, rendered.request
-            attempts_out = [
-                {"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in rendered.attempts
-            ]
-    except TemplateError as e:
-        raise _fail(str(e)) from e
-    except DarkroomError as e:
-        raise _fail(str(e)) from e
-    except RenderError as e:
-        for a in e.attempts:
-            typer.echo(f"  attempt seed={a.seed} {a.outcome} {a.ref} {a.detail}", err=True)
-        raise _fail(str(e)) from e
-
-    provenance = Provenance(
-        template=req.template_id,
-        template_version=req.template_version,
-        template_hash=req.template_hash,
-        seed=req.seed,
-        attempts=len(attempts_out),
-        asset_id=aid,
-        consumer=consumer,
-    )
-    try:
-        image_cid = pinner.pin_bytes(img, f"{t.id}-v{t.version}-{req.seed}.png")
-        doc = card_metadata(
-            name=name,
-            description=description,
-            image_cid=image_cid,
-            external_url=external_url,
-            attributes=[],
-            provenance=provenance,
-        )
-        metadata_cid = pinner.pin_json(doc, f"{t.id}-metadata.json")
+        result = publish_draft(
+            d, art, image, pinner=pinner, signer=signer, chain_id=resolved_chain_id, card=card,
+            price=price, deadline=deadline, ttl=ttl,
+        )  # fmt: skip
     except PinError as e:
         raise _fail(str(e)) from e
-    voucher = MintVoucher(
-        to=to,
-        asset_id=aid,
-        content_hash=content_hash(doc),
-        price=price,
-        deadline=deadline if deadline is not None else int(time.time()) + ttl,
-    )
-    domain = Domain(chain_id=resolved_chain_id, verifying_contract=card)
-    out = {
-        "dry_run": dry_run,
-        "signer": signer.address,
-        "signer_is_ephemeral": key is None,
-        "render": {
-            "renderer": "darkroom" if darkroom and image is None else ("supplied" if image else "placeholder"),
-            "prompt": req.prompt,
-            "seed": req.seed,
-            "attempts": attempts_out,
-            "image_cid": image_cid,
-        },
-        "metadata": doc,
-        "metadata_cid": metadata_cid,
-        "voucher": voucher.model_dump(mode="json"),
-        "signature": hex0x(sign(voucher, domain, signer)),
-        "typed_data": typed_data(voucher, domain),
-    }
+    out = {"dry_run": dry_run, "draft": str(draft_dir), "signer_is_ephemeral": key is None, **result}
     typer.echo(json.dumps(out, indent=2, ensure_ascii=False))
 
 
@@ -346,7 +586,7 @@ def _read_input(path: Path) -> str:
 
 @app.command()
 def submit(
-    mint_json: Annotated[Path, typer.Argument(help="JSON printed by `argus-mint mint` ('-' for stdin)")],
+    mint_json: Annotated[Path, typer.Argument(help="JSON printed by `argus-mint publish` ('-' for stdin)")],
     network: NetworkOpt = "base-sepolia",
     rpc_url: RpcOpt = None,
     account: AccountOpt = None,
@@ -362,9 +602,9 @@ def submit(
         sig = bytes.fromhex(data["signature"].removeprefix("0x"))
         dom = data["typed_data"]["domain"]
     except (OSError, ValueError, KeyError, TypeError) as e:
-        raise _fail(f"not a `mint` output: {e}") from e
+        raise _fail(f"not a `publish` output: {e}") from e
     if data.get("dry_run"):
-        raise _fail("this voucher is from a dry run (placeholder art, local pins); mint it live first")
+        raise _fail("this voucher is from a dry run (local pins, maybe placeholder art); publish it live first")
     chain, net, w3 = _chain(network, rpc_url)
     if dom["chainId"] != net.chain_id:
         raise _fail(f"the voucher is for chain {dom['chainId']}, but {net.name} is chain {net.chain_id}")
@@ -470,3 +710,106 @@ def anchor(
         "tree": str(tree_out) if tree_out else None,
     }
     typer.echo(json.dumps(out, indent=2))
+
+
+# --- service: the card workflow over HTTP, and its wire schema ------------------------------
+# Needs the `server` extra. Configuration is ARGUS_MINT_* (see argus_mint.server.Settings).
+
+WIRE_SCHEMA_PATH = Path("schema") / "mint-wire.schema.json"
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Bind address (default: localhost only)")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port")] = 8108,
+    cors: Annotated[
+        str | None, typer.Option(help="Comma-separated browser origins allowed to call it (overrides the env)")
+    ] = None,
+) -> None:
+    """Serve drafts, reviews and publishing over HTTP for argus-studio and argus-assay.
+
+    Configured by ARGUS_MINT_* variables: DRAFTS_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR,
+    DARKROOM_URL, WRITER_URL, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE) or SIGNER_KEY,
+    NETWORK, CARD, MODERATOR_TOKEN, SIWE_DOMAIN, CORS_ORIGINS, READ_ONLY.
+    """
+    try:
+        import uvicorn
+
+        from argus_mint.server import Settings, create_app
+    except ImportError as e:
+        raise _fail(f'the server needs the server extra: pip install "argus-mint[server]" ({e})') from e
+    settings = Settings.from_env()
+    if cors is not None:
+        from dataclasses import replace
+
+        settings = replace(settings, cors_origins=tuple(o.strip() for o in cors.split(",") if o.strip()))
+    uvicorn.run(create_app(settings), host=host, port=port, log_level="info")
+
+
+@app.command()
+def schema(
+    check: Annotated[bool, typer.Option("--check", help="Fail if the committed schema is out of date")] = False,
+    path: Annotated[Path, typer.Option(help="Schema file")] = WIRE_SCHEMA_PATH,
+) -> None:
+    """Write (or --check) the HTTP wire schema that argus-studio and argus-assay pin."""
+    try:
+        from argus_cortex.wire import render_schema
+
+        from argus_mint.wire import WIRE_MODELS, WIRE_VERSION
+    except ImportError as e:
+        raise _fail(f'the schema needs the server extra: pip install "argus-mint[server]" ({e})') from e
+    text = render_schema(WIRE_MODELS, title=f"argus-mint wire {WIRE_VERSION}")
+    if check:
+        current = path.read_text(encoding="utf-8") if path.exists() else ""
+        if current != text:
+            raise _fail(f"{path} is out of date: run `argus-mint schema`")
+        typer.echo(f"{path} is up to date", err=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    typer.echo(str(path), err=True)
+
+
+# --- the pre-rendered library: cards without a GPU ------------------------------------------
+
+library_app = typer.Typer(help="Pre-rendered portraits, for a demo without a GPU.", no_args_is_help=True)
+app.add_typer(library_app, name="library")
+
+
+@library_app.command("build")
+def library_build(
+    template: Annotated[Path, typer.Argument(help="Template YAML (any status)")],
+    out: Annotated[Path, typer.Option(help="Library directory (resumes if it exists)")] = Path("library"),
+    count: Annotated[int, typer.Option(min=1, max=512, help="Variable combinations per checkpoint")] = 48,
+    seed: Annotated[int, typer.Option(help="Picks the combinations; group n renders with seed*1000+n")] = 0,
+    model: Annotated[list[str], typer.Option(help="Checkpoint (repeat); default: all the template allows")] = [],  # noqa: B006
+    darkroom: DarkroomOpt = None,
+    policy: PolicyOpt = "default",
+) -> None:
+    """Render COUNT combinations of TEMPLATE on each checkpoint, same variables and seeds on each.
+
+    Model by model, so each checkpoint loads once; interrupted builds resume. Every image goes
+    through darkroom's safety check, with the usual retries.
+    """
+    if not darkroom:
+        raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
+    try:
+        t = load_template(template)
+        lib = build_library(
+            DarkroomClient(darkroom, policy=policy), t, out, models=model or None, count=count, seed=seed,
+            progress=lambda m: typer.echo(m, err=True),
+        )  # fmt: skip
+    except (TemplateError, LibraryError) as e:
+        raise _fail(str(e)) from e
+    except DarkroomError as e:
+        raise _fail(f"{e} (the library so far is kept; run again to resume)") from e
+    typer.echo(json.dumps(describe_library(lib), indent=2))
+
+
+@library_app.command("list")
+def library_list(directory: Annotated[Path, typer.Argument(help="Library directory")] = Path("library")) -> None:
+    """Summarise a library: template, checkpoints, entries."""
+    try:
+        typer.echo(json.dumps(describe_library(Library(directory)), indent=2))
+    except LibraryError as e:
+        raise _fail(str(e)) from e

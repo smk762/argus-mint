@@ -1,0 +1,20 @@
+[
+  {
+    "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+    "file": "b.yaml",
+    "bio": {
+      "id": "example-bio",
+      "version": 1,
+      "status": "approved",
+      "approved_by": "fixture",
+      "approved_at": "2026-11-09",
+      "model": "mistral-nemo:12b-instruct-2407-q4_K_M",
+      "system": "You write flavour text for fantasy trading cards: florid, fruity, mock-heroic and a little absurd, like a bard who has had one goblet too many. Two or three sentences, under 300 characters in total. Refer to the character only as {{name}}, written exactly like that, braces included; never give them any other name or title, and never name other people. Write no numbers, statistics or game rules. Keep it suitable for all ages: no gore, no sex. Reply with the flavour text only.",
+      "prompt": "Write the flavour text for {{name}}, a {gender} {role} who wears {colour} heraldry and is most often found {pose}. Setting: {background}.",
+      "temperature": 0.9,
+      "max_tokens": 160,
+      "max_chars": 320,
+      "max_attempts": 4
+    }
+  }
+]

@@ -83,7 +83,7 @@ Leave unused lines commented out: an empty value is not the same as unset.
 
 **Mainnet:** split the roles.
 - `ADMIN` should be a multisig (e.g. a Safe on Base), so one lost or leaked key can't take the contracts.
-- `SIGNER` is a separate key held by the consumer's server. It is the key `argus-mint mint` reads from `$ARGUS_MINT_SIGNER_KEY`.
+- `SIGNER` is a separate key held by the consumer's server. It is the key `argus-mint publish` signs vouchers with (`--account` or `$ARGUS_MINT_SIGNER_KEY`).
 - The deployer then only pays gas and holds nothing afterwards.
 
 ## 4. Deploy
@@ -124,16 +124,23 @@ Sourcify is the default. Blockscout (`base-sepolia.blockscout.com`, `base.blocks
    ```bash
    cast call <CARD> "hasRole(bytes32,address)(bool)" $(cast keccak SIGNER_ROLE) <SIGNER> --rpc-url https://sepolia.base.org
    ```
-3. Mint a test card, end to end. Each step that sends a transaction or signs asks for the keystore password (step 6 below avoids the prompts).
+3. Mint a test card, end to end. `publish` and each step that sends a transaction ask for the keystore password (step 6 below avoids the prompts).
    ```bash
    make ipfs                                   # local Kubo node for the image and metadata
    export ARGUS_MINT_ACCOUNT=deployer          # sign and send as the keystore account
 
-   # render through darkroom, pin, build metadata, sign a voucher (SIGNER_ROLE)
-   argus-mint mint --network base-sepolia --card <CARD> --template templates/example-portrait-v1.yaml \
-     --var role=ranger --var colour=emerald --var "pose=on guard" --seed 42 --asset demo-1 \
-     --to <PLAYER> --name "Demo Ranger" \
-     --darkroom http://127.0.0.1:8106 --ipfs-api http://127.0.0.1:5001 > demo-1.json
+   # render through darkroom into a local draft: nothing is pinned or signed yet
+   argus-mint draft --template templates/example-portrait-v1.yaml --out drafts/demo-1 \
+     --var gender=female --var role=ranger --var colour=emerald --var "pose=on guard" --var background=forest \
+     --seed 42 --asset demo-1 --to <PLAYER> --name "Demo Ranger" --darkroom http://127.0.0.1:8106
+
+   # look at drafts/demo-1/art.png, then both reviewers decide (--reject --note "…" closes the draft)
+   argus-mint review drafts/demo-1 --as moderator --by <you> --approve
+   argus-mint review drafts/demo-1 --as owner --by <PLAYER> --approve
+
+   # pin, build metadata, sign the voucher (SIGNER_ROLE)
+   argus-mint publish drafts/demo-1 --network base-sepolia --card <CARD> \
+     --ipfs-api http://127.0.0.1:5001 > demo-1.json
 
    argus-mint submit demo-1.json               # sends the voucher; prints the token id
    argus-mint freeze --card <CARD> --token-id 1 --uri <metadata_cid from demo-1.json>   # METADATA_ROLE
@@ -174,7 +181,7 @@ Keep the RPC on 127.0.0.1: it can pin, unpin and read the node's keys.
 
 ```bash
 ssh -N -L 5002:127.0.0.1:5001 <user>@<vps>            # keep running (autossh or a systemd unit for servers)
-argus-mint mint ... --ipfs-api http://127.0.0.1:5002
+argus-mint publish <draft dir> ... --ipfs-api http://127.0.0.1:5002
 ```
 
 Port 5002 keeps it apart from a local node on 5001. With Tailscale or WireGuard, bind the RPC to the VPS's tunnel address instead and skip the SSH step.

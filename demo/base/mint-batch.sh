@@ -2,6 +2,9 @@
 # Base mainnet demo: render, pin (VPS Kubo via tunnel on :5002), sign, mint and freeze six cards.
 # Run from the repo root after `make deploy NETWORK=base`. Each step's JSON lands in demo/base/.
 # Skips a card whose freeze output already exists, so a failed run can be re-run.
+# Historical: written for the one-shot `argus-mint mint`, which `draft` / `review` / `publish`
+# have since replaced (every card image now needs moderator and owner approval). Kept as the
+# record of how the demo was made; it no longer runs against the current CLI.
 set -euo pipefail
 
 CARD=0xCAa3573b5550870A5e15C47c650b8700D70a8fA7

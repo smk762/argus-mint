@@ -1,0 +1,15 @@
+# The version comes from the VERSION build arg, not git.
+.git
+.venv
+**/__pycache__
+**/node_modules
+contracts/lib
+contracts/out
+contracts/cache
+contracts/broadcast
+demo
+drafts
+samples
+dist
+.env
+*.png.tmp

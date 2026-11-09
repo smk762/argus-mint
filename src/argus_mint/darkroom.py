@@ -74,7 +74,9 @@ def request_body(
         "expand": False,
         "seed": req.seed,
         "checkpoint": req.model,
-        "sampling": {**req.sampling.model_dump(), "width": req.width, "height": req.height} if req.sampling else None,
+        "sampling": {**req.sampling.model_dump(exclude_none=True), "width": req.width, "height": req.height}
+        if req.sampling
+        else None,
         "loras": [{"name": lo.name, "weight": lo.weight, "trigger_words": list(lo.trigger_words)} for lo in req.loras],
         "enforcing_policy": policy,
         "advisory_policies": list(advisory_policies),
@@ -147,6 +149,31 @@ class DarkroomClient:
             raise DarkroomError(f"darkroom refused the request: {resp.text}")
         resp.raise_for_status()
         return resp.json()
+
+    def check_text(self, text: str) -> tuple[bool, str]:
+        """Screen card text (a bio) with darkroom's text pre-flight under this client's policy.
+
+        Implements :class:`argus_mint.bios.TextGuard`: ``(passes, detail)``.
+        """
+        body = {
+            "user_prompt": text,
+            "negative_prompt": "",
+            "expand": False,
+            "enforcing_policy": self.policy,
+            "advisory_policies": list(self.advisory_policies),
+        }
+        try:
+            resp = self.client.post(f"{self.base_url}/preflight", json=body)
+            if resp.status_code == 400:
+                raise DarkroomError(f"darkroom refused the request: {resp.text}")
+            resp.raise_for_status()
+            verdict = resp.json()
+        except httpx.HTTPError as e:
+            raise DarkroomError(f"darkroom text check failed: {e}") from e
+        if verdict.get("outcome") == "ok":
+            return True, ""
+        refusal = verdict.get("refusal") or {}
+        return False, (refusal.get("rule") or refusal.get("reason") or verdict.get("outcome") or "refused")
 
     # -- generation -----------------------------------------------------------------------------
 

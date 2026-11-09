@@ -1,0 +1,88 @@
+{
+ "width": 969,
+ "height": 1352,
+ "slots": {
+  "bio": {
+   "font": "fonts/CrimsonText-Italic.ttf",
+   "size": 38,
+   "ascent": 37,
+   "descent": 14,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 7
+   },
+   "lines": [
+    {
+     "text": "Emerald Wizard mends the hearts of broken engines",
+     "x": 108,
+     "y": 872
+    },
+    {
+     "text": "with patient hands, and every gear purrs a little",
+     "x": 108,
+     "y": 928
+    },
+    {
+     "text": "warmer afterwards.",
+     "x": 108,
+     "y": 984
+    }
+   ]
+  },
+  "class": {
+   "font": "fonts/Cinzel.ttf",
+   "size": 30,
+   "ascent": 30,
+   "descent": 12,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 5
+   },
+   "lines": [
+    {
+     "text": "Wizard \u00b7 Emerald",
+     "x": 352,
+     "y": 772
+    }
+   ]
+  },
+  "name": {
+   "font": "fonts/Cinzel.ttf",
+   "size": 39,
+   "ascent": 39,
+   "descent": 15,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 7
+   },
+   "lines": [
+    {
+     "text": "Emerald Wizard",
+     "x": 319,
+     "y": 80
+    }
+   ]
+  },
+  "stats": {
+   "font": "fonts/CrimsonText-Bold.ttf",
+   "size": 34,
+   "ascent": 33,
+   "descent": 12,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 6
+   },
+   "lines": [
+    {
+     "text": "No. 1",
+     "x": 771,
+     "y": 1221
+    }
+   ]
+  }
+ }
+}

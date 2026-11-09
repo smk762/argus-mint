@@ -19,7 +19,20 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, Stric
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
 
-__all__ = ["Attribute", "Provenance", "canonical", "card_metadata", "content_hash", "ipfs_uri"]
+__all__ = [
+    "Attribute",
+    "BioRef",
+    "CardStyle",
+    "FrameRef",
+    "SlotBackground",
+    "SlotStyle",
+    "Tint",
+    "Provenance",
+    "canonical",
+    "card_metadata",
+    "content_hash",
+    "ipfs_uri",
+]
 
 # CIDv0 (base58btc, "Qm…") or CIDv1 in base32 lower case ("b…", e.g. "bafy…").
 _CID = re.compile(r"^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$")
@@ -59,8 +72,82 @@ class Attribute(BaseModel):
         return self.model_dump(mode="json", exclude_none=True)
 
 
+class FrameRef(BaseModel):
+    """The reviewed frame composited onto the render (see :mod:`argus_mint.frames`)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    hash: Bytes32
+
+
+_HEX = r"^#[0-9a-fA-F]{6}$"
+
+
+class Tint(BaseModel):
+    """Recolour the frame overlay: every pixel moves toward ``colour`` at its own brightness."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    colour: str = Field(pattern=_HEX)
+    strength: float = Field(default=0.6, ge=0.0, le=1.0)
+
+
+class SlotBackground(BaseModel):
+    """A filled, rounded box behind a text slot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    colour: str = Field(pattern=_HEX)
+    opacity: float = Field(default=0.6, ge=0.0, le=1.0)
+    radius: int = Field(default=8, ge=0, le=200)
+    padding: int = Field(default=4, ge=0, le=100)
+
+
+class SlotStyle(BaseModel):
+    """How one text slot is drawn. Unset fields keep the frame's own choices."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    colour: str | None = Field(default=None, pattern=_HEX)
+    effect: Literal["none", "shadow", "outline", "glow"] = "none"
+    effect_colour: str = Field(default="#000000", pattern=_HEX)
+    background: SlotBackground | None = None
+
+
+class CardStyle(BaseModel):
+    """The owner's styling of a framed card: any colours, so be it if that's black on black."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    tint: Tint | None = None
+    slots: dict[str, SlotStyle] = Field(default_factory=dict)
+
+    def is_plain(self) -> bool:
+        return self.tint is None and not self.slots
+
+
+class BioRef(BaseModel):
+    """The reviewed bio template (and model) that wrote the card's bio (see :mod:`argus_mint.bios`)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    hash: Bytes32
+    model: str = Field(min_length=1)
+
+
 class Provenance(BaseModel):
-    """How the card's image was made. Fixed at mint; covered by :func:`content_hash`."""
+    """How the card's image was made. Fixed at mint; covered by :func:`content_hash`.
+
+    ``frame`` and ``art`` are set only for a framed card: the frame, and ``ipfs://`` of the
+    unframed render. ``bio`` names the bio template and model when a bio was written (the
+    text itself is the card's ``description`` and is drawn on the image). ``style`` is the
+    owner's styling of the frame, so the card can be redrawn exactly. Unset fields are left out of the JSON, so unframed cards serialize (and
+    hash) exactly as before frames existed.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -71,9 +158,26 @@ class Provenance(BaseModel):
     attempts: int = Field(ge=1)
     asset_id: Bytes32
     consumer: str = Field(min_length=1, max_length=64)
+    frame: FrameRef | None = None
+    art: str | None = None
+    bio: BioRef | None = None
+    style: CardStyle | None = None  # the owner's styling of the frame, when they chose any
+
+    @field_validator("art")
+    @classmethod
+    def _art_uri(cls, v: str | None) -> str | None:
+        if v is not None:
+            ipfs_uri(v.removeprefix("ipfs://"))  # validates the CID
+        return v
+
+    @model_validator(mode="after")
+    def _frame_and_art(self) -> Provenance:
+        if (self.frame is None) != (self.art is None):
+            raise ValueError("frame and art go together: a framed card records its unframed render")
+        return self
 
     def to_json(self) -> dict[str, Any]:
-        return self.model_dump(mode="json")
+        return self.model_dump(mode="json", exclude_none=True)
 
 
 def card_metadata(

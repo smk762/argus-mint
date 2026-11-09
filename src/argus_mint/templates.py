@@ -79,6 +79,39 @@ class LoraRef(BaseModel):
         return v
 
 
+class LoraOption(BaseModel):
+    """A LoRA a card may choose (reviewed with the template), at one of its allowed weights.
+
+    ``models``: the checkpoints it may pair with (a LoRA belongs to one family); empty means any
+    the template allows.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1)
+    weights: tuple[float, ...] = (1.0,)
+    trigger_words: tuple[str, ...] = ()
+    models: tuple[str, ...] = ()
+
+    @field_validator("weights")
+    @classmethod
+    def _check_weights(cls, v: tuple[float, ...]) -> tuple[float, ...]:
+        if not v or len(set(v)) != len(v) or any(not -4.0 <= w <= 4.0 for w in v):
+            raise ValueError("weights: one or more distinct values in -4..4")
+        return v
+
+    _check_triggers = field_validator("trigger_words")(LoraRef._check_triggers.__func__)  # type: ignore[attr-defined]
+
+
+class LoraChoice(BaseModel):
+    """A render's pick from the template's ``lora_options``. ``weight`` defaults to the first allowed."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1)
+    weight: float | None = None
+
+
 class Sampling(BaseModel):
     """Sampler settings, fixed by the reviewed template so a render is reproducible."""
 
@@ -89,6 +122,12 @@ class Sampling(BaseModel):
     steps: int = Field(gt=0, le=200)
     cfg: float = Field(gt=0, le=30)
     clip_skip: int = Field(default=1, ge=1, le=12)
+    guidance: float | None = Field(default=None, gt=0, le=30)  # Flux's distilled guidance; others leave it unset
+
+
+def family(model: str) -> str:
+    """A checkpoint's family: its top-level directory under darkroom's models root (``sdxl``, ``flux``…)."""
+    return model.split("/", 1)[0] if "/" in model else ""
 
 
 class Template(BaseModel):
@@ -101,9 +140,16 @@ class Template(BaseModel):
     status: Literal["draft", "approved", "retired"]
     approved_by: str | None = None
     approved_at: date | None = None
-    model: str = Field(min_length=1)
-    loras: tuple[LoraRef, ...] = ()
+    model: str = Field(min_length=1)  # the default checkpoint
+    # Other checkpoints a render may choose instead (reviewed with the template). Empty: only `model`.
+    models: tuple[str, ...] = ()
+    loras: tuple[LoraRef, ...] = ()  # always applied
+    # LoRAs a card may add (reviewed), up to max_loras of them. Empty: none to choose.
+    lora_options: tuple[LoraOption, ...] = ()
+    max_loras: int = Field(default=1, ge=0, le=4)
     sampling: Sampling | None = None  # required by darkroom; optional for other renderers
+    # Sampling for checkpoints of another family (keyed by family: "flux", "sd35"...), when it differs.
+    sampling_by_family: dict[str, Sampling] = Field(default_factory=dict)
     width: int = Field(gt=0, le=8192)
     height: int = Field(gt=0, le=8192)
     prompt: str = Field(min_length=1)
@@ -141,6 +187,14 @@ class Template(BaseModel):
             raise ValueError(f"variables not used in the prompt: {sorted(unused)}")
         if self.status != "draft" and (not self.approved_by or self.approved_at is None):
             raise ValueError(f"status {self.status!r} requires approved_by and approved_at (approval is a human step)")
+        names = [o.name for o in self.lora_options]
+        if len(set(names)) != len(names):
+            raise ValueError("a LoRA option appears twice")
+        allowed = (self.model, *self.models)
+        for o in self.lora_options:
+            stray = [m for m in o.models if m not in allowed]
+            if stray:
+                raise ValueError(f"LoRA option {o.name!r} pairs with checkpoints the template doesn't allow: {stray}")
         return self
 
     @property
@@ -153,7 +207,52 @@ class Template(BaseModel):
         This is the ``template_hash`` a card's provenance carries. ``status`` is left out so
         retiring a template doesn't change the hash of cards it already made.
         """
-        return keccak256(canonical(self.model_dump(mode="json", exclude={"status"})))
+        # Fields added later are left out while unused, so templates from before them keep their hash.
+        doc = self.model_dump(mode="json", exclude={"status"})
+        for key, unused in (
+            ("models", not self.models),
+            ("lora_options", not self.lora_options),
+            ("max_loras", not self.lora_options),
+            ("sampling_by_family", not self.sampling_by_family),
+        ):
+            if unused:
+                doc.pop(key, None)
+        for sampling in [doc.get("sampling"), *doc.get("sampling_by_family", {}).values()]:
+            if isinstance(sampling, dict) and sampling.get("guidance") is None:
+                sampling.pop("guidance", None)
+        return keccak256(canonical(doc))
+
+    def sampling_for(self, model: str) -> Sampling | None:
+        """The sampling for ``model``: its family's, if the template sets one, else the default."""
+        return self.sampling_by_family.get(family(model), self.sampling)
+
+    def resolve_loras(self, choices: tuple[LoraChoice, ...] | list[LoraChoice], model: str) -> tuple[LoraRef, ...]:
+        """The template's own LoRAs plus the chosen options, as the renderer gets them.
+
+        Refuses a choice that isn't an option, a weight it doesn't allow, a checkpoint it can't
+        pair with, a repeat, or more than ``max_loras``.
+        """
+        options = {o.name: o for o in self.lora_options}
+        if len(choices) > self.max_loras:
+            raise TemplateError(f"at most {self.max_loras} LoRA(s) may be chosen")
+        picked: list[LoraRef] = []
+        for c in choices:
+            option = options.get(c.name)
+            if option is None:
+                raise TemplateError(f"LoRA {c.name!r} is not one this template offers: {sorted(options)}")
+            weight = option.weights[0] if c.weight is None else c.weight
+            if weight not in option.weights:
+                raise TemplateError(f"LoRA {c.name!r} allows weights {list(option.weights)}, not {weight}")
+            if option.models and model not in option.models:
+                raise TemplateError(f"LoRA {c.name!r} doesn't pair with {model}")
+            if any(p.name == c.name for p in picked):
+                raise TemplateError(f"LoRA {c.name!r} chosen twice")
+            picked.append(LoraRef(name=option.name, weight=weight, trigger_words=option.trigger_words))
+        return (*self.loras, *picked)
+
+    def allowed_models(self) -> tuple[str, ...]:
+        """The checkpoints a render may use: the default first, then the reviewed alternatives."""
+        return (self.model, *(m for m in self.models if m != self.model))
 
 
 class RenderRequest(BaseModel):
@@ -209,7 +308,9 @@ def load_registry(path: Path) -> dict[tuple[str, int], Template]:
     return registry
 
 
-def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
+def fill(
+    t: Template, values: dict[str, str], seed: int, model: str | None = None, loras: tuple[LoraChoice, ...] = ()
+) -> RenderRequest:
     """Fill ``values`` into an approved template.
 
     Raises :class:`NotApprovedError` unless ``t.status == "approved"``, and
@@ -218,16 +319,19 @@ def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
     """
     if t.status != "approved":
         raise NotApprovedError(f"template {t.id} v{t.version} is {t.status}; only approved templates render")
-    return _build(t, values, seed)
+    return _build(t, values, seed, model, loras)
 
 
-def fill_for_review(t: Template, values: dict[str, str], seed: int = 0) -> RenderRequest:
-    """Like :func:`fill` but for any status: lets a reviewer pre-flight a draft before approving it.
+def fill_for_review(
+    t: Template, values: dict[str, str], seed: int = 0, model: str | None = None, loras: tuple[LoraChoice, ...] = ()
+) -> RenderRequest:
+    """Like :func:`fill` but for any status: lets a reviewer check a draft before approving it.
 
-    Use it only for text checks (``DarkroomClient.preflight``); rendering goes through
-    :func:`argus_mint.render.render`, which calls :func:`fill` and so refuses non-approved templates.
+    Used for the text pre-flight and for sample renders (:func:`argus_mint.render.render_for_review`),
+    which stay local files. Cards are rendered through :func:`argus_mint.render.render`, which
+    calls :func:`fill` and so refuses non-approved templates.
     """
-    return _build(t, values, seed)
+    return _build(t, values, seed, model, loras)
 
 
 def combinations(t: Template) -> list[dict[str, str]]:
@@ -236,7 +340,11 @@ def combinations(t: Template) -> list[dict[str, str]]:
     return [dict(zip(names, combo, strict=True)) for combo in itertools.product(*(t.variables[n] for n in names))]
 
 
-def _build(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
+def _build(
+    t: Template, values: dict[str, str], seed: int, model: str | None = None, loras: tuple[LoraChoice, ...] = ()
+) -> RenderRequest:
+    if model is not None and model not in t.allowed_models():
+        raise TemplateError(f"checkpoint {model!r} is not one this template allows: {list(t.allowed_models())}")
     missing = t.variables.keys() - values.keys()
     extra = values.keys() - t.variables.keys()
     if missing:
@@ -252,9 +360,9 @@ def _build(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
         template_id=t.id,
         template_version=t.version,
         template_hash=t.hash(),
-        model=t.model,
-        loras=t.loras,
-        sampling=t.sampling,
+        model=model or t.model,
+        loras=t.resolve_loras(tuple(loras), model or t.model),
+        sampling=t.sampling_for(model or t.model),
         width=t.width,
         height=t.height,
         prompt=t.prompt.format(**values),

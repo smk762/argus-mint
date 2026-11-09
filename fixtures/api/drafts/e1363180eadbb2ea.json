@@ -1,0 +1,86 @@
+{
+  "id": "e1363180eadbb2ea",
+  "status": "pending",
+  "awaiting": [
+    "moderator",
+    "owner"
+  ],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 2,
+      "template_hash": "0x1134dcbfc5f6e6b86d7800d853950a53ec79446a654829f27e9897715cb0c2fc",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single non-binary cyborg, centered and facing the viewer, wearing steel heraldry, repairing, background: workshop, painted fantasy illustration, full bleed, detailed face",
+      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "workshop",
+        "colour": "steel",
+        "gender": "non-binary",
+        "pose": "repairing",
+        "role": "cyborg"
+      },
+      "seed": 8454
+    },
+    "attempts": [
+      {
+        "seed": 8454,
+        "outcome": "ok",
+        "ref": "fixture-1",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x309a65fb4c95d87a9b67c21ca029d0e120baab30d9931785d1408f9886cc71e2",
+    "to": "0xD59748Df4530E7bcA626a7a833eA3c33FAa77cC1",
+    "name": "Steel Tinker",
+    "description": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} keeps a lantern lit for travellers who have not yet set out, just in case they lose their way."
+        }
+      ],
+      "edited": false
+    },
+    "texts": {
+      "class": "Cyborg · Steel",
+      "stats": "No. 2"
+    },
+    "style": null,
+    "edits": [],
+    "auto_check": null,
+    "art_sha256": "8d3386f1dcc3e734ee8191705f2ece5220039813ba22cf543e2113f26f02cc62",
+    "image_sha256": "b236aaeb85e77c9a64b4b95e24493987930ccbd50a8af0b81b6ee44133be2aa6",
+    "created_at": "2026-11-09T06:01:24.867345Z",
+    "reviews": []
+  },
+  "published": null
+}

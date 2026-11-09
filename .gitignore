@@ -18,3 +18,8 @@ node_modules/
 # Local deploy settings (see .env.example)
 .env
 contracts/broadcast/**/*.lock
+
+# local card work
+/drafts/
+/samples/
+/library/

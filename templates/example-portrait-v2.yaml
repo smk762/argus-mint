@@ -1,0 +1,41 @@
+# Example render template, v2. Copy it into the consumer's repo, adjust, and have a human
+# review it: approval means setting status: approved plus approved_by / approved_at.
+# Only approved templates render; every variable value must come from its list.
+# Before approving, run every combination through darkroom's pre-flight:
+#   argus-mint preflight templates/example-portrait-v2.yaml --darkroom http://localhost:8106
+#
+# v2 renders clean, full-bleed art: one character, no frame, lettering or badges. v1's
+# "card art" made the model draw its own card frames and lettering. A frame is meant to be
+# composited on top afterwards (frames/card-green-v1.yaml). Variable lists are unchanged from v1.
+id: example-portrait
+version: 2
+status: draft             # draft | approved | retired
+model: sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors   # darkroom checkpoint (GET /models)
+# Checkpoints a card may choose instead (reviewed with the template). All SDXL: the deployed
+# darkroom workflow (sdxl.json) drives SDXL only, and they share the sampling below.
+models:
+  - sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors
+  - sdxl/bigLove_xl2/bigLove_xl2.safetensors
+  - sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors
+  - sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors
+  - sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors
+  - sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors
+  - sdxl/makeArtNotGoon_v8/makeArtNotGoon_v8.safetensors
+  - sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors
+loras: []
+sampling:                                 # fixed here so a render is reproducible
+  sampler: euler
+  scheduler: normal
+  steps: 25
+  cfg: 6.0
+width: 1152               # landscape, SDXL's nearest size to card-green's ~4:3 art window
+height: 896
+prompt: "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face"
+negative: "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore"
+variables:
+  role: [knight, ranger, sailor, elf, dark elf, wraith, centaur, cyborg, dwarf, human, orc, goblin, giant, dragon, wizard, priest]
+  gender: [male, female, non-binary]
+  colour: [crimson, azure, emerald, gold, silver, bronze, copper, iron, steel, obsidian, none]
+  pose: [standing, charging, on guard, kneeling, sitting, sleeping, dead, fighting, casting a spell, praying, drinking, eating, reading, writing, sewing, knitting, weaving, cooking, cleaning, gardening, fishing, hunting, gathering, building, repairing, chopping wood, mining]
+  background: [cave, castle, dungeon, forest, garden, library, laboratory, academy, temple, workshop, none]
+max_attempts: 4

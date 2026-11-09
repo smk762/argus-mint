@@ -1,0 +1,101 @@
+{
+  "items": [
+    {
+      "id": "623c8e79606d33fd",
+      "status": "done",
+      "created_at": "2026-11-09T06:01:25.998720Z",
+      "finished_at": "2026-11-09T06:01:26.946277Z",
+      "error": null,
+      "request": {
+        "template": {
+          "id": "example-portrait",
+          "version": 3
+        },
+        "frame": {
+          "id": "card-green",
+          "version": 1
+        },
+        "bio": {
+          "id": "example-bio",
+          "version": 1
+        },
+        "count": 2,
+        "variables": {},
+        "seed": 3,
+        "name": "Sample",
+        "texts": {
+          "class": "Sample class",
+          "stats": "No. 0"
+        },
+        "style": null
+      },
+      "items": [
+        {
+          "n": 1,
+          "variables": {
+            "background": "garden",
+            "colour": "silver",
+            "gender": "male",
+            "pose": "drinking",
+            "role": "giant"
+          },
+          "prompt": "waist-up portrait of a single male giant, centered and facing the viewer, wearing silver heraldry, drinking, background: garden, painted fantasy illustration, full bleed, detailed face",
+          "seed": 4,
+          "attempts": [
+            {
+              "seed": 4,
+              "outcome": "ok",
+              "ref": "fixture-0",
+              "detail": ""
+            }
+          ],
+          "bio": "Sample mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+          "bio_attempts": [
+            {
+              "outcome": "ok",
+              "detail": "",
+              "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
+            }
+          ],
+          "error": null,
+          "bio_error": null,
+          "art": true,
+          "framed": true
+        },
+        {
+          "n": 2,
+          "variables": {
+            "background": "none",
+            "colour": "obsidian",
+            "gender": "non-binary",
+            "pose": "weaving",
+            "role": "dragon"
+          },
+          "prompt": "waist-up portrait of a single non-binary dragon, centered and facing the viewer, wearing obsidian heraldry, weaving, background: none, painted fantasy illustration, full bleed, detailed face",
+          "seed": 5,
+          "attempts": [
+            {
+              "seed": 5,
+              "outcome": "ok",
+              "ref": "fixture-0",
+              "detail": ""
+            }
+          ],
+          "bio": "Sample once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+          "bio_attempts": [
+            {
+              "outcome": "ok",
+              "detail": "",
+              "text": "{name} once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised."
+            }
+          ],
+          "error": null,
+          "bio_error": null,
+          "art": true,
+          "framed": true
+        }
+      ]
+    }
+  ],
+  "total": 1
+}

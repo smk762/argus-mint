@@ -1,0 +1,83 @@
+{
+ "width": 969,
+ "height": 1352,
+ "slots": {
+  "bio": {
+   "font": "fonts/CrimsonText-Italic.ttf",
+   "size": 38,
+   "ascent": 37,
+   "descent": 14,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 7
+   },
+   "lines": [
+    {
+     "text": "Lantern Keeper keeps a lantern lit for travellers who",
+     "x": 108,
+     "y": 872
+    },
+    {
+     "text": "have not yet set out, just in case they lose their way.",
+     "x": 108,
+     "y": 928
+    }
+   ]
+  },
+  "class": {
+   "font": "fonts/Cinzel.ttf",
+   "size": 30,
+   "ascent": 30,
+   "descent": 12,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 5
+   },
+   "lines": [
+    {
+     "text": "Priest \u00b7 Gold",
+     "x": 391,
+     "y": 772
+    }
+   ]
+  },
+  "name": {
+   "font": "fonts/Cinzel.ttf",
+   "size": 39,
+   "ascent": 39,
+   "descent": 15,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 7
+   },
+   "lines": [
+    {
+     "text": "Lantern Keeper",
+     "x": 330,
+     "y": 80
+    }
+   ]
+  },
+  "stats": {
+   "font": "fonts/CrimsonText-Bold.ttf",
+   "size": 34,
+   "ascent": 33,
+   "descent": 12,
+   "effects": {
+    "shadow": 2,
+    "outline": 2,
+    "glow": 6
+   },
+   "lines": [
+    {
+     "text": "No. 4",
+     "x": 769,
+     "y": 1221
+    }
+   ]
+  }
+ }
+}
