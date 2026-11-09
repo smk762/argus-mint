@@ -54,8 +54,8 @@ __all__ = [
 ]
 
 # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
-# 1.5 LoRA choices, sampling per checkpoint family
-WIRE_VERSION = "1.5"
+# 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs
+WIRE_VERSION = "1.6"
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 

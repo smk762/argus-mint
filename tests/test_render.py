@@ -87,6 +87,40 @@ def test_provenance_from_render(template_doc):
     p = r.provenance(asset_id=b"\x01" * 32, consumer="atlas-realms")
     assert (p.template, p.template_version, p.template_hash) == (t.id, t.version, t.hash())
     assert (p.seed, p.attempts) == (derive_seed(9, 1), 2)
+    # The render's choices are recorded, so anyone can rebuild the request from the metadata.
+    assert p.variables == dict(sorted(VALUES.items())) and p.model == t.model
+    assert [(x.name, x.weight) for x in p.loras or ()] == [(x.name, x.weight) for x in t.loras]
+    from argus_mint.templates import fill
+
+    assert fill(t, p.variables, p.seed, p.model) == r.request
+
+
+def test_provenance_records_chosen_loras_and_checkpoint(template_doc):
+    from argus_mint.templates import LoraChoice
+
+    alt = "sdxl/alt/alt.safetensors"
+    t = Template.model_validate(
+        {
+            **template_doc,
+            "loras": [],
+            "models": [alt],
+            "lora_options": [{"name": "style.safetensors", "weights": [0.7]}],
+        }
+    )
+    r = render(
+        ScriptedDarklight(GenResult.ok(b"png")),
+        t,
+        VALUES,
+        seed=3,
+        model=alt,
+        loras=[LoraChoice(name="style.safetensors")],
+    )
+    j = r.provenance(asset_id=b"\x01" * 32, consumer="c").to_json()
+    assert j["model"] == alt and j["loras"] == [{"name": "style.safetensors", "weight": 0.7}]
+    plain = render(ScriptedDarklight(GenResult.ok(b"png")), t, VALUES, seed=3).provenance(
+        asset_id=b"\x01" * 32, consumer="c"
+    )
+    assert "loras" not in plain.to_json()  # none applied: left out
 
 
 def test_render_for_review_renders_drafts_but_render_does_not(template_doc):

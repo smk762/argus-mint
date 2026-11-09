@@ -92,15 +92,7 @@ class Rendered:
 
     def provenance(self, *, asset_id: Bytes32 | bytes | str, consumer: str) -> Provenance:
         """The card provenance for this render (what the voucher's contentHash covers)."""
-        return Provenance(
-            template=self.request.template_id,
-            template_version=self.request.template_version,
-            template_hash=self.request.template_hash,
-            seed=self.seed,
-            attempts=len(self.attempts),
-            asset_id=asset_id,
-            consumer=consumer,
-        )
+        return Provenance.for_render(self.request, attempts=len(self.attempts), asset_id=asset_id, consumer=consumer)
 
 
 class RenderError(Exception):

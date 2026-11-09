@@ -1368,7 +1368,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.5",
+          "default": "1.6",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2810,5 +2810,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.5"
+  "title": "argus-mint wire 1.6"
 }

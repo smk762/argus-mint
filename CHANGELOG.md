@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- **Provenance records the render's choices (wire 1.6).** The metadata's `provenance`, which the voucher's `contentHash` covers, gains `variables`, `model` (the checkpoint) and `loras` (name and weight). With the template hash and seed they rebuild the exact render request, so a card's art can be reproduced and checked from public data alone (hard rule 7). The variables come from the template's fixed lists, so no free text is added (hard rule 1). They are left out when unset: cards minted before this keep their `contentHash`, but don't say which variables, checkpoint or LoRAs made them. `Provenance.for_render` builds the block for both the CLI and the server.
+
 - **The portrait library in the API fixture** (#14), for argus-assay's and argus-studio's demo mode. `fixtures/api/library.json` is `GET /library` for six whole groups of the pre-rendered library (all seven SDXL checkpoints each, ids and group numbers as in the full library), with a 640 px JPEG per entry in `fixtures/api/library/`. One recorded draft is made from a library entry.
 - `scripts/api_fixture.py` takes its art and library subset from a built library (`--library`, `--groups`); `ART.png` arguments are optional. The fixture's copy of template v2 also offers a Flux checkpoint and LoRA options, for the pickers.
 - `tests/test_api_fixture.py` fails when the fixture is stale: wire version, response shapes, missing images, groups missing a checkpoint.
