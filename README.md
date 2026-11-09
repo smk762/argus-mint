@@ -138,7 +138,7 @@ make serve-up                               # or in docker with Kubo (compose pr
 
 **Checkpoints, sampling and LoRAs.** A template lists the checkpoints a card may use (`models`, reviewed with it; `model` is the default). `draft --model`, `sample --model` and `POST /drafts` with `model` choose one; anything else is refused.
 
-The template's `sampling` applies unless `sampling_by_family` has an entry for the checkpoint's family. The family is its top folder: `sdxl`, `flux`, `sd35`. Flux sets `guidance`.
+The template's `sampling` and `negative` apply unless `sampling_by_family` or `negative_by_family` has an entry for the checkpoint's family. The family is its top folder: `sdxl`, `flux`, `sd35`. Flux sets `guidance`, and its negative is `""`, since darkroom's Flux workflows have no slot for one.
 
 A template can also offer `lora_options`, each with:
 - allowed `weights`
@@ -147,7 +147,7 @@ A template can also offer `lora_options`, each with:
 
 A card may choose up to `max_loras` of them (`--lora NAME[@WEIGHT]`, or `loras` in the API).
 
-Rendering other families, and LoRAs, also needs darkroom to choose its workflow per request (smk762/argus-darkroom#29). Until then, darkroom refuses those renders.
+Rendering other families, and LoRAs, needs argus-darkroom 0.1.3 or later with a workflow directory (its Docker image's default). darkroom picks a workflow by family and LoRA count, and returns a 400 when none fits. Its `GET /models` lists each checkpoint's `lora_counts`.
 
 **A library for demos without a GPU.** `argus-mint library build TEMPLATE --out library --count 48` renders COUNT diverse combinations on every checkpoint the template allows. The same combination gets the same seed on each, so they compare like for like. It renders one checkpoint at a time, so each loads once, and an interrupted build resumes. Every image passes darkroom's safety check, as always. `argus-mint serve` offers the library at `/library` (`ARGUS_MINT_LIBRARY_DIR`), and `draft --library DIR --entry ID` uses it from the CLI.
 
