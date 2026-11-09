@@ -1,5 +1,5 @@
 {
-  "id": "6f4c1bca02a49a76",
+  "id": "7169fd212118e61d",
   "status": "approved",
   "awaiting": [],
   "draft": {
@@ -40,7 +40,7 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x89964876bb9e20b0262233b1c023a63554302b2f1653191a12c0e63e3fdc0608",
-    "to": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
+    "to": "0x2300743C04F833868f544d9723BA8e94b1c70344",
     "name": "Azure Stormcaller",
     "description": "Azure Stormcaller mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
     "external_url": null,
@@ -64,29 +64,32 @@
           "detail": "",
           "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
         }
-      ]
+      ],
+      "edited": false
     },
     "texts": {
       "class": "Wizard · Azure",
       "stats": "No. 3"
     },
+    "edits": [],
+    "auto_check": null,
     "art_sha256": "d572b28f3837b5077dd5dc294ed85e109607731c51735ab8837993bc64869c1b",
     "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
-    "created_at": "2026-11-09T04:22:51.900754Z",
+    "created_at": "2026-11-09T05:49:41.666499Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-09T04:22:51.908336Z",
+        "at": "2026-11-09T05:49:41.672970Z",
         "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x43F478CbB9078Ae49cbE924B38b71421e33B1757",
-        "at": "2026-11-09T04:22:51.927129Z",
+        "by": "0x2300743C04F833868f544d9723BA8e94b1c70344",
+        "at": "2026-11-09T05:49:41.691408Z",
         "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
         "note": ""
       }

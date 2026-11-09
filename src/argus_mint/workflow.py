@@ -31,6 +31,7 @@ __all__ = [
     "check_bio",
     "check_texts",
     "create_draft",
+    "edit_text",
     "publish",
     "sample_card",
 ]
@@ -254,3 +255,75 @@ def sample_card(
 
 def _render_attempts(attempts: Any) -> list[dict[str, Any]]:
     return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
+
+
+def edit_text(
+    draft: CardDraft,
+    art: bytes,
+    frame: LoadedFrame,
+    *,
+    role: str,
+    by: str,
+    name: str | None = None,
+    bio: str | None = None,
+    texts: dict[str, str] | None = None,
+) -> tuple[CardDraft, bytes]:
+    """Change the card's text and redraw it on the same art; return the draft and its new image.
+
+    ``None`` leaves a field as it is; ``texts`` replaces the given slots (an empty string clears
+    one). Only a framed draft, with the very frame it was made with (by hash), can be edited.
+    The new image needs both approvals again; the old reviews stay as history. Hand-written
+    text never goes to a model (hard rule 1).
+    """
+    from argus_mint.cards import DraftError, Edit
+
+    if draft.frame is None:
+        raise DraftError("only a framed card has text to edit")
+    if frame.ref().hash != draft.frame.hash:
+        raise DraftError(f"frame {frame.frame.id} v{frame.frame.version} is not the frame this draft was made with")
+    if sha256_hex(art) != draft.art_sha256:
+        raise DraftError("the art file differs from the one rendered for this draft")
+    new_texts = dict(draft.texts)
+    for slot, value in (texts or {}).items():
+        if value:
+            new_texts[slot] = value
+        else:
+            new_texts.pop(slot, None)
+    check_texts(new_texts, frame)
+    fields = []
+    new_name = draft.name
+    if name is not None and name.strip() and name.strip() != draft.name:
+        new_name, fields = name.strip(), [*fields, "name"]
+    new_bio = draft.bio
+    new_description = draft.description
+    if bio is not None and draft.bio is not None and " ".join(bio.split()) != draft.bio.text:
+        text = " ".join(bio.split())
+        if not text:
+            raise DraftError("the bio can't be empty; clear it by rendering a new draft without one")
+        new_bio = draft.bio.model_copy(update={"text": text, "edited": True})
+        if draft.description == draft.bio.text:
+            new_description = text
+        fields.append("bio")
+    elif bio is not None and draft.bio is None:
+        raise DraftError("this card has no bio to edit")
+    fields += [
+        f"texts.{slot}"
+        for slot in sorted(set(new_texts) | set(draft.texts))
+        if new_texts.get(slot) != draft.texts.get(slot)
+    ]
+    if not fields:
+        raise DraftError("nothing changed")
+    image = compose(frame, art, card_texts(frame, new_name, new_bio.text if new_bio else None, new_texts))
+    edit = Edit(role=role, by=by, at=datetime.now(UTC), fields=tuple(fields), image_sha256=sha256_hex(image))  # type: ignore[arg-type]
+    updated = draft.model_copy(
+        update={
+            "name": new_name,
+            "bio": new_bio,
+            "description": new_description,
+            "texts": new_texts,
+            "image_sha256": sha256_hex(image),
+            "edits": (*draft.edits, edit),
+            "auto_check": None,
+        }
+    )
+    return updated, image

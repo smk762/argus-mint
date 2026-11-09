@@ -127,11 +127,20 @@ make serve-up                               # or in docker with Kubo (compose pr
 | `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs to approve or reject |
 | `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
 | `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
+| `POST /drafts/{id}/text` | change the card's name, bio or display text: it is redrawn on the same art and needs both approvals again (moderator token, or the owner's signed edit) |
 | `POST /samples`, `GET /samples[/{id}]` | sample cards of a template, frame and bio (any status) for their reviewer, as background jobs; local only (moderator token) |
 | `POST /frames/{id}/{version}/preview` | a frame (any status) on a draft's or sample's art, as a PNG |
 | `POST /{templates,frames,bios}/{id}/{version}/review` | approve a draft or retire an approved file. This writes `status`, `approved_by` and `approved_at` into the YAML, keeping its comments (moderator token) |
 
 **Who can do what.** The moderator token (`ARGUS_MINT_MODERATOR_TOKEN`) creates drafts, renders samples, approves or retires templates, frames and bio templates, reviews as the moderator, and publishes. The owner reviews by signing an EIP-4361 (Sign-In with Ethereum) message with the wallet the card will be minted to. The message names the draft, the decision and the image's sha256, and works once. Neither role can act as the other.
+
+**Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`, off by default): the platform gates on safety, the owner on quality.
+- **When it approves:** if darkroom's image guards passed the art, its text check passed the bio, and the name and display text pass a word filter, the moderator's approval is recorded as `auto: platform checks`.
+- **When it holds:** anything else waits for a human moderator, with the reason in `auto_check.held`.
+- **The word filter:** better-profanity's list, which catches letter swaps, plus your own terms in `ARGUS_MINT_BLOCKLIST`, one per line.
+- **The owner** always reviews.
+
+**Editing.** Text edits never reach a model, so an edited bio goes through the word filter rather than darkroom.
 
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
 - **Files:** `DRAFTS_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.

@@ -20,6 +20,14 @@ All notable changes to this project are documented here. Versions come from git 
   - **Frame previews:** `POST /frames/{id}/{v}/preview` shows a frame on a draft's or sample's art.
   - **Decisions:** `POST /{templates,frames,bios}/{id}/{v}/review` approves or retires a file. `catalogue.record_decision` writes the decision into the YAML, keeping its comments, and restores the file if it no longer validates.
   - **Listings:** they gain `file` and, for templates, `combinations`; `/health` gains the `sample` and `review_catalogue` capabilities.
+- **Editable card text (wire 1.2).**
+  - **Endpoint:** `POST /drafts/{id}/text` changes a framed draft's name, bio or display text and redraws it on the same art; both approvals are needed again.
+  - **Who can edit:** the moderator, with the token; or the owner, by signing a challenge that covers exactly that edit.
+  - **History:** `CardDraft.edits` records each change, and `BioRecord.edited` marks a bio a person changed.
+- **Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`): the platform gates on safety, the owner on quality.
+  - **When it approves:** when darkroom's image and text checks passed and the name and display text pass the word filter, the moderator's approval is recorded automatically.
+  - **When it holds:** otherwise the draft waits for a human moderator, with the reasons in `CardDraft.auto_check`.
+  - **The word filter:** `moderation.WordFilter` is better-profanity (new in the `server` extra) plus `ARGUS_MINT_BLOCKLIST`.
 - `templates/example-portrait-v2.yaml` (draft): clean full-bleed portraits for framing, without the card frames, lettering and badges v1's "card art" produced.
 
 ## 0.1.0 (2026-11-08)

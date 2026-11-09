@@ -11,6 +11,7 @@
 ``POST /drafts/{id}/challenge``        the SIWE message the owner signs to approve or reject
 ``POST /drafts/{id}/review``           a decision: moderator by token, owner by signed challenge
 ``POST /drafts/{id}/publish``          pin and sign an approved draft (moderator token)
+``POST /drafts/{id}/text``             change the card's name, bio or display text: redrawn, reviewed again
 ``POST /samples`` ``GET /samples[/{id}]``  sample cards of a draft template/frame/bio, as background jobs
 ``GET  /samples/{id}/{n}/art|framed``  a sample's images (local only: never pinned, signed or minted)
 ``POST /frames/{id}/{version}/preview``  a frame (any status) on a draft's or sample's art, as a PNG
@@ -29,6 +30,7 @@ refused (cortex's ``WriteGuard``: CORS alone is not a write boundary), and with
 
 from __future__ import annotations
 
+import hashlib
 import math
 import os
 import queue
@@ -53,7 +55,7 @@ from fastapi.responses import Response
 
 import argus_mint
 from argus_mint import networks, siwe
-from argus_mint._codec import hex0x, keccak256, to_bytes32
+from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
 from argus_mint.bios import BioError, BioFailed, BioTemplate, ChatWriter, load_bio
 from argus_mint.cards import (
     REVIEWERS,
@@ -69,6 +71,7 @@ from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
 from argus_mint.frames import FrameError, LoadedFrame, compose, load_frame
 from argus_mint.keys import KeyLoadError, load_signer
+from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
 from argus_mint.templates import Template, TemplateError, combinations, load_template
@@ -83,6 +86,7 @@ from argus_mint.wire import (
     DraftDetail,
     DraftList,
     DraftSummary,
+    EditTextRequest,
     FrameInfo,
     FramePreviewRequest,
     Health,
@@ -95,8 +99,9 @@ from argus_mint.wire import (
     SampleJobList,
     SampleRequest,
     TemplateInfo,
+    TextEdit,
 )
-from argus_mint.workflow import card_texts, check_bio, check_texts, create_draft, publish, sample_card
+from argus_mint.workflow import card_texts, check_bio, check_texts, create_draft, edit_text, publish, sample_card
 
 __all__ = ["DEFAULT_PORT", "Settings", "create_app"]
 
@@ -134,6 +139,8 @@ class Settings:
     siwe_uri: str = ""  # default https://<siwe_domain>
     cors_origins: tuple[str, ...] = LOCAL_ORIGINS
     read_only: bool = False
+    auto_moderate: bool = False  # the platform's checks stand in for the moderator when they all pass
+    blocklist: Path | None = None  # extra word-filter terms, one per line
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -164,6 +171,8 @@ class Settings:
             siwe_uri=get("SIWE_URI"),
             cors_origins=origins or LOCAL_ORIGINS,
             read_only=get("READ_ONLY").lower() in ("1", "true", "yes"),
+            auto_moderate=get("AUTO_MODERATE").lower() in ("1", "true", "yes"),
+            blocklist=Path(get("BLOCKLIST")) if get("BLOCKLIST") else None,
         )
 
 
@@ -183,28 +192,41 @@ def probe(url: str) -> bool:
 
 @dataclass
 class _Challenges:
-    """Owner challenges issued and not yet used: nonce -> (draft id, approve, image sha256, expiry)."""
+    """Owner challenges issued and not yet used: nonce -> (draft id, purpose, image sha256, expiry).
 
-    issued: dict[str, tuple[str, bool, str, datetime]] = field(default_factory=dict)
+    The purpose is ``approve``, ``reject`` or ``edit:<sha256 of the canonical edit>``.
+    """
+
+    issued: dict[str, tuple[str, str, str, datetime]] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def add(self, nonce: str, entry: tuple[str, bool, str, datetime]) -> None:
+    def add(self, nonce: str, entry: tuple[str, str, str, datetime]) -> None:
         with self.lock:
             now = datetime.now(UTC)
             self.issued = {n: e for n, e in self.issued.items() if e[3] > now}
             self.issued[nonce] = entry
 
-    def take(self, nonce: str) -> tuple[str, bool, str, datetime] | None:
+    def take(self, nonce: str) -> tuple[str, str, str, datetime] | None:
         with self.lock:
             return self.issued.pop(nonce, None)
 
 
-def _statement(draft_id: str, approve: bool) -> str:
-    return f"{'Approve' if approve else 'Reject'} the card image of argus-mint draft {draft_id} for minting."
+def _statement(draft_id: str, purpose: str) -> str:
+    if purpose.startswith("edit:"):
+        return f"Change the card text of argus-mint draft {draft_id}."
+    return (
+        f"{'Approve' if purpose == 'approve' else 'Reject'} the card image of argus-mint draft {draft_id} for minting."
+    )
 
 
-def _resources(draft_id: str, image_sha256: str) -> tuple[str, ...]:
-    return (f"urn:argus-mint:draft:{draft_id}", f"urn:sha256:{image_sha256}")
+def _resources(draft_id: str, image_sha256: str, purpose: str) -> tuple[str, ...]:
+    out = (f"urn:argus-mint:draft:{draft_id}", f"urn:sha256:{image_sha256}")
+    return (*out, f"urn:sha256:{purpose[5:]}") if purpose.startswith("edit:") else out
+
+
+def _edit_hash(edit: TextEdit) -> str:
+    """What an owner's signature on a text edit commits to: exactly these changes."""
+    return hashlib.sha256(canonical(edit.model_dump(mode="json"))).hexdigest()
 
 
 def create_app(
@@ -235,6 +257,16 @@ def create_app(
                 raise HTTPException(503, f"no signer: {e}") from e
         return signer_box["signer"]
 
+    words: dict[str, WordFilter] = {}
+
+    def word_filter() -> WordFilter:
+        if "filter" not in words:
+            words["filter"] = WordFilter.from_file(cfg.blocklist)
+        return words["filter"]
+
+    if cfg.auto_moderate:
+        word_filter()  # fail at start, not on the first draft, if the list can't load
+
     signer_configured = signer is not None or bool(cfg.account or os.environ.get("ARGUS_MINT_SIGNER_KEY"))
     writable = not cfg.read_only
     has_token = bool(cfg.moderator_token)
@@ -247,6 +279,8 @@ def create_app(
             owner_review=writable and bool(cfg.siwe_domain),
             publish=writable and has_token and pinner is not None and signer_configured and bool(cfg.card),
             sample=writable and has_token and darkroom is not None,
+            edit_text=writable and (has_token or bool(cfg.siwe_domain)),
+            auto_moderate=cfg.auto_moderate,
             review_catalogue=writable
             and has_token
             and all(d.is_dir() and os.access(d, os.W_OK) for d in (cfg.templates_dir, cfg.frames_dir, cfg.bios_dir)),
@@ -486,7 +520,7 @@ def create_app(
             raise HTTPException(422, str(e)) from e
         with lock:
             draft_id = store.new_id()
-            store.save(draft_id, made.draft, made.art, made.image)
+            store.save(draft_id, moderate_automatically(made.draft, made.image), made.art, made.image)
         return detail(draft_id)
 
     @app.post("/drafts/{draft_id}/challenge")
@@ -494,8 +528,16 @@ def create_app(
         if not cfg.siwe_domain:
             raise HTTPException(503, "owner review is off: no SIWE domain is configured (ARGUS_MINT_SIWE_DOMAIN)")
         d = detail(draft_id)
-        if d.status != "pending" or "owner" not in d.awaiting:
-            raise HTTPException(409, f"the owner can't review this draft now (status {d.status})")
+        if body.action == "edit":
+            if body.edit is None:
+                raise HTTPException(422, "an edit challenge needs the edit it is for")
+            if d.status == "published":
+                raise HTTPException(409, "a published card can't be edited")
+            purpose = f"edit:{_edit_hash(body.edit)}"
+        else:
+            if d.status != "pending" or "owner" not in d.awaiting:
+                raise HTTPException(409, f"the owner can't review this draft now (status {d.status})")
+            purpose = "approve" if body.approve else "reject"
         now = datetime.now(UTC)
         nonce = siwe.make_nonce()
         msg = siwe.create_message(
@@ -506,11 +548,45 @@ def create_app(
             nonce=nonce,
             issued_at=now,
             ttl=CHALLENGE_TTL,
-            statement=_statement(draft_id, body.approve),
-            resources=_resources(draft_id, d.draft.image_sha256),
+            statement=_statement(draft_id, purpose),
+            resources=_resources(draft_id, d.draft.image_sha256, purpose),
         )
-        challenges.add(nonce, (draft_id, body.approve, d.draft.image_sha256, now + CHALLENGE_TTL))
+        challenges.add(nonce, (draft_id, purpose, d.draft.image_sha256, now + CHALLENGE_TTL))
         return Challenge(message=msg.text(), nonce=nonce, expires_at=now + CHALLENGE_TTL)
+
+    def moderate_automatically(d: CardDraft, image: bytes) -> CardDraft:
+        return auto_review(d, image, word_filter()) if cfg.auto_moderate else d
+
+    @app.post("/drafts/{draft_id}/text")
+    def post_text(
+        draft_id: str, body: EditTextRequest, authorization: Annotated[str | None, Header()] = None
+    ) -> DraftDetail:
+        edit = TextEdit(name=body.name, bio=body.bio, texts=body.texts)
+        if body.role == "moderator":
+            require_token(authorization)
+            if not body.by:
+                raise HTTPException(422, "the moderator's edit needs `by` (their name or id)")
+            by = body.by
+        else:
+            by = _verify_owner(draft_id, body.message, body.signature, f"edit:{_edit_hash(edit)}")
+        with lock:
+            try:
+                d, art, _image = store.load(draft_id)
+                if store.published(draft_id):
+                    raise DraftError("a published card can't be edited")
+                if d.frame is None:
+                    raise DraftError("only a framed card has text to edit")
+                lf = frames().get((d.frame.id, d.frame.version))
+                if lf is None:
+                    raise DraftError(f"frame {d.frame.id} v{d.frame.version} is no longer served here")
+                d, image = edit_text(d, art, lf, role=body.role, by=by, name=edit.name, bio=edit.bio, texts=edit.texts)
+                d = moderate_automatically(d, image)
+                store.save(draft_id, d, image=image)
+            except DraftNotFound as e:
+                raise HTTPException(404, str(e)) from e
+            except (DraftError, FrameError) as e:
+                raise HTTPException(409, str(e)) from e
+        return detail(draft_id)
 
     @app.post("/drafts/{draft_id}/review")
     def post_review(
@@ -522,7 +598,7 @@ def create_app(
                 raise HTTPException(422, "the moderator's review needs `by` (their name or id)")
             by = body.by
         else:
-            by = _verify_owner(draft_id, body)
+            by = _verify_owner(draft_id, body.message, body.signature, "approve" if body.approve else "reject")
         with lock:
             try:
                 d, _art, image = store.load(draft_id)
@@ -538,34 +614,37 @@ def create_app(
                 raise HTTPException(409, str(e)) from e
         return detail(draft_id)
 
-    def _verify_owner(draft_id: str, body: ReviewRequest) -> str:
+    def _verify_owner(draft_id: str, message: str | None, signature: str | None, purpose: str) -> str:
+        """Check a signed owner challenge for ``purpose`` on this draft's current image; return the address."""
         if not cfg.siwe_domain:
-            raise HTTPException(503, "owner review is off: no SIWE domain is configured")
-        if not body.message or not body.signature:
-            raise HTTPException(422, "the owner's review needs the signed challenge: message and signature")
+            raise HTTPException(503, "owner actions are off: no SIWE domain is configured")
+        if not message or not signature:
+            raise HTTPException(422, "the owner needs the signed challenge: message and signature")
         try:
-            parsed = siwe.parse(body.message)
+            parsed = siwe.parse(message)
         except siwe.SiweError as e:
             raise HTTPException(401, f"not a valid sign-in message: {e}") from e
         entry = challenges.take(parsed.nonce)
         if entry is None:
             raise HTTPException(401, "unknown or already used challenge; ask for a new one")
-        issued_for, approve, image_sha, _exp = entry
+        issued_for, issued_purpose, image_sha, _exp = entry
         d = detail(draft_id).draft
-        if issued_for != draft_id or approve != body.approve or image_sha != d.image_sha256:
-            raise HTTPException(401, "the challenge was issued for another draft, decision or image")
+        if issued_for != draft_id or issued_purpose != purpose or image_sha != d.image_sha256:
+            raise HTTPException(401, "the challenge was issued for another draft, action or image")
         try:
-            sig = bytes.fromhex(body.signature.removeprefix("0x"))
+            sig = bytes.fromhex(signature.removeprefix("0x"))
             msg = siwe.verify(
-                body.message, sig, domain=cfg.siwe_domain, nonce=parsed.nonce, now=datetime.now(UTC),
+                message, sig, domain=cfg.siwe_domain, nonce=parsed.nonce, now=datetime.now(UTC),
                 chain_id=net.chain_id,
             )  # fmt: skip
         except (ValueError, siwe.SiweError) as e:
             raise HTTPException(401, f"signature check failed: {e}") from e
-        if msg.statement != _statement(draft_id, approve) or msg.resources != _resources(draft_id, d.image_sha256):
+        if msg.statement != _statement(draft_id, purpose) or msg.resources != _resources(
+            draft_id, d.image_sha256, purpose
+        ):
             raise HTTPException(401, "the signed message is not the challenge that was issued")
         if to_checksum_address(msg.address) != to_checksum_address(d.to):
-            raise HTTPException(403, "only the wallet the card is minted to can review as the owner")
+            raise HTTPException(403, "only the wallet the card is minted to can act as the owner")
         return msg.address
 
     @app.post("/drafts/{draft_id}/publish")

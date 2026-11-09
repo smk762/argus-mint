@@ -104,8 +104,8 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.1" and h["chain_id"] == 84532 and h["card"] == CARD
-    assert all(h["capabilities"].values())
+    assert h["wire_version"] == "1.2" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert all(v for k, v in h["capabilities"].items() if k != "auto_moderate")
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
     assert frames[0]["width"] == 300 and set(frames[0]["frame"]["texts"]) == {"name", "bio"}
@@ -197,7 +197,7 @@ def test_cross_site_writes_and_read_only(setup, owner):
     ro = setup(read_only=True)
     assert ro.get("/health").json()["capabilities"] == {
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
-        "sample": False, "review_catalogue": False,
+        "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403
 
@@ -281,3 +281,62 @@ def test_catalogue_decisions_edit_the_file(setup, tmp_path):
         == "retired"
     )
     assert c.post("/bios/nope/1/review", json={"decision": "approve", "by": "m"}, headers=AUTH).status_code == 404
+
+
+def _edit_as_owner(c, draft_id, wallet, edit):
+    ch = c.post(f"/drafts/{draft_id}/challenge", json={"action": "edit", "edit": edit}).json()
+    sig = wallet.sign_message(encode_defunct(text=ch["message"])).signature.hex()
+    return c.post(f"/drafts/{draft_id}/text", json=edit | {"role": "owner", "message": ch["message"], "signature": sig})
+
+
+def test_editing_text_redraws_and_needs_new_approvals(setup, owner):
+    c = setup()
+    d = _create(c, owner).json()
+    draft_id, first_image = d["id"], d["draft"]["image_sha256"]
+    c.post(f"/drafts/{draft_id}/review", json={"role": "moderator", "approve": True, "by": "mod"}, headers=AUTH)
+    assert _owner_review(c, draft_id, owner).json()["status"] == "approved"
+
+    r = _edit_as_owner(c, draft_id, owner, {"name": "Hana of the Strait", "bio": "A quieter line, by hand."})
+    assert r.status_code == 200, r.text
+    e = r.json()
+    assert e["status"] == "pending" and e["awaiting"] == ["moderator", "owner"]  # a new image: both again
+    assert e["draft"]["image_sha256"] != first_image and e["draft"]["name"] == "Hana of the Strait"
+    assert e["draft"]["bio"]["edited"] is True and e["draft"]["description"] == "A quieter line, by hand."
+    assert e["draft"]["edits"][0]["fields"] == ["name", "bio"] and e["draft"]["edits"][0]["by"] == owner.address
+    assert len(e["draft"]["reviews"]) == 2  # history kept
+    assert c.get(f"/drafts/{draft_id}/image").content[:4] == b"\x89PNG"
+
+    # an owner signature covers exactly the edit it was issued for
+    ch = c.post(f"/drafts/{draft_id}/challenge", json={"action": "edit", "edit": {"name": "A"}}).json()
+    sig = owner.sign_message(encode_defunct(text=ch["message"])).signature.hex()
+    swapped = {"name": "B", "role": "owner", "message": ch["message"], "signature": sig}
+    assert c.post(f"/drafts/{draft_id}/text", json=swapped).status_code == 401
+
+    moderator_edit = {"role": "moderator", "by": "mod", "texts": {"name": "x"}}
+    assert c.post(f"/drafts/{draft_id}/text", json=moderator_edit).status_code == 401  # no token
+    r = c.post(f"/drafts/{draft_id}/text", json={"role": "moderator", "by": "mod", "name": "Hana"}, headers=AUTH)
+    assert r.status_code == 200 and r.json()["draft"]["name"] == "Hana"
+    nothing = c.post(f"/drafts/{draft_id}/text", json={"role": "moderator", "by": "mod", "name": "Hana"}, headers=AUTH)
+    assert nothing.status_code == 409
+
+
+def test_auto_moderation_approves_clean_drafts_and_holds_the_rest(setup, owner, tmp_path):
+    blocklist = tmp_path / "blocklist.txt"
+    blocklist.write_text("# house rules\nzorblax\n")
+    c = setup(auto_moderate=True, blocklist=blocklist)
+    assert c.get("/health").json()["capabilities"]["auto_moderate"] is True
+
+    d = _create(c, owner).json()
+    assert d["awaiting"] == ["owner"]  # the platform approved for the moderator
+    auto = d["draft"]["reviews"][0]
+    assert auto["by"] == "auto: platform checks" and auto["role"] == "moderator"
+    assert d["draft"]["auto_check"]["passed"] is True
+
+    held = _create(c, owner, name="Zorblax the Bold", asset="unit-18").json()
+    assert held["awaiting"] == ["moderator", "owner"]
+    assert "name" in held["draft"]["auto_check"]["held"][0]
+
+    # a hand-edited bio reached no model, so it goes through the word filter
+    r = c.post(f"/drafts/{d['id']}/text", json={"role": "moderator", "by": "m", "bio": "Sh1t happens."}, headers=AUTH)
+    e = r.json()
+    assert e["awaiting"] == ["moderator", "owner"] and "bio" in e["draft"]["auto_check"]["held"][0]

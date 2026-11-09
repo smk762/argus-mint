@@ -1,7 +1,7 @@
 {
   "service": "argus-mint",
-  "version": "0.1.0a6.dev9+g377fe6baf.d20261109",
-  "wire_version": "1.1",
+  "version": "0.1.0a6.dev12+g3f97c6057.d20261109",
+  "wire_version": "1.2",
   "read_only": false,
   "network": "base_sepolia",
   "chain_id": 84532,
@@ -19,7 +19,9 @@
     "owner_review": true,
     "publish": true,
     "sample": true,
-    "review_catalogue": true
+    "review_catalogue": true,
+    "edit_text": true,
+    "auto_moderate": false
   },
   "backends": {
     "darkroom": true,

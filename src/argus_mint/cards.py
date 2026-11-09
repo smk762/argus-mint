@@ -3,8 +3,14 @@
 A rendered card is first a *draft*: the unframed art, the finished card image (framed, or
 the art itself) and ``draft.json``, kept in a local directory. Nothing is pinned or signed
 yet. Before it can be published, the moderator **and** the card's owner each review the
-image. Each decision is bound to the image's sha256, so a changed file voids it. A
-rejection is final for that draft: render a new draft rather than re-reviewing this one.
+image. Each decision is bound to the image's sha256: a rejection is final for that image,
+and a changed image (a corrupted file, or an edit of the card's text, see
+:func:`argus_mint.workflow.edit_text`) needs both approvals again. Earlier reviews stay in
+the history but no longer count.
+
+With auto-moderation on, the moderator's approval can come from the platform's checks
+(:mod:`argus_mint.moderation`): recorded as an ordinary review ``by`` ``auto: ...``. The owner
+always reviews in person.
 
 :func:`check_publishable` is the gate ``argus-mint publish`` runs before pinning or signing.
 Reviews stay in the draft file; they are not written into the public metadata.
@@ -29,7 +35,9 @@ from argus_mint.templates import RenderRequest
 
 __all__ = [
     "REVIEWERS",
+    "AutoCheck",
     "BioRecord",
+    "Edit",
     "CardDraft",
     "DraftNotFound",
     "DraftStore",
@@ -77,6 +85,31 @@ class BioRecord(BaseModel):
     ref: BioRef
     text: str
     attempts: tuple[dict[str, Any], ...]
+    edited: bool = False  # a person changed the text after the model wrote it (so no model screened it)
+
+
+class Edit(BaseModel):
+    """A change to the card's text, which redraws the card image on the same art."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    role: Role
+    by: str = Field(min_length=1, max_length=128)
+    at: datetime
+    fields: tuple[str, ...]  # "name", "bio", "texts.<slot>"
+    image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # the new card image
+
+
+class AutoCheck(BaseModel):
+    """What auto-moderation found for the current image. ``passed`` recorded the moderator's approval."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    at: datetime
+    image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    passed: bool
+    checks: tuple[str, ...]  # what was checked, in words
+    held: tuple[str, ...] = ()  # why a person must look instead
 
 
 class CardDraft(BaseModel):
@@ -97,6 +130,8 @@ class CardDraft(BaseModel):
     frame: FrameRef | None = None
     bio: BioRecord | None = None
     texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot (class, stats...)
+    edits: tuple[Edit, ...] = ()
+    auto_check: AutoCheck | None = None
     art_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # the finished card image (== art when unframed)
     created_at: datetime
@@ -153,7 +188,7 @@ def review(
 ) -> CardDraft:
     """``draft`` with one more decision. Each role decides once per image; a rejected draft is closed."""
     if draft.status == "rejected":
-        raise DraftError("this draft was rejected; render a new draft instead")
+        raise DraftError("this image was rejected; edit the card's text or render a new draft")
     if role not in draft.awaiting():
         raise DraftError(f"the {role} has already reviewed this image")
     decision = Review(
