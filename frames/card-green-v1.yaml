@@ -1,0 +1,11 @@
+# Green leather card frame (969x1352). The art window is landscape, about 4:3, so templates
+# meant for this frame should render landscape (e.g. 1152x896, SDXL's nearest size): a square
+# render loses about a quarter of its height to cropping, a 1152x896 one about 6%.
+# The card's name goes in the top bar. The middle bar, text box and corner badge are left
+# blank for now (no text slots for them yet).
+id: card-green
+version: 1
+status: draft             # draft | approved | retired
+overlay: card-green-v1.png
+window: {x: 81, y: 159, width: 808, height: 593}
+name: {x: 110, y: 80, width: 760, height: 54, size: 44, colour: "#26301a"}

@@ -6,7 +6,7 @@
 #
 # v2 renders clean, full-bleed art: one character, no frame, lettering or badges. v1's
 # "card art" made the model draw its own card frames and lettering. A frame is meant to be
-# composited on top afterwards. Variable lists are unchanged from v1.
+# composited on top afterwards (frames/card-green-v1.yaml). Variable lists are unchanged from v1.
 id: example-portrait
 version: 2
 status: draft             # draft | approved | retired
@@ -17,8 +17,8 @@ sampling:                                 # fixed here so a render is reproducib
   scheduler: normal
   steps: 25
   cfg: 6.0
-width: 1024               # darkroom renders 1024x1024 whatever is set here
-height: 1024
+width: 1152               # landscape, SDXL's nearest size to card-green's ~4:3 art window
+height: 896
 prompt: "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face"
 negative: "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore"
 variables:

@@ -7,5 +7,5 @@ id: example-plain
 version: 1
 status: draft             # draft | approved | retired
 overlay: example-plain-v1.png
-window: {x: 60, y: 60, width: 880, height: 880}     # renders are square (1024x1024 from darkroom)
+window: {x: 60, y: 60, width: 880, height: 880}     # square: suits 1024x1024 renders
 name: {x: 80, y: 990, width: 840, height: 100, size: 64, colour: "#5c4026"}

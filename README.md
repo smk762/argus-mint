@@ -88,7 +88,7 @@ argus-mint review drafts/unit-17 --as owner --by <name> --approve
 argus-mint publish drafts/unit-17 --card 0x… --ipfs-api http://127.0.0.1:5001 > unit-17.json   # pins, signs
 ```
 
-**Frames.** Renders are clean, full-bleed art. A frame is a reviewed PNG overlay, transparent inside its art window, with an optional slot for the card's name. It's described in a YAML file next to it, which goes through the same `draft | approved | retired` review as templates ([frames/example-plain-v1.yaml](frames/example-plain-v1.yaml) is a placeholder). A framed card's provenance names the frame and its hash, and points to the unframed art on IPFS.
+**Frames.** Renders are clean, full-bleed art. A frame is a reviewed PNG overlay, transparent inside its art window, with an optional slot for the card's name. It's described in a YAML file next to it, which goes through the same `draft | approved | retired` review as templates ([frames/card-green-v1.yaml](frames/card-green-v1.yaml)). Render at the art window's aspect ratio (the template's `width`/`height`): the art is scaled to cover the window and the overflow is cropped. A framed card's provenance names the frame and its hash, and points to the unframed art on IPFS.
 
 On-chain, each step signs with a Foundry keystore account (`--account` / `$ARGUS_MINT_ACCOUNT`) or `$ARGUS_MINT_SIGNER_KEY`:
 

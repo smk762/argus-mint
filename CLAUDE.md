@@ -35,7 +35,7 @@ src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_code
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
 templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing)
-frames/           example frame (placeholder parchment border, draft); scripts/make_example_frame.py draws it
+frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
 tests/fixtures/   committed cross-implementation fixtures (Merkle, vouchers)
 ```
@@ -66,7 +66,7 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - `pin.LocalPinner`/`raw_cid` produce real CIDv1 raw ids, equal to IPFS's only for single-chunk (≤ 256 KiB) files; treat them as local ids.
 - The CLI logs to stderr; every command's result is JSON on stdout (password prompts go to the tty via `getpass`). `draft` needs `--darkroom`, `--image` or `--placeholder`; a live `publish` needs `--ipfs-api` and a signer, and refuses placeholder art.
 - Frames (`frames.py`): a YAML file + PNG overlay (transparent inside `window`) + optional TTF; the render is scaled to cover the window, the overlay goes on top, the card name is drawn in the `name` slot (shrinking to fit). A framed card's provenance gains `frame` {id, version, hash} and `art` (ipfs:// of the unframed render); both are left out when unset, so unframed cards hash exactly as before. Frame hash = keccak256(canonical(frame minus `status`, overlay sha256, font sha256)). Compositing is deterministic for a given Pillow version.
-- Drafts (`cards.py`): a directory with `draft.json`, `art.png` and, when framed, `card.png`. Reviews stay in `draft.json` (not in public metadata). darkroom renders 1024×1024 regardless of the template's width/height, so frames have square art windows.
+- Drafts (`cards.py`): a directory with `draft.json`, `art.png` and, when framed, `card.png`. Reviews stay in `draft.json` (not in public metadata). The template's `width`/`height` go to darkroom inside `sampling` (its workflow's `$width`/`$height`), so match the render's aspect to the frame's art window: the compositor crops whatever doesn't fit (cover).
 - Signers (`keys.load_signer`): `--account` / `$ARGUS_MINT_ACCOUNT` names a Foundry keystore (`~/.foundry/keystores/<name>` or a path), password from `$ARGUS_MINT_KEYSTORE_PASSWORD_FILE` or a hidden prompt; else `$ARGUS_MINT_SIGNER_KEY`. Never a key on the command line.
 - `submit` / `freeze` / `anchor` pre-check what the contract would refuse (role, already minted/frozen/anchored, expiry, chain id) before asking for a password or spending gas; a revert that still happens is decoded to the custom error's name by `chain.explain_revert`. `submit` refuses `dry_run` outputs. `anchor --tree` writes the standard-v1 dump *before* sending, so a landed root always has its tree.
 - Pinning: `compose.yaml` runs a Kubo node (`make ipfs`); its RPC (5001) is admin-level and stays on 127.0.0.1, swarm 4001 is public. A Kubo `add` of a file > 256 KiB returns a dag-pb CID (`bafybei…`), not a raw one; that's expected.
