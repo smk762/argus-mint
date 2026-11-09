@@ -222,10 +222,11 @@ def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
 
 
 def fill_for_review(t: Template, values: dict[str, str], seed: int = 0) -> RenderRequest:
-    """Like :func:`fill` but for any status: lets a reviewer pre-flight a draft before approving it.
+    """Like :func:`fill` but for any status: lets a reviewer check a draft before approving it.
 
-    Use it only for text checks (``DarkroomClient.preflight``); rendering goes through
-    :func:`argus_mint.render.render`, which calls :func:`fill` and so refuses non-approved templates.
+    Used for the text pre-flight and for sample renders (:func:`argus_mint.render.render_for_review`),
+    which stay local files. Cards are rendered through :func:`argus_mint.render.render`, which
+    calls :func:`fill` and so refuses non-approved templates.
     """
     return _build(t, values, seed)
 

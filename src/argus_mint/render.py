@@ -12,13 +12,13 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 import structlog
 
 from argus_mint._codec import Bytes32
 from argus_mint.metadata import Provenance
-from argus_mint.templates import SEED_MAX, RenderRequest, Template, fill
+from argus_mint.templates import SEED_MAX, RenderRequest, Template, fill, fill_for_review
 
 __all__ = [
     "Attempt",
@@ -30,6 +30,7 @@ __all__ = [
     "Rendered",
     "derive_seed",
     "render",
+    "render_for_review",
 ]
 
 log = structlog.get_logger(__name__)
@@ -131,9 +132,22 @@ def render(client: Darklight, t: Template, values: dict[str, str], seed: int) ->
     Raises :class:`RenderFailed` after ``t.max_attempts`` rejections, and :class:`RenderError`
     at once on a non-safety error (transport retries belong inside the client).
     """
+    return _render(client, t, values, seed, fill)
+
+
+def render_for_review(client: Darklight, t: Template, values: dict[str, str], seed: int) -> Rendered:
+    """Like :func:`render`, for a template of any status: sample images for its reviewer.
+
+    The result must never be pinned, signed or minted (``argus-mint sample`` only writes
+    local files). The same safety check and retries apply.
+    """
+    return _render(client, t, values, seed, fill_for_review)
+
+
+def _render(client: Darklight, t: Template, values: dict[str, str], seed: int, fill_fn: Any) -> Rendered:
     attempts: list[Attempt] = []
     for n in range(t.max_attempts):
-        req = fill(t, values, derive_seed(seed, n))
+        req = fill_fn(t, values, derive_seed(seed, n))
         result = client.generate(req)
         if result.outcome is Outcome.OK and not result.image:
             result = GenResult.error("darklight returned no image", ref=result.ref)

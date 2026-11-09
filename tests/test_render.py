@@ -87,3 +87,19 @@ def test_provenance_from_render(template_doc):
     p = r.provenance(asset_id=b"\x01" * 32, consumer="atlas-realms")
     assert (p.template, p.template_version, p.template_hash) == (t.id, t.version, t.hash())
     assert (p.seed, p.attempts) == (derive_seed(9, 1), 2)
+
+
+def test_render_for_review_renders_drafts_but_render_does_not(template_doc):
+    from argus_mint.render import render_for_review
+    from argus_mint.templates import NotApprovedError, Template
+
+    t = Template.model_validate({**template_doc, "status": "draft", "approved_by": None, "approved_at": None})
+    values = {"role": "ranger", "colour": "none", "pose": "standing"}
+
+    class Ok:
+        def generate(self, req):
+            return GenResult.ok(b"img")
+
+    assert render_for_review(Ok(), t, values, 7).image == b"img"
+    with pytest.raises(NotApprovedError):
+        render(Ok(), t, values, 7)

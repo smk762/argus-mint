@@ -35,14 +35,22 @@ def _chain_args(anvil_url, ops):
 
 
 def _voucher(tmp_path, template_doc, card, to, asset="unit-17"):
-    """A `mint` output: dry-run art and pins, signed by anvil account 0, marked live."""
+    """A `publish` output: placeholder art, approved, local pins, signed by anvil account 0, marked live."""
+    from .test_cli import approve
+
     path = tmp_path / "t.yaml"
     path.write_text(yaml.safe_dump(template_doc))
+    d = tmp_path / f"draft-{asset}"
     args = [
-        "mint", "--template", str(path), "--var", "role=ranger", "--var", "colour=none", "--var", "pose=standing",
-        "--asset", asset, "--to", to, "--name", "Hana", "--card", card, "--network", "anvil", "--dry-run",
+        "draft", "--template", str(path), "--out", str(d), "--var", "role=ranger", "--var", "colour=none",
+        "--var", "pose=standing", "--asset", asset, "--to", to, "--name", "Hana", "--placeholder",
     ]  # fmt: skip
-    result = runner.invoke(app, args, env={KEY_ENV: ANVIL_KEY0})
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    approve(d)
+    result = runner.invoke(
+        app, ["publish", str(d), "--card", card, "--network", "anvil", "--dry-run"], env={KEY_ENV: ANVIL_KEY0}
+    )
     assert result.exit_code == 0, result.output
     out = json.loads(result.stdout)
     out["dry_run"] = False  # stand-in for a live render; the chain doesn't care about the art

@@ -13,31 +13,34 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (s
 ## Hard rules (a change that breaks one is a bug)
 
 1. **No raw prompts.** A render is a template id + variables, each picked from that template's fixed list. Free text may appear in metadata, never in a model request. `templates.fill` rejects values outside the list, missing or extra keys.
-2. **Only reviewed templates render.** Status `draft | approved | retired`; only `approved` renders. Approval is a human step recorded in the template file (`approved_by`, `approved_at`).
+2. **Only reviewed templates and frames make cards.** Status `draft | approved | retired`; only `approved` templates render cards and only `approved` frames go on them. Approval is a human step recorded in the file (`approved_by`, `approved_at`). `argus-mint sample` / `render.render_for_review` render drafts for their reviewer, to local files only: never pinned, signed or minted.
 3. **Retry, don't loosen.** A safety rejection is retried with a new deterministic seed up to `max_attempts`. Never change the prompt or disable the check. Every attempt's seed + outcome is recorded.
 4. **Tokens carry no power.** Metadata describes a record; it never holds a number a game reads back as a stat. Contracts have no hooks a game calls to decide outcomes.
 5. **Nothing pays out.** No fungible token, revenue share or staking. Royalties, if any, are standard ERC-2981 on resale.
 6. **Consumers' deterministic code never reads the chain.** The indexer copies chain state into the consumer's DB; game logic reads that copy.
 7. **Reproducible.** Same template version + variables + seed → same render request. Metadata JSON is canonical (sorted keys, compact separators, UTF-8) so its hash is stable.
 8. **Pure core.** `templates`, `metadata`, `merkle`, `vouchers`, `siwe` are pure (no I/O beyond reading a template file) and tested without a network. Network code (darklight, IPFS, RPC) lives in thin, injectable clients behind `Protocol`s.
+9. **Every card image is reviewed before it is published.** `draft` (render + frame, local files) → `review` (the moderator **and** the owner each approve or reject the exact image, bound to its sha256) → `publish` (pin, metadata, signed voucher). `cards.check_publishable` refuses anything else; a rejection closes the draft. Nothing reaches IPFS or a voucher before both approvals.
 
 ## Layout
 
 ```
 src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_codec: keccak, canonical JSON, field types)
+                  frames cards                             # frame overlays (Pillow, `frames` extra); card drafts + image review
                   render pin indexer                       # clients behind Protocols (no web3 needed)
                   chain ledger                             # web3 clients (`chain` extra)
                   keys                                     # signers: Foundry keystore (password file/prompt) or $ARGUS_MINT_SIGNER_KEY
-                  cli                                      # Typer: templates, preflight, mint, submit, freeze, anchor
+                  cli                                      # Typer: templates, frames, preflight, sample, draft, review, publish, submit, freeze, anchor
                   abi/   # committed contract ABIs (`make abi`, abi.load(name)), so pip users never need Foundry
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
-templates/        example template YAML (example-portrait v1: approved)
+templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing)
+frames/           example frame (placeholder parchment border, draft); scripts/make_example_frame.py draws it
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
 tests/fixtures/   committed cross-implementation fixtures (Merkle, vouchers)
 ```
 
-Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and ledger client; `cli` = Typer; `dev` = tests.
+Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and ledger client; `cli` = Typer; `frames` = Pillow for compositing; `dev` = tests.
 
 ## Settled decisions (beyond the spec)
 
@@ -61,7 +64,9 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - `render.render` retries **only** safety rejections, with `derive_seed(seed, n)` (attempt 0 = the given seed). A darklight `error` stops at once with the attempt log; transport retries belong inside the client. The prompt is identical across attempts.
 - `indexer.follow` is one stateless pass over blocks `[cursor.next_block, head - confirmations]` (paged by `max_blocks`). The returned `Cursor` carries the hash of the last block read; if that block is later replaced the next pass raises `ReorgTooDeep` rather than continuing on a stale view.
 - `pin.LocalPinner`/`raw_cid` produce real CIDv1 raw ids, equal to IPFS's only for single-chunk (≤ 256 KiB) files; treat them as local ids.
-- The CLI logs to stderr; every command's result is JSON on stdout (password prompts go to the tty via `getpass`). Live minting needs `--darkroom` (or `--image`), `--ipfs-api` and a signer.
+- The CLI logs to stderr; every command's result is JSON on stdout (password prompts go to the tty via `getpass`). `draft` needs `--darkroom`, `--image` or `--placeholder`; a live `publish` needs `--ipfs-api` and a signer, and refuses placeholder art.
+- Frames (`frames.py`): a YAML file + PNG overlay (transparent inside `window`) + optional TTF; the render is scaled to cover the window, the overlay goes on top, the card name is drawn in the `name` slot (shrinking to fit). A framed card's provenance gains `frame` {id, version, hash} and `art` (ipfs:// of the unframed render); both are left out when unset, so unframed cards hash exactly as before. Frame hash = keccak256(canonical(frame minus `status`, overlay sha256, font sha256)). Compositing is deterministic for a given Pillow version.
+- Drafts (`cards.py`): a directory with `draft.json`, `art.png` and, when framed, `card.png`. Reviews stay in `draft.json` (not in public metadata). darkroom renders 1024×1024 regardless of the template's width/height, so frames have square art windows.
 - Signers (`keys.load_signer`): `--account` / `$ARGUS_MINT_ACCOUNT` names a Foundry keystore (`~/.foundry/keystores/<name>` or a path), password from `$ARGUS_MINT_KEYSTORE_PASSWORD_FILE` or a hidden prompt; else `$ARGUS_MINT_SIGNER_KEY`. Never a key on the command line.
 - `submit` / `freeze` / `anchor` pre-check what the contract would refuse (role, already minted/frozen/anchored, expiry, chain id) before asking for a password or spending gas; a revert that still happens is decoded to the custom error's name by `chain.explain_revert`. `submit` refuses `dry_run` outputs. `anchor --tree` writes the standard-v1 dump *before* sending, so a landed root always has its tree.
 - Pinning: `compose.yaml` runs a Kubo node (`make ipfs`); its RPC (5001) is admin-level and stays on 127.0.0.1, swarm 4001 is public. A Kubo `add` of a file > 256 KiB returns a dag-pb CID (`bafybei…`), not a raw one; that's expected.

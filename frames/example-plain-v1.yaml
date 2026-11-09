@@ -1,0 +1,11 @@
+# Placeholder frame: a plain parchment border, a square art window and a name bar.
+# Replace the PNG with real marginalia art (transparent inside the window) and bump the
+# version. Like templates, frames are reviewed: only approved frames go on a minted card,
+# and approval means setting status: approved plus approved_by / approved_at.
+# Preview it on sample renders: argus-mint sample <template> --frame frames/example-plain-v1.yaml ...
+id: example-plain
+version: 1
+status: draft             # draft | approved | retired
+overlay: example-plain-v1.png
+window: {x: 60, y: 60, width: 880, height: 880}     # renders are square (1024x1024 from darkroom)
+name: {x: 80, y: 990, width: 840, height: 100, size: 64, colour: "#5c4026"}

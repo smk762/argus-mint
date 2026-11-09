@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from argus_mint import networks
@@ -44,11 +43,11 @@ def test_web3rpc_rejects_unknown_head():
 
 
 def test_cli_network_sets_chain_id(tmp_path, template_doc):
-    path = tmp_path / "t.yaml"
-    path.write_text(yaml.safe_dump(template_doc))
-    base = ["mint", "--template", str(path), "--var", "role=ranger", "--var", "colour=none"]
-    base += ["--var", "pose=standing", "--asset", "a", "--to", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"]
-    base += ["--name", "n", "--card", "0x5FbDB2315678afecb367f032d93F642f64180aa3", "--dry-run"]
+    from .test_cli import approve, make_draft
+
+    out, _ = make_draft(tmp_path, template_doc, "--placeholder")
+    approve(out)
+    base = ["publish", str(out), "--card", "0x5FbDB2315678afecb367f032d93F642f64180aa3", "--dry-run"]
     runner = CliRunner()
     default = json.loads(runner.invoke(app, base).stdout)
     assert default["typed_data"]["domain"]["chainId"] == 84532  # Base Sepolia by default

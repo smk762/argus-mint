@@ -10,6 +10,10 @@ First public release, covering milestones M0–M5. Pre-alpha: the Python API may
 
 ### Added
 
+- **Image review before publishing.** `argus-mint mint` is replaced by `draft` (render and frame into a local draft), `review` (the moderator and the owner each approve or reject the exact image, bound to its sha256) and `publish` (pin, metadata, signed voucher). `cards.check_publishable` refuses a draft that lacks either approval, was rejected, or whose files changed. Nothing reaches IPFS or a voucher before both approvals.
+- **Frames.** `frames` module and `[frames]` extra (Pillow): a reviewed PNG overlay with an art window and an optional name slot, composited onto the render. Provenance gains optional `frame` (id, version, hash) and `art` (the unframed render's ipfs:// URI). Both are omitted when unset, so existing cards' `contentHash` is unchanged. `argus-mint frames` validates a directory of frames; there's a placeholder `frames/example-plain-v1`.
+- **`argus-mint sample`** renders a few combinations of a draft template (optionally framed) to local files for its reviewer, through `render.render_for_review`. It never pins, signs or mints.
+- `templates/example-portrait-v2.yaml` (draft): clean full-bleed portraits for framing, without the card frames, lettering and badges v1's "card art" produced.
 - Pre-review demo on Base mainnet: same contract addresses as testnet (deployer's first transaction), Sourcify-verified, six cards rendered fresh, pinned on a VPS node, minted and frozen by `demo/base/mint-batch.sh`.
 - `scripts/kubo-vps.sh`: native Kubo as a systemd service for a public pinning node. Docker port publishing (rootless especially) left the node unable to accept incoming connections, so gateways couldn't fetch new images.
 - M5 live demo on Base Sepolia: contracts deployed and Sourcify-verified, card #1 rendered through darkroom, pinned, minted and frozen, epoch 1 Merkle root anchored. Outputs and a JS verification script are in `demo/base-sepolia/`, and the README has the walkthrough.

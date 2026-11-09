@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, Stric
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
 
-__all__ = ["Attribute", "Provenance", "canonical", "card_metadata", "content_hash", "ipfs_uri"]
+__all__ = ["Attribute", "FrameRef", "Provenance", "canonical", "card_metadata", "content_hash", "ipfs_uri"]
 
 # CIDv0 (base58btc, "Qm…") or CIDv1 in base32 lower case ("b…", e.g. "bafy…").
 _CID = re.compile(r"^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$")
@@ -59,8 +59,23 @@ class Attribute(BaseModel):
         return self.model_dump(mode="json", exclude_none=True)
 
 
+class FrameRef(BaseModel):
+    """The reviewed frame composited onto the render (see :mod:`argus_mint.frames`)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    hash: Bytes32
+
+
 class Provenance(BaseModel):
-    """How the card's image was made. Fixed at mint; covered by :func:`content_hash`."""
+    """How the card's image was made. Fixed at mint; covered by :func:`content_hash`.
+
+    ``frame`` and ``art`` are set only for a framed card: the frame, and ``ipfs://`` of the
+    unframed render. Unset fields are left out of the JSON, so unframed cards serialize (and
+    hash) exactly as before frames existed.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -71,9 +86,24 @@ class Provenance(BaseModel):
     attempts: int = Field(ge=1)
     asset_id: Bytes32
     consumer: str = Field(min_length=1, max_length=64)
+    frame: FrameRef | None = None
+    art: str | None = None
+
+    @field_validator("art")
+    @classmethod
+    def _art_uri(cls, v: str | None) -> str | None:
+        if v is not None:
+            ipfs_uri(v.removeprefix("ipfs://"))  # validates the CID
+        return v
+
+    @model_validator(mode="after")
+    def _frame_and_art(self) -> Provenance:
+        if (self.frame is None) != (self.art is None):
+            raise ValueError("frame and art go together: a framed card records its unframed render")
+        return self
 
     def to_json(self) -> dict[str, Any]:
-        return self.model_dump(mode="json")
+        return self.model_dump(mode="json", exclude_none=True)
 
 
 def card_metadata(
