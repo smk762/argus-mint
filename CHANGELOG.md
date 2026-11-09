@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. Versions come from git tags (`hatch-vcs`).
 
-## Unreleased
+## 0.2.0 (2026-11-09)
 
 ### Changed (breaking)
 
