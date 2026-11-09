@@ -83,9 +83,9 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 - `library.json` is `GET /library` for whole groups of the pre-rendered library (one entry per
   checkpoint, ids and group numbers as in the full library); `library/<id>.jpg` is each entry's
   640 px thumbnail. One pending draft was made from a library entry (`draft.library`).
-- For the pickers, the fixture's copy of template v2 also offers a Flux checkpoint (its own
-  sampling, no negative prompt) and three LoRA options, as checked against argus-darkroom 0.1.3.
-  The library and the drafts use SDXL only.
+- Template v2 offers seven SDXL checkpoints and Flux dev (its own sampling, no negative prompt);
+  for the LoRA picker the fixture's copy also offers three LoRA options, as checked against
+  argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.
 """
@@ -120,14 +120,10 @@ def approved(src: Path, dst: Path, extra: dict | None = None) -> None:
 
 
 def pickers(template: Path) -> dict:
-    """What the fixture's template adds for the checkpoint and LoRA pickers: a second family and LoRAs."""
-    sdxl = yaml.safe_load(template.read_text())["models"]
-    return {
-        "models": [*sdxl, FLUX],
-        "sampling_by_family": {
-            "flux": {"sampler": "euler", "scheduler": "simple", "steps": 20, "cfg": 1.0, "guidance": 3.5}
-        },
-        "negative_by_family": {"flux": ""},
+    """What the fixture's template adds for the LoRA picker (and Flux, if the template lacks it)."""
+    doc = yaml.safe_load(template.read_text())
+    sdxl = [m for m in doc["models"] if m.startswith("sdxl/")]
+    extra = {
         "lora_options": [
             {"name": "sdxl/sfw/aesthetic/dnd_cover_xl/dnd_cover.safetensors", "weights": [0.8, 0.5], "models": sdxl},
             {"name": "sdxl/sfw/detail/extremely_detailed_xl/extremely_detailed.safetensors", "weights": [0.6],
@@ -136,6 +132,15 @@ def pickers(template: Path) -> dict:
         ],
         "max_loras": 2,
     }  # fmt: skip
+    if FLUX not in doc["models"]:
+        extra |= {
+            "models": [*doc["models"], FLUX],
+            "sampling_by_family": {
+                "flux": {"sampler": "euler", "scheduler": "simple", "steps": 20, "cfg": 1.0, "guidance": 3.5}
+            },
+            "negative_by_family": {"flux": ""},
+        }
+    return extra
 
 
 def library_subset(src: Path, dst: Path, groups: int) -> Library:
