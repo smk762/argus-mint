@@ -263,6 +263,8 @@ def sample(
     unknown = fixed.keys() - t.variables.keys()
     if unknown:
         raise typer.BadParameter(f"unknown variables: {sorted(unknown)}", param_hint="--var")
+    if model is not None and model not in t.allowed_models():
+        raise typer.BadParameter(f"not one this template allows: {list(t.allowed_models())}", param_hint="--model")
     pool = [c for c in combinations(t) if all(c[k] == v for k, v in fixed.items())]
     if not pool:
         raise _fail("no combination matches the fixed --var values")
@@ -361,6 +363,11 @@ def draft(
             lib_entry, lib_image = lib.entry(entry), lib.image(entry)
         except LibraryError as e:
             raise _fail(str(e)) from e
+        # The entry brings its variables and checkpoint: refuse others rather than ignore them.
+        if var and _parse_vars(var) != lib_entry.variables:
+            raise _fail(f"library entry {lib_entry.id} shows {lib_entry.variables}; leave --var out or match it", 2)
+        if model not in (None, lib_entry.model):
+            raise _fail(f"library entry {lib_entry.id} was rendered with {lib_entry.model}, not {model}", 2)
     if bio and not darkroom:
         raise _fail("--bio needs --darkroom: darkroom's text check screens every bio", 2)
     extra = _parse_texts(text)

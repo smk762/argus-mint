@@ -75,6 +75,43 @@ def test_build_is_model_major_resumable_and_compares_like_for_like(tmp_path, tdo
     assert lib.thumbnail(lib.entries[0].id, 64)[:2] == b"\xff\xd8"  # a JPEG
 
 
+class Failing:
+    def __init__(self, result):
+        self.result = result
+
+    def generate(self, req):
+        return self.result
+
+
+def test_build_refuses_what_it_cannot_do(tmp_path, tdoc):
+    t = Template.model_validate(tdoc)
+    with pytest.raises(LibraryError, match="only 8 combinations"):
+        pick_variable_sets(t, 9, 0)  # more than there are: no ninth one to find
+    clash = Template.model_validate({**tdoc, "models": [MODELS[0], "sd15/x/A.safetensors"]})
+    with pytest.raises(LibraryError, match="share entry ids"):
+        build(Renderer(), clash, tmp_path / "clash", count=2, seed=1)
+
+
+def test_a_resumed_build_retries_errors_and_missing_images_but_not_rejections(tmp_path, tdoc):
+    t = Template.model_validate(tdoc)
+    down = build(Failing(GenResult.error("darkroom unreachable")), t, tmp_path / "lib", count=2, seed=1)
+    assert len(down.manifest.failed) == 4 and not any(f["rejected"] for f in down.manifest.failed)
+    lib = build(Renderer(), t, tmp_path / "lib", count=2, seed=1)  # darkroom is back: the errors are tried again
+    assert len(lib.entries) == 4 and lib.manifest.failed == []
+
+    (tmp_path / "lib" / lib.entries[0].file).unlink()
+    with pytest.raises(LibraryError, match="can't be read"):
+        lib.image(lib.entries[0].id)
+    lib = build(Renderer(), t, tmp_path / "lib", count=2, seed=1)
+    assert len(lib.entries) == 4 and len({e.id for e in lib.entries}) == 4  # rendered again, listed once
+    assert lib.image(lib.entries[-1].id) == ART
+
+    build(Failing(GenResult.safety_rejected("deleted")), t, tmp_path / "no", count=2, seed=1)
+    r = Renderer()
+    refused = build(r, t, tmp_path / "no", count=2, seed=1)
+    assert r.calls == [] and len(refused.manifest.failed) == 4  # a safety rejection is final
+
+
 def test_entries_must_be_what_the_approved_template_renders(tmp_path, tdoc):
     draft_t = Template.model_validate({**tdoc, "status": "draft", "approved_by": None, "approved_at": None})
     lib = build(Renderer(), draft_t, tmp_path / "lib", count=2, seed=1)

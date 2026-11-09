@@ -811,6 +811,8 @@ def create_app(
         bad = sorted(k for k, v in body.variables.items() if k in t.variables and v not in t.variables[k])
         if unknown or bad:
             raise HTTPException(422, f"unknown variables {unknown}, or values not in the template's lists {bad}")
+        if body.model is not None and body.model not in t.allowed_models():
+            raise HTTPException(422, f"checkpoint {body.model!r} is not one this template allows")
         pool = [c for c in combinations(t) if all(c[k] == v for k, v in body.variables.items())]
         picks = random.Random(body.seed).sample(pool, min(body.count, len(pool)))
 

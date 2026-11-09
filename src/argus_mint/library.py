@@ -18,8 +18,11 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
+import os
 import random
 import re
+import secrets
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,7 +30,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from argus_mint.render import Darklight, RenderError, render_for_review
+from argus_mint.render import Darklight, RenderError, RenderFailed, render_for_review
 from argus_mint.templates import RenderRequest, Template, TemplateError, fill
 
 __all__ = ["Library", "LibraryEntry", "LibraryError", "build", "check_entry", "model_slug", "pick_variable_sets"]
@@ -65,7 +68,9 @@ class Manifest(BaseModel):
     seed: int
     created_at: datetime
     entries: list[LibraryEntry] = Field(default_factory=list)
-    failed: list[dict[str, Any]] = Field(default_factory=list)  # combinations every attempt was rejected for
+    # Combinations that made no image. `rejected`: the safety check refused every attempt (final);
+    # otherwise an error stopped the render, and a resumed build tries it again.
+    failed: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def model_slug(model: str) -> str:
@@ -79,8 +84,12 @@ def pick_variable_sets(t: Template, count: int, seed: int) -> list[dict[str, str
 
     Every variable cycles through its whole list before repeating (shuffled per variable), so
     48 portraits of a 16-role template show every role three times, every gender sixteen, and
-    so on, without a combination repeating.
+    so on, without a combination repeating. Raises :class:`LibraryError` if the template has
+    fewer than ``count`` combinations.
     """
+    possible = math.prod(len(values) for values in t.variables.values())
+    if count > possible:
+        raise LibraryError(f"template {t.id} v{t.version} has only {possible} combinations, not {count} different ones")
     rng = random.Random(seed)
     names = sorted(t.variables)
     columns: dict[str, list[str]] = {}
@@ -135,7 +144,10 @@ class Library:
 
     def image(self, entry_id: str) -> bytes:
         e = self.entry(entry_id)
-        data = (self.root / e.file).read_bytes()
+        try:
+            data = (self.root / e.file).read_bytes()
+        except OSError as err:
+            raise LibraryError(f"library image {e.file} can't be read: {err}") from err
         if hashlib.sha256(data).hexdigest() != e.sha256:
             raise LibraryError(f"library image {e.file} differs from the one rendered")
         return data
@@ -153,8 +165,15 @@ class Library:
             im.thumbnail((width, width * 4))
             buf = io.BytesIO()
             im.save(buf, format="JPEG", quality=82, optimize=True)
-        cached.parent.mkdir(exist_ok=True)
-        cached.write_bytes(buf.getvalue())
+        # Cache by rename, so a concurrent request never reads half a file. A library that can't
+        # be written to (a read-only mount) is still served, just uncached.
+        tmp = cached.with_name(f".{cached.name}.{secrets.token_hex(4)}.tmp")
+        try:
+            cached.parent.mkdir(exist_ok=True)
+            tmp.write_bytes(buf.getvalue())
+            os.replace(tmp, cached)
+        except OSError:
+            tmp.unlink(missing_ok=True)
         return buf.getvalue()
 
 
@@ -189,7 +208,9 @@ def build(
     """Render the library into ``root``, model by model (a checkpoint loads once), resumably.
 
     An entry already in the manifest (with its file) is kept, so an interrupted build continues.
-    A combination every attempt was rejected for is recorded under ``failed`` and skipped.
+    A combination every attempt was rejected for is recorded under ``failed`` and skipped for
+    good. One that stopped on an error (darkroom unreachable, a failed job) is recorded there
+    too, and tried again when the build is resumed.
     """
     root = Path(root)
     (root / "images").mkdir(parents=True, exist_ok=True)
@@ -213,9 +234,23 @@ def build(
     )
     if (manifest.template, manifest.template_version, manifest.count, manifest.seed) != (t.id, t.version, count, seed):
         raise LibraryError(f"{path} was started for other settings; use a new directory")
-    done = {e.id for e in manifest.entries if (root / e.file).is_file()}
-    failed = {(f["group"], f["model"]) for f in manifest.failed}
     manifest.models = list(dict.fromkeys([*manifest.models, *models]))
+    slugs: dict[str, str] = {}
+    for m in manifest.models:  # the slug is the entry id and the file name: two checkpoints can't share one
+        slug = model_slug(m)
+        if not slug:
+            raise LibraryError(f"checkpoint {m!r} has no letters or digits to name its entries by")
+        if slugs.setdefault(slug, m) != m:
+            raise LibraryError(
+                f"checkpoints {slugs[slug]!r} and {m!r} would share entry ids ({slug}-); use two directories"
+            )
+    # An entry whose file is gone is rendered again, so it leaves the manifest: no id is listed twice.
+    manifest.entries = [e for e in manifest.entries if (root / e.file).is_file()]
+    done = {e.id for e in manifest.entries}
+    # Only a safety rejection is final. An error is tried again (as is a failure recorded before
+    # the two were told apart).
+    manifest.failed = [f for f in manifest.failed if f.get("rejected", False)]
+    failed = {(f["group"], f["model"]) for f in manifest.failed}
 
     def save() -> None:
         tmp = path.with_name(f".{path.name}.tmp")
@@ -235,7 +270,15 @@ def build(
             try:
                 r = render_for_review(client, t, values, group_seed, model)
             except RenderError as e:
-                manifest.failed.append({"group": group, "model": model, "variables": values, "error": str(e)})
+                manifest.failed.append(
+                    {
+                        "group": group,
+                        "model": model,
+                        "variables": values,
+                        "error": str(e),
+                        "rejected": isinstance(e, RenderFailed),
+                    }
+                )
                 save()
                 progress(f"[{n}/{total}] {entry_id}: {e}")
                 continue

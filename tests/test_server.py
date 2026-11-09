@@ -246,6 +246,7 @@ def test_samples_render_drafts_to_local_jobs(setup, tmp_path):
     assert c.get(f"/samples/{job['id']}/1/framed").content[:4] == b"\x89PNG"
     assert c.get("/samples").json()["total"] == 1
     assert c.post("/samples", json=body | {"variables": {"role": "wizard"}}, headers=AUTH).status_code == 422
+    assert c.post("/samples", json=body | {"model": "not-allowed"}, headers=AUTH).status_code == 422  # not a job
     assert c.get("/samples/not-an-id").status_code == 400
 
     preview = {"art": {"sample": job["id"], "n": 1}, "name": "Hana", "bio": "A lyrical line."}
