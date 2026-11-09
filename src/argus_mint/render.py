@@ -50,10 +50,12 @@ class GenResult:
     image: bytes | None = None
     detail: str = ""
     ref: str = ""  # the renderer's id for this attempt (darkroom: the record id), for the audit trail
+    # The renderer's workflow, when it says: darkroom's {"name": "sdxl+lora1", "sha256": ...}.
+    workflow: dict[str, str] | None = None
 
     @classmethod
-    def ok(cls, image: bytes, ref: str = "") -> GenResult:
-        return cls(Outcome.OK, image=image, ref=ref)
+    def ok(cls, image: bytes, ref: str = "", workflow: dict[str, str] | None = None) -> GenResult:
+        return cls(Outcome.OK, image=image, ref=ref, workflow=workflow)
 
     @classmethod
     def safety_rejected(cls, detail: str = "", ref: str = "") -> GenResult:
@@ -74,6 +76,14 @@ class Attempt:
     outcome: Outcome
     detail: str = ""
     ref: str = ""
+    workflow: dict[str, str] | None = None  # the renderer's workflow (name, sha256), when it said
+
+    def to_json(self) -> dict[str, Any]:
+        """As drafts, library entries and publish output record it (``workflow`` only when known)."""
+        out: dict[str, Any] = {"seed": self.seed, "outcome": str(self.outcome), "ref": self.ref, "detail": self.detail}
+        if self.workflow:
+            out["workflow"] = dict(self.workflow)
+        return out
 
 
 @dataclass(frozen=True)
@@ -165,7 +175,11 @@ def _render(
         result = client.generate(req)
         if result.outcome is Outcome.OK and not result.image:
             result = GenResult.error("darklight returned no image", ref=result.ref)
-        attempts.append(Attempt(seed=req.seed, outcome=result.outcome, detail=result.detail, ref=result.ref))
+        attempts.append(
+            Attempt(
+                seed=req.seed, outcome=result.outcome, detail=result.detail, ref=result.ref, workflow=result.workflow
+            )
+        )
         log.info(
             "render_attempt", template=t.id, version=t.version, attempt=n + 1, seed=req.seed, outcome=result.outcome
         )

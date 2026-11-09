@@ -106,6 +106,7 @@ from argus_mint.wire import (
     SampleJob,
     SampleJobList,
     SampleRequest,
+    TemplateCheck,
     TemplateInfo,
     TextEdit,
 )
@@ -292,6 +293,7 @@ def create_app(
             sample=writable and has_token and darkroom is not None,
             edit_text=writable and bool(cfg.siwe_domain),
             auto_moderate=cfg.auto_moderate,
+            check_templates=hasattr(darkroom, "check_template"),
             review_catalogue=writable
             and has_token
             and all(d.is_dir() and os.access(d, os.W_OK) for d in (cfg.templates_dir, cfg.frames_dir, cfg.bios_dir)),
@@ -432,6 +434,25 @@ def create_app(
             )
             for _k, (t, path) in sorted(load_kind("template").items())
         ]
+
+    def template_problems(t: Any) -> list[str]:
+        """What would make darkroom refuse ``t`` (from its model list). 503 without a darkroom."""
+        check = getattr(darkroom, "check_template", None)
+        if check is None:
+            raise HTTPException(503, "no darkroom is configured (ARGUS_MINT_DARKROOM_URL) to check against")
+        try:
+            return check(t)
+        except DarkroomError as e:
+            raise HTTPException(502, str(e)) from e
+
+    @app.get("/templates/{item_id}/{version}/check")
+    def check_template(item_id: str, version: int) -> TemplateCheck:
+        table = load_kind("template")
+        if (item_id, version) not in table:
+            raise HTTPException(404, f"no template {item_id} v{version}")
+        t = table[(item_id, version)][0]
+        problems = template_problems(t)
+        return TemplateCheck(template=Ref(id=t.id, version=t.version), ok=not problems, problems=problems)
 
     @app.get("/frames")
     def list_frames() -> list[FrameInfo]:
@@ -781,6 +802,11 @@ def create_app(
             if not os.access(path, os.W_OK):
                 raise HTTPException(503, f"{rel(kind, path)} is not writable on this server")
             loader = kinds[kind][1]
+            # A template darkroom can't render isn't approved; with no darkroom here, nothing to check.
+            if kind == "template" and body.decision == "approve" and hasattr(darkroom, "check_template"):
+                problems = template_problems(_obj)
+                if problems:
+                    raise HTTPException(409, "darkroom can't render this template: " + "; ".join(problems))
             with lock:
                 try:
                     record_decision(path, body.decision, by=body.by, today=datetime.now(UTC).date(), validate=loader)

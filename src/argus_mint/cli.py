@@ -116,10 +116,16 @@ def preflight(
     darkroom: DarkroomOpt = None,
     policy: PolicyOpt = "default",
     limit: Annotated[int, typer.Option(help="Refuse templates with more combinations than this")] = 256,
+    text: Annotated[
+        bool, typer.Option("--text/--no-text", help="Also run the text pre-flight on every combination")
+    ] = True,
 ) -> None:
-    """Run darkroom's text pre-flight on every variable combination of TEMPLATE.
+    """Check TEMPLATE against darkroom before approval: its workflows, then its prompt text.
 
-    For reviewers: do this before approving a template. Exits 1 if any combination is refused.
+    First, against darkroom's model list: every checkpoint exists and has a workflow for each
+    LoRA count the template allows, and each workflow takes what the template sends (negative
+    prompt, guidance, clip_skip). Then darkroom's text pre-flight on every variable combination.
+    Exits 1 on any problem or refusal.
     """
     if not darkroom:
         raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
@@ -127,6 +133,17 @@ def preflight(
         t = load_template(template)
     except TemplateError as e:
         raise _fail(str(e)) from e
+    try:
+        problems = DarkroomClient(darkroom, policy=policy).check_template(t)
+    except DarkroomError as e:
+        raise _fail(str(e)) from e
+    for problem in problems:
+        typer.echo(f"PROBLEM\t{problem}")
+    typer.echo(
+        f"{len(problems)} problem(s) with darkroom's workflows for {len(t.allowed_models())} checkpoint(s)", err=True
+    )
+    if not text:
+        raise typer.Exit(1 if problems else 0)
     combos = combinations(t)
     if len(combos) > limit:
         raise _fail(f"{len(combos)} combinations exceed --limit {limit}")
@@ -142,7 +159,7 @@ def preflight(
         detail = "" if ok else f"\t{verdict.get('refusal') or verdict.get('outcome')}"
         typer.echo(f"{'ok' if ok else 'REFUSED'}\t{json.dumps(values, sort_keys=True)}{detail}")
     typer.echo(f"{len(combos) - refused}/{len(combos)} combinations pass pre-flight under {policy!r}", err=True)
-    if refused:
+    if refused or problems:
         raise typer.Exit(1)
 
 
@@ -185,7 +202,7 @@ TextOpt = Annotated[
 
 
 def _attempts_json(attempts: Any) -> list[dict[str, Any]]:
-    return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
+    return [a.to_json() for a in attempts]
 
 
 def _render_failed(e: RenderError) -> typer.Exit:

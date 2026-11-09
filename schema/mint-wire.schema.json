@@ -288,6 +288,11 @@
           "title": "Auto Moderate",
           "type": "boolean"
         },
+        "check_templates": {
+          "default": false,
+          "title": "Check Templates",
+          "type": "boolean"
+        },
         "create_drafts": {
           "title": "Create Drafts",
           "type": "boolean"
@@ -1368,7 +1373,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.6",
+          "default": "1.7",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2601,6 +2606,33 @@
       "title": "Template",
       "type": "object"
     },
+    "TemplateCheck": {
+      "additionalProperties": false,
+      "description": "GET /templates/{id}/{version}/check: what would make darkroom refuse to render the template.\n\nChecked against darkroom's model list: checkpoints, LoRAs, sampler and scheduler exist, and a\nworkflow renders each checkpoint with every LoRA count the template allows, taking what the\ntemplate sends. Approving a template is refused while ``problems`` isn't empty.",
+      "properties": {
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        }
+      },
+      "required": [
+        "template",
+        "ok",
+        "problems"
+      ],
+      "title": "TemplateCheck",
+      "type": "object"
+    },
     "TemplateInfo": {
       "additionalProperties": false,
       "properties": {
@@ -2810,5 +2842,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.6"
+  "title": "argus-mint wire 1.7"
 }

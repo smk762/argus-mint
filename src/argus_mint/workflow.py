@@ -282,7 +282,7 @@ def sample_card(
 
 
 def _render_attempts(attempts: Any) -> list[dict[str, Any]]:
-    return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
+    return [a.to_json() for a in attempts]
 
 
 def edit_text(

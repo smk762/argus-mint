@@ -78,7 +78,7 @@ Every card image is seen by people before it is published. Rendering makes a loc
 make ipfs                                    # local Kubo node (compose.yaml): RPC 127.0.0.1:5001, gateway :8080
 
 # reviewing a template or frame, before approving it
-argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # text check, every combination
+argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # darkroom's workflows, then text check of every combination
 argus-mint sample my-template.yaml --out samples/ --count 6 --frame frames/my-frame.yaml \
   --darkroom http://localhost:8106                                          # sample images, local files only
 
@@ -134,7 +134,8 @@ make serve-up                               # or in docker with Kubo (compose pr
 | `GET /library`, `GET /library/{id}/image[?thumb=w]` | pre-rendered portraits; `POST /drafts` with `library: <id>` makes a card from one without a GPU |
 | `POST /samples`, `GET /samples[/{id}]` | sample cards of a template, frame and bio (any status) for their reviewer, as background jobs; local only (moderator token) |
 | `POST /frames/{id}/{version}/preview` | a frame (any status) on a draft's or sample's art, as a PNG |
-| `POST /{templates,frames,bios}/{id}/{version}/review` | approve a draft or retire an approved file. This writes `status`, `approved_by` and `approved_at` into the YAML, keeping its comments (moderator token) |
+| `GET /templates/{id}/{version}/check` | what would make darkroom refuse to render the template, from its model list: missing checkpoints or LoRAs, no workflow for a LoRA count, a negative prompt, `guidance` or `clip_skip` a workflow can't take |
+| `POST /{templates,frames,bios}/{id}/{version}/review` | approve a draft or retire an approved file. This writes `status`, `approved_by` and `approved_at` into the YAML, keeping its comments (moderator token). With a darkroom configured, a template it can't render isn't approved (409, with the problems) |
 
 **Who can do what.** The moderator token (`ARGUS_MINT_MODERATOR_TOKEN`) creates drafts, renders samples, approves or retires templates, frames and bio templates, reviews as the moderator, and publishes. The owner reviews by signing an EIP-4361 (Sign-In with Ethereum) message with the wallet the card will be minted to. The message names the draft, the decision and the image's sha256, and works once. Neither role can act as the other.
 
@@ -149,7 +150,7 @@ A template can also offer `lora_options`, each with:
 
 A card may choose up to `max_loras` of them (`--lora NAME[@WEIGHT]`, or `loras` in the API).
 
-Rendering other families, and LoRAs, needs argus-darkroom 0.1.3 or later with a workflow directory (its Docker image's default). darkroom picks a workflow by family and LoRA count, and returns a 400 when none fits. Its `GET /models` lists each checkpoint's `lora_counts`.
+Rendering other families, and LoRAs, needs argus-darkroom 0.1.3 or later with a workflow directory (its Docker image's default). darkroom picks a workflow by family and LoRA count, and returns a 400 when none fits. `argus-mint preflight` and approval through the API check a template against darkroom's `GET /models` first, so such a mismatch is found at review rather than at render. Each attempt records darkroom's workflow (name and sha256).
 
 **A library for demos without a GPU.** `argus-mint library build TEMPLATE --out library --count 48` renders COUNT diverse combinations on every checkpoint the template allows. The same combination gets the same seed on each, so they compare like for like. It renders one checkpoint at a time, so each loads once, and an interrupted build resumes. Every image passes darkroom's safety check, as always. `argus-mint serve` offers the library at `/library` (`ARGUS_MINT_LIBRARY_DIR`), and `draft --library DIR --entry ID` uses it from the CLI.
 
