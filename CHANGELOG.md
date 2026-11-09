@@ -23,6 +23,12 @@ All notable changes to this project are documented here. Versions come from git 
 ### Changed
 
 - **Template v2** drops `sdxl/makeArtNotGoon_v8` (weaker output) and adds Flux dev (`flux/flux1-dev-fp8`), with its own sampling (guidance 3.5, 20 steps) and no negative prompt. It lists seven SDXL checkpoints and Flux dev.
+- **Template v3 (draft)** rewords v2's prompt for the same checkpoints and variables:
+  - the subject is "fully clothed in a tunic", and the negative prompt starts with nudity terms;
+  - the risky roles are described (a giant "dwarfing the room", a cyborg "with metal limbs and glowing implants", a centaur "with a horse's body below the waist");
+  - the prompt asks for no lettering, and colour "none" becomes "plain".
+
+  A full library (48 groups × 8 checkpoints, seed 8453) got 384 of 384 images, against v2's 371 (13 lost to the safety check, nearly all for nudity), with 11 safety retries against v2's 46. Giants, cyborgs and Flux's stray handwriting improved. Centaurs still come out as a rider or a figure beside a horse.
 - The fixture is re-recorded at wire 1.5 (it was 1.3).
 
 ## 0.2.0 (2026-11-09)
