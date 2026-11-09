@@ -17,6 +17,7 @@ from argus_mint._codec import hex0x
 from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
 from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
 from argus_mint.frames import FrameError, LoadedFrame, check_style, compose, require_approved
+from argus_mint.library import LibraryEntry, LibraryError, check_entry
 from argus_mint.metadata import CardStyle, card_metadata, content_hash
 from argus_mint.pin import Pinner
 from argus_mint.render import Darklight, RenderError, render, render_for_review
@@ -100,6 +101,8 @@ def create_draft(
     guard: TextGuard | None = None,
     texts: dict[str, str] | None = None,
     style: CardStyle | None = None,
+    model: str | None = None,
+    library: LibraryEntry | None = None,
 ) -> Made:
     """Render (or take ``image``), write the bio, frame the card. Nothing is pinned or signed.
 
@@ -116,18 +119,29 @@ def create_draft(
             raise FrameError("a style needs a frame to style")
         check_style(frame, style)
     if (image is None) == (renderer is None):
-        raise ValueError("give exactly one of renderer or image")
+        raise ValueError("give exactly one of renderer or image (a library entry comes with its image)")
+    if library is not None and model not in (None, library.model):
+        raise ValueError(f"the library entry was rendered with {library.model}, not {model}")
     if bio is not None and (writer is None or guard is None):
         raise ValueError("a bio needs a writer and a text guard")
     if bio is not None:
         check_bio(bio, values, template)
-    if image is not None:
-        req = fill(template, values, seed)
+    if library is not None:
+        assert image is not None
+        if sha256_hex(image) != library.sha256:
+            raise LibraryError(f"library image {library.id} differs from the one rendered")
+        if values != library.variables:
+            raise LibraryError(f"library entry {library.id} shows {library.variables}, not {values}")
+        req = check_entry(library, template)  # what this approved template renders for it, exactly
+        art, attempts = image, list(library.attempts)
+        renderer_name = "darkroom"
+    elif image is not None:
+        req = fill(template, values, seed, model)
         art, attempts = image, [{"seed": req.seed, "outcome": "supplied", "ref": image_ref}]
         renderer_name = "supplied"
     else:
         assert renderer is not None
-        rendered = render(renderer, template, values, seed)
+        rendered = render(renderer, template, values, seed, model)
         art, req = rendered.image, rendered.request
         attempts = _render_attempts(rendered.attempts)
     b = write_bio(writer, guard, bio, values, template, name) if bio and writer and guard else None
@@ -146,6 +160,7 @@ def create_draft(
         bio=BioRecord(ref=b.template.ref(), text=b.text, attempts=tuple(bio_attempts(b.attempts))) if b else None,
         texts=texts,
         style=style,
+        library=library.id if library is not None else None,
         art_sha256=sha256_hex(art),
         image_sha256=sha256_hex(card_image),
         created_at=datetime.now(UTC),
@@ -233,6 +248,7 @@ def sample_card(
     name: str = "Sample",
     texts: dict[str, str] | None = None,
     style: CardStyle | None = None,
+    model: str | None = None,
 ) -> Sample:
     """Render a sample of a template (any status), with an optional bio and frame (any status).
 
@@ -243,7 +259,7 @@ def sample_card(
     check_texts(texts, frame)
     item: dict[str, Any] = {"variables": dict(sorted(values.items()))}
     try:
-        r = render_for_review(renderer, template, values, seed)
+        r = render_for_review(renderer, template, values, seed, model)
     except RenderError as e:
         item |= {"error": str(e), "attempts": _render_attempts(e.attempts)}
         return Sample(item, None, None)

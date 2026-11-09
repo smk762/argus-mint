@@ -67,7 +67,7 @@ def setup(tmp_path, template_doc):
 
     def make(**over):
         cfg = Settings(
-            drafts_dir=tmp_path / "drafts", samples_dir=tmp_path / "samples", templates_dir=tmp_path / "templates", frames_dir=fdir,
+            drafts_dir=tmp_path / "drafts", samples_dir=tmp_path / "samples", library_dir=tmp_path / "library", templates_dir=tmp_path / "templates", frames_dir=fdir,
             bios_dir=tmp_path / "bios", darkroom_url="http://darkroom", writer_url="http://writer",
             ipfs_api="http://ipfs", network="base-sepolia", card=CARD, moderator_token=TOKEN,
             siwe_domain="assay.example", **over,
@@ -104,8 +104,8 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.3" and h["chain_id"] == 84532 and h["card"] == CARD
-    assert all(v for k, v in h["capabilities"].items() if k != "auto_moderate")
+    assert h["wire_version"] == "1.4" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library"))
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
     assert frames[0]["width"] == 300 and set(frames[0]["frame"]["texts"]) == {"name", "bio"}
@@ -197,7 +197,7 @@ def test_cross_site_writes_and_read_only(setup, owner):
     ro = setup(read_only=True)
     assert ro.get("/health").json()["capabilities"] == {
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
-        "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False,
+        "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False, "library": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403
 
@@ -246,6 +246,7 @@ def test_samples_render_drafts_to_local_jobs(setup, tmp_path):
     assert c.get(f"/samples/{job['id']}/1/framed").content[:4] == b"\x89PNG"
     assert c.get("/samples").json()["total"] == 1
     assert c.post("/samples", json=body | {"variables": {"role": "wizard"}}, headers=AUTH).status_code == 422
+    assert c.post("/samples", json=body | {"model": "not-allowed"}, headers=AUTH).status_code == 422  # not a job
     assert c.get("/samples/not-an-id").status_code == 400
 
     preview = {"art": {"sample": job["id"], "n": 1}, "name": "Hana", "bio": "A lyrical line."}

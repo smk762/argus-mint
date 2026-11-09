@@ -297,6 +297,11 @@
           "title": "Edit Text",
           "type": "boolean"
         },
+        "library": {
+          "default": false,
+          "title": "Library",
+          "type": "boolean"
+        },
         "moderate": {
           "title": "Moderate",
           "type": "boolean"
@@ -434,6 +439,18 @@
           "pattern": "^[0-9a-f]{64}$",
           "title": "Image Sha256",
           "type": "string"
+        },
+        "library": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Library"
         },
         "name": {
           "minLength": 1,
@@ -654,7 +671,7 @@
     },
     "CreateDraft": {
       "additionalProperties": false,
-      "description": "POST /drafts. The template, frame and bio are named by id and version, never by path.",
+      "description": "POST /drafts. The template, frame and bio are named by id and version, never by path.\n\nEither render (``variables``, ``seed``, optionally ``model``), or take a pre-rendered\n``library`` entry, whose variables, seed and checkpoint then apply.",
       "properties": {
         "asset": {
           "anyOf": [
@@ -722,6 +739,30 @@
           ],
           "default": null
         },
+        "library": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Library"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
         "name": {
           "maxLength": 120,
           "minLength": 1,
@@ -729,6 +770,7 @@
           "type": "string"
         },
         "seed": {
+          "default": 0,
           "maximum": 4294967295,
           "minimum": 0,
           "title": "Seed",
@@ -769,8 +811,6 @@
       },
       "required": [
         "template",
-        "variables",
-        "seed",
         "to",
         "name"
       ],
@@ -1321,7 +1361,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.3",
+          "default": "1.4",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1357,6 +1397,83 @@
         "texts"
       ],
       "title": "LayoutRequest",
+      "type": "object"
+    },
+    "LibraryItem": {
+      "additionalProperties": false,
+      "properties": {
+        "group": {
+          "title": "Group",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "variables": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Variables",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "group",
+        "model",
+        "variables",
+        "seed",
+        "sha256"
+      ],
+      "title": "LibraryItem",
+      "type": "object"
+    },
+    "LibraryListing": {
+      "additionalProperties": false,
+      "description": "GET /library: pre-rendered portraits, for drafts without a GPU (``CreateDraft.library``).",
+      "properties": {
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/LibraryItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        }
+      },
+      "required": [
+        "template",
+        "models",
+        "count",
+        "items"
+      ],
+      "title": "LibraryListing",
       "type": "object"
     },
     "LineLayout": {
@@ -1982,6 +2099,18 @@
           ],
           "default": null
         },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
         "name": {
           "default": "Sample",
           "maxLength": 120,
@@ -2272,6 +2401,14 @@
           "title": "Model",
           "type": "string"
         },
+        "models": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
         "negative": {
           "default": "",
           "title": "Negative",
@@ -2546,5 +2683,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.3"
+  "title": "argus-mint wire 1.4"
 }

@@ -140,7 +140,7 @@ def main(arts: list[Path]) -> None:
                 return BIOS[(state["n"] + Writer.calls) % len(BIOS)]
 
         cfg = Settings(
-            drafts_dir=work / "drafts", samples_dir=work / "samples", templates_dir=work / "templates", frames_dir=work / "frames",
+            drafts_dir=work / "drafts", samples_dir=work / "samples", library_dir=work / "library", templates_dir=work / "templates", frames_dir=work / "frames",
             bios_dir=work / "bios", darkroom_url="http://darkroom:8106", writer_url="http://writer:9150",
             ipfs_api="http://kubo:5001", network="base-sepolia", card=CARD, moderator_token=TOKEN,
             siwe_domain="localhost:3108",

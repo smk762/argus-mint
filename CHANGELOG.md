@@ -20,6 +20,11 @@ All notable changes to this project are documented here. Versions come from git 
   - **Frame previews:** `POST /frames/{id}/{v}/preview` shows a frame on a draft's or sample's art.
   - **Decisions:** `POST /{templates,frames,bios}/{id}/{v}/review` approves or retires a file. `catalogue.record_decision` writes the decision into the YAML, keeping its comments, and restores the file if it no longer validates.
   - **Listings:** they gain `file` and, for templates, `combinations`; `/health` gains the `sample` and `review_catalogue` capabilities.
+- **Selectable checkpoints and a pre-rendered library (wire 1.4).**
+  - **Checkpoints:** templates gain `models`, a reviewed list of checkpoints a card may use. Choose one with `draft --model`, `sample --model`, or `model` on `POST /drafts` and `/samples`.
+  - **Building:** `argus-mint library build` renders diverse combinations on each checkpoint, with the same variables and seeds, safety-checked and resumable.
+  - **Serving:** `/library` and `/library/{id}/image` serve the library, and `POST /drafts` with `library` (or `draft --library --entry`) makes cards from it without a GPU, if the approved template renders exactly that request.
+  - **Template v2** lists the eight SDXL checkpoints.
 - **Owner edits and styling (wire 1.3).**
   - **Endpoint:** `POST /drafts/{id}/edit` lets the card's owner change its name, bio, display text and style, by signing a challenge that covers exactly that change. The moderator only approves or rejects.
   - **Styles** (`metadata.CardStyle`): a border tint (`frames.tint_matrix`, the same numbers Pillow and an SVG `feColorMatrix` use), plus per-slot text colour, an effect (shadow, outline or glow) and a background box. Any colours; `style_locked` frames refuse them.

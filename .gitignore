@@ -22,3 +22,4 @@ contracts/broadcast/**/*.lock
 # local card work
 /drafts/
 /samples/
+/library/

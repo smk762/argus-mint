@@ -32,6 +32,8 @@ __all__ = [
     "EditTextRequest",
     "FrameLayout",
     "LayoutRequest",
+    "LibraryItem",
+    "LibraryListing",
     "TextEdit",
     "FrameInfo",
     "Health",
@@ -51,7 +53,9 @@ __all__ = [
     "SampleRequest",
 ]
 
-WIRE_VERSION = "1.3"  # 1.1: samples, previews, catalogue decisions; 1.2: auto-moderation; 1.3: owner edits + style
+WIRE_VERSION = (
+    "1.4"  # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library
+)
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -69,6 +73,7 @@ class Capabilities(_Wire):
     publish: bool  # IPFS, signer and Card address configured, moderator token set, not read-only
     sample: bool = False  # darkroom configured, moderator token set, not read-only
     review_catalogue: bool = False  # moderator token set, catalogue files writable, not read-only
+    library: bool = False  # pre-rendered portraits are available (GET /library)
     edit_text: bool = False  # owner edits of text and style: not read-only, and owner sign-in is set up
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
 
@@ -115,11 +120,17 @@ class Ref(_Wire):
 
 
 class CreateDraft(_Wire):
-    """POST /drafts. The template, frame and bio are named by id and version, never by path."""
+    """POST /drafts. The template, frame and bio are named by id and version, never by path.
+
+    Either render (``variables``, ``seed``, optionally ``model``), or take a pre-rendered
+    ``library`` entry, whose variables, seed and checkpoint then apply.
+    """
 
     template: Ref
-    variables: dict[str, str]
-    seed: int = Field(ge=0, le=2**32 - 1)
+    variables: dict[str, str] = Field(default_factory=dict)
+    seed: int = Field(default=0, ge=0, le=2**32 - 1)
+    model: str | None = None  # a checkpoint the template allows; default: the template's own
+    library: str | None = None  # a library entry id instead of rendering
     asset: str | None = Field(default=None, min_length=1, max_length=256)  # asset id = keccak256(utf8)
     asset_id: str | None = None  # 0x + 64 hex
     to: str
@@ -231,6 +242,7 @@ class SampleRequest(_Wire):
     template: Ref
     frame: Ref | None = None
     bio: Ref | None = None
+    model: str | None = None  # a checkpoint the template allows; default: the template's own
     count: int = Field(default=4, ge=1, le=12)
     variables: dict[str, str] = Field(default_factory=dict)  # fixed values; the rest vary
     seed: int = Field(default=0, ge=0, le=2**32 - 1)  # picks the combinations, and the first render seed
@@ -329,6 +341,24 @@ class FrameLayout(_Wire):
     slots: dict[str, SlotLayout]
 
 
+class LibraryItem(_Wire):
+    id: str
+    group: int  # items in a group share variables and seed, one per checkpoint
+    model: str
+    variables: dict[str, str]
+    seed: int
+    sha256: str
+
+
+class LibraryListing(_Wire):
+    """GET /library: pre-rendered portraits, for drafts without a GPU (``CreateDraft.library``)."""
+
+    template: Ref
+    models: list[str]
+    count: int
+    items: list[LibraryItem]
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -352,4 +382,5 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     CatalogueEntry,
     LayoutRequest,
     FrameLayout,
+    LibraryListing,
 )

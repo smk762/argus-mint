@@ -101,7 +101,9 @@ class Template(BaseModel):
     status: Literal["draft", "approved", "retired"]
     approved_by: str | None = None
     approved_at: date | None = None
-    model: str = Field(min_length=1)
+    model: str = Field(min_length=1)  # the default checkpoint
+    # Other checkpoints a render may choose instead (reviewed with the template). Empty: only `model`.
+    models: tuple[str, ...] = ()
     loras: tuple[LoraRef, ...] = ()
     sampling: Sampling | None = None  # required by darkroom; optional for other renderers
     width: int = Field(gt=0, le=8192)
@@ -153,7 +155,13 @@ class Template(BaseModel):
         This is the ``template_hash`` a card's provenance carries. ``status`` is left out so
         retiring a template doesn't change the hash of cards it already made.
         """
-        return keccak256(canonical(self.model_dump(mode="json", exclude={"status"})))
+        # `models` is left out when empty, so templates from before it existed keep their hash.
+        exclude = {"status"} | (set() if self.models else {"models"})
+        return keccak256(canonical(self.model_dump(mode="json", exclude=exclude)))
+
+    def allowed_models(self) -> tuple[str, ...]:
+        """The checkpoints a render may use: the default first, then the reviewed alternatives."""
+        return (self.model, *(m for m in self.models if m != self.model))
 
 
 class RenderRequest(BaseModel):
@@ -209,7 +217,7 @@ def load_registry(path: Path) -> dict[tuple[str, int], Template]:
     return registry
 
 
-def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
+def fill(t: Template, values: dict[str, str], seed: int, model: str | None = None) -> RenderRequest:
     """Fill ``values`` into an approved template.
 
     Raises :class:`NotApprovedError` unless ``t.status == "approved"``, and
@@ -218,17 +226,17 @@ def fill(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
     """
     if t.status != "approved":
         raise NotApprovedError(f"template {t.id} v{t.version} is {t.status}; only approved templates render")
-    return _build(t, values, seed)
+    return _build(t, values, seed, model)
 
 
-def fill_for_review(t: Template, values: dict[str, str], seed: int = 0) -> RenderRequest:
+def fill_for_review(t: Template, values: dict[str, str], seed: int = 0, model: str | None = None) -> RenderRequest:
     """Like :func:`fill` but for any status: lets a reviewer check a draft before approving it.
 
     Used for the text pre-flight and for sample renders (:func:`argus_mint.render.render_for_review`),
     which stay local files. Cards are rendered through :func:`argus_mint.render.render`, which
     calls :func:`fill` and so refuses non-approved templates.
     """
-    return _build(t, values, seed)
+    return _build(t, values, seed, model)
 
 
 def combinations(t: Template) -> list[dict[str, str]]:
@@ -237,7 +245,9 @@ def combinations(t: Template) -> list[dict[str, str]]:
     return [dict(zip(names, combo, strict=True)) for combo in itertools.product(*(t.variables[n] for n in names))]
 
 
-def _build(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
+def _build(t: Template, values: dict[str, str], seed: int, model: str | None = None) -> RenderRequest:
+    if model is not None and model not in t.allowed_models():
+        raise TemplateError(f"checkpoint {model!r} is not one this template allows: {list(t.allowed_models())}")
     missing = t.variables.keys() - values.keys()
     extra = values.keys() - t.variables.keys()
     if missing:
@@ -253,7 +263,7 @@ def _build(t: Template, values: dict[str, str], seed: int) -> RenderRequest:
         template_id=t.id,
         template_version=t.version,
         template_hash=t.hash(),
-        model=t.model,
+        model=model or t.model,
         loras=t.loras,
         sampling=t.sampling,
         width=t.width,
