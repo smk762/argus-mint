@@ -14,6 +14,7 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus).
 | --- | --- |
 | `argus_mint` (Python) | template registry, darklight render client with retries, card frames, a draft → review → publish flow, IPFS pinning, canonical metadata, OpenZeppelin-compatible Merkle trees, EIP-712 mint vouchers, SIWE, a reorg-safe event indexer |
 | `contracts/` (Foundry) | `Card` (ERC-721 + ERC-4906 + ERC-2981, voucher mint), `Deed` (ERC-721 + ERC-5192 soulbound), `Ledger` (commit/reveal/anchor notary) |
+| `argus-mint serve` (HTTP) | the draft → review → publish flow for argus-studio and argus-assay, with a pinned wire schema and a Docker image |
 | `verifier/` (ES module) | verify Merkle proofs against a Ledger root, revealed secrets against commitments, and drand quicknet beacons |
 
 ## Install
@@ -23,6 +24,7 @@ uv pip install argus-mint            # pure Python core
 uv pip install "argus-mint[chain]"   # + web3 for the indexer and ledger client
 uv pip install "argus-mint[cli]"     # + the argus-mint command
 uv pip install "argus-mint[frames]"  # + Pillow, to composite frames onto renders
+uv pip install "argus-mint[server]"  # + the HTTP service (argus-mint serve)
 ```
 
 ## Quick look
@@ -104,6 +106,43 @@ argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Me
 ```
 
 The Kubo RPC port is an admin API and is published on localhost only. Swarm port 4001 is public so wallets and gateways can fetch pinned art; behind NAT, pin on a VPS (native Kubo, reached through an SSH tunnel) ([docs/deploy.md §6](docs/deploy.md#6-pin-on-a-vps-optional)) so cards stay retrievable when this host is offline.
+
+## Running the service
+
+`argus-mint serve` puts the card workflow behind HTTP for the suite's UIs: argus-studio's pages and argus-assay, the standalone review UI. The server decides; a UI only shows what it says.
+
+```bash
+make serve                                  # local, 127.0.0.1:8108, settings from .env
+make serve-up                               # or in docker with Kubo (compose profile `server`)
+```
+
+| Endpoint | |
+|---|---|
+| `GET /health` | version, wire version, network, Card, what it can do (`capabilities`), which backends answer |
+| `GET /templates` `/frames` `/bios` | the reviewed files, every status, with hashes; `GET /frames/{id}/{version}/overlay` |
+| `GET /drafts` | newest first, `?status=pending\|approved\|rejected\|published`, paged |
+| `GET /drafts/{id}` | the draft and its reviews; the pins and signed voucher once published |
+| `GET /drafts/{id}/image` `/art` | the card image reviewers approve, and the unframed render |
+| `POST /drafts` | render, write the bio, frame: a new pending draft (moderator token) |
+| `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs to approve or reject |
+| `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
+| `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
+
+**Who can do what.** The moderator token (`ARGUS_MINT_MODERATOR_TOKEN`) creates drafts, reviews as the moderator and publishes. The owner reviews by signing an EIP-4361 (Sign-In with Ethereum) message with the wallet the card will be minted to. The message names the draft, the decision and the image's sha256, and works once. Neither role can act as the other.
+
+**Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
+- **Files:** `DRAFTS_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.
+- **Backends:** `DARKROOM_URL`, `WRITER_URL`, `IPFS_API`.
+- **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`.
+- **Chain:** `NETWORK`, `CARD`.
+- **Access:** `MODERATOR_TOKEN`, `SIWE_DOMAIN` (the UI's host, as wallets show it), `CORS_ORIGINS`, `READ_ONLY`.
+
+Like the other suite services, it binds to localhost and refuses writes from browser origins it wasn't told about.
+
+**For UI authors:**
+- The wire contract is [schema/mint-wire.schema.json](schema/mint-wire.schema.json) (`argus-mint schema`), pinned by release tag and sha256 the way argus-studio pins the other services.
+- [fixtures/api/](fixtures/api/) holds recorded responses with a draft in each state, for demo mode.
+- The image is `ghcr.io/smk762/argus-mint`.
 
 ## Live demo (Base Sepolia)
 

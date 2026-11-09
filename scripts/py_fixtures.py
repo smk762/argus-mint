@@ -93,7 +93,9 @@ def proofs() -> dict[str, Any]:
 
 
 def render() -> dict[str, str]:
-    return {name: json.dumps(fn(), indent=1) + "\n" for name, fn in (("vouchers.json", vouchers), ("proofs.json", proofs))}
+    return {
+        name: json.dumps(fn(), indent=1) + "\n" for name, fn in (("vouchers.json", vouchers), ("proofs.json", proofs))
+    }
 
 
 def main() -> int:

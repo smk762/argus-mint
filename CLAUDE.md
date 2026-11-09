@@ -4,9 +4,9 @@ Guidance for AI agents working in this repo. Human-facing usage lives in [README
 
 ## What this is
 
-Provenance tokens for game assets. A Python package plus Foundry contracts that render art from **reviewed templates** through darklight, pin it to IPFS, build canonical ERC-721 metadata, mint transferable **Card**s and soulbound **Deed**s, and anchor commit/reveal secrets and Merkle roots in a **Ledger** contract so anyone can verify a consumer's records. First consumer: atlas-realms (a browser strategy game), which writes its own adapter.
+Provenance tokens for game assets. A Python package (and an HTTP service, `argus-mint serve`) plus Foundry contracts that render art from **reviewed templates** through darklight, pin it to IPFS, build canonical ERC-721 metadata, mint transferable **Card**s and soulbound **Deed**s, and anchor commit/reveal secrets and Merkle roots in a **Ledger** contract so anyone can verify a consumer's records. First consumer: atlas-realms (a browser strategy game), which writes its own adapter.
 
-**argus-mint has no game in it.** It never knows about units, battles, hexes or coins. A consumer supplies a template's variables, a record to show, and 32-byte leaf hashes. Out of scope: game rules/stats, marketplaces, fungible tokens, staking or yield, free-text prompts, a frontend (only a JS verifier module ships).
+**argus-mint has no game in it.** It never knows about units, battles, hexes or coins. A consumer supplies a template's variables, a record to show, and 32-byte leaf hashes. Out of scope: game rules/stats, marketplaces, fungible tokens, staking or yield, free-text prompts, a frontend (only a JS verifier module ships; the UIs are argus-studio's pages and argus-assay, clients of `argus-mint serve`).
 
 Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (sibling of argus-atlas, argus-studio).
 
@@ -30,18 +30,22 @@ src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_code
                   render pin indexer                       # clients behind Protocols (no web3 needed)
                   chain ledger                             # web3 clients (`chain` extra)
                   keys                                     # signers: Foundry keystore (password file/prompt) or $ARGUS_MINT_SIGNER_KEY
-                  cli                                      # Typer: templates, frames, preflight, sample, draft, review, publish, submit, freeze, anchor
+                  workflow                                 # create_draft / publish, shared by the CLI and the server
+                  server wire                              # `argus-mint serve` (FastAPI, `server` extra) and its wire models
+                  cli                                      # Typer: templates, frames, preflight, sample, draft, review, publish, submit, freeze, anchor, serve, schema
                   abi/   # committed contract ABIs (`make abi`, abi.load(name)), so pip users never need Foundry
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
 templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing)
 bios/             example bio template (draft; mistral-nemo, fruity flavour text)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
+schema/           mint-wire.schema.json: the HTTP wire contract (`argus-mint schema`; a test fails if stale)
+fixtures/api/     recorded API responses for the UIs' demo mode (scripts/api_fixture.py)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
 tests/fixtures/   committed cross-implementation fixtures (Merkle, vouchers)
 ```
 
-Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and ledger client; `cli` = Typer; `frames` = Pillow for compositing; `dev` = tests.
+Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and ledger client; `cli` = Typer; `frames` = Pillow for compositing; `server` = FastAPI + uvicorn + argus-cortex (implies cli, frames); `dev` = tests.
 
 ## Settled decisions (beyond the spec)
 
@@ -75,6 +79,8 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - Pinning: `compose.yaml` runs a Kubo node (`make ipfs`); its RPC (5001) is admin-level and stays on 127.0.0.1, swarm 4001 is public. A Kubo `add` of a file > 256 KiB returns a dag-pb CID (`bafybei…`), not a raw one; that's expected.
 - darkroom LoRAs need a workflow with `$lora`/`$lora_weight` slots; the deployed plain `sdxl.json` has none, so a template with LoRAs is refused (400) there. Model names come from darkroom's `GET /models`.
 
+- **The service** (`server.py`, `argus-mint serve`, port 8108; the UI argus-assay is on 3108). Settings are `ARGUS_MINT_*` (`server.Settings.from_env`). Auth: the moderator bearer token (`MODERATOR_TOKEN`) creates drafts, reviews as moderator and publishes. The owner reviews by SIWE: `POST /drafts/{id}/challenge` issues an EIP-4361 message for the draft's `to` address on `SIWE_DOMAIN`, whose statement names the decision and whose resources name the draft and the image sha256. The nonce lives in memory, is single use and expires in 10 minutes. The review checks all of it and that the signer is `to`. Writes go through cortex's `WriteGuard` (`cross_site_refuse`, plus `constant_refuse` when `READ_ONLY`). `/health.capabilities` tells a UI what to enable. Drafts live in `DraftStore` (`DRAFTS_DIR/<16-hex id>/`, ids validated before any path is built); a published draft also has `publish.json`. One lock serialises writes. Rendering and publishing run in the threadpool.
+
 ## Commands
 
 ```bash
@@ -101,5 +107,6 @@ Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.loc
 - **Forge gotcha:** `sha256(...)` / `ecrecover` are precompile *calls*, so they consume a pending `vm.prank` / `vm.expectRevert`. Compute hashes before the cheatcode.
 - Tests marked `anvil` start a local node and deploy from `contracts/out`; they skip without Foundry unless `ARGUS_MINT_REQUIRE_ANVIL=1` (CI's contracts job sets it).
 - `uv.lock` is committed; a dependency change needs `make lock` in the same commit.
-- Template origin: `argus-pkg-template` via copier. The template's Dockerfile and GHCR image jobs were removed on purpose (library, no service; `compose.yaml` only runs dependencies such as Kubo); CI is standalone because the shared argus-ci workflow has no Foundry hook. Re-delete those if `copier update` brings them back.
+- Template origin: `argus-pkg-template` via copier. The Dockerfile and GHCR image job are back (for `argus-mint serve`), adapted: the image's context has no `.git`, so the release job passes `VERSION` as a build arg (`SETUPTOOLS_SCM_PRETEND_VERSION`). CI is standalone because the shared argus-ci workflow has no Foundry hook.
+- **Wire schema:** a change to `wire.py` (or a model it embeds: `Template`, `Frame`, `BioTemplate`, `CardDraft`) changes `schema/mint-wire.schema.json`; run `make schema` and commit it. Bump `WIRE_VERSION`'s major for breaking changes. Regenerate `fixtures/api/` when responses change shape.
 - Branches: `dev` is the default and takes feature PRs; `main` gets `dev` → `main` release PRs (same as argus-atlas).

@@ -1,0 +1,225 @@
+{
+  "id": "20306cb0b5b6c77a",
+  "status": "published",
+  "awaiting": [],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 2,
+      "template_hash": "0x1134dcbfc5f6e6b86d7800d853950a53ec79446a654829f27e9897715cb0c2fc",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single female wizard, centered and facing the viewer, wearing emerald heraldry, casting a spell, background: library, painted fantasy illustration, full bleed, detailed face",
+      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "library",
+        "colour": "emerald",
+        "gender": "female",
+        "pose": "casting a spell",
+        "role": "wizard"
+      },
+      "seed": 8453
+    },
+    "attempts": [
+      {
+        "seed": 8453,
+        "outcome": "ok",
+        "ref": "fixture-0",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
+    "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+    "name": "Emerald Wizard",
+    "description": "Emerald Wizard hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Emerald Wizard hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen."
+        }
+      ]
+    },
+    "texts": {
+      "class": "Wizard · Emerald",
+      "stats": "No. 1"
+    },
+    "art_sha256": "d572b28f3837b5077dd5dc294ed85e109607731c51735ab8837993bc64869c1b",
+    "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+    "created_at": "2026-11-09T04:09:56.147056Z",
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "approved",
+        "by": "moderator-1",
+        "at": "2026-11-09T04:09:56.156937Z",
+        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "note": ""
+      },
+      {
+        "role": "owner",
+        "decision": "approved",
+        "by": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+        "at": "2026-11-09T04:09:56.179354Z",
+        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "note": ""
+      }
+    ]
+  },
+  "published": {
+    "signer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    "render": {
+      "renderer": "darkroom",
+      "prompt": "waist-up portrait of a single female wizard, centered and facing the viewer, wearing emerald heraldry, casting a spell, background: library, painted fantasy illustration, full bleed, detailed face",
+      "seed": 8453,
+      "attempts": [
+        {
+          "seed": 8453,
+          "outcome": "ok",
+          "ref": "fixture-0",
+          "detail": ""
+        }
+      ],
+      "art_cid": "bafkreigvokzi6obxwudx3vo4ffhnqxqqsydxghcronnlra3zso6gjbu4dm",
+      "image_cid": "bafkreic26typfwj24drlvezrvbfmewfi7hz5qcgddrofzp5odaniawxlbi"
+    },
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "approved",
+        "by": "moderator-1",
+        "at": "2026-11-09T04:09:56.156937Z",
+        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "note": ""
+      },
+      {
+        "role": "owner",
+        "decision": "approved",
+        "by": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+        "at": "2026-11-09T04:09:56.179354Z",
+        "image_sha256": "5af4f0f2d93ae0e2ba9331a84ac258a8f9f3d808c31c5c5cbfae181a805aeb0a",
+        "note": ""
+      }
+    ],
+    "metadata": {
+      "name": "Emerald Wizard",
+      "description": "Emerald Wizard hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+      "image": "ipfs://bafkreic26typfwj24drlvezrvbfmewfi7hz5qcgddrofzp5odaniawxlbi",
+      "attributes": [],
+      "provenance": {
+        "template": "example-portrait",
+        "template_version": 2,
+        "template_hash": "0x1134dcbfc5f6e6b86d7800d853950a53ec79446a654829f27e9897715cb0c2fc",
+        "seed": 8453,
+        "attempts": 1,
+        "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
+        "consumer": "argus-mint",
+        "frame": {
+          "id": "card-green",
+          "version": 1,
+          "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48"
+        },
+        "art": "ipfs://bafkreigvokzi6obxwudx3vo4ffhnqxqqsydxghcronnlra3zso6gjbu4dm",
+        "bio": {
+          "id": "example-bio",
+          "version": 1,
+          "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+          "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+        }
+      }
+    },
+    "metadata_cid": "bafkreifsxpmqvloswhyc2sjitekwd7xq4pqcrpwvmfvohsbsdw56ddpe7m",
+    "voucher": {
+      "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+      "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
+      "content_hash": "0xbfb359bc4fd2f49199f3bf702808227eb46efb687150e3ec52f0d02075fa129c",
+      "price": 0,
+      "deadline": 1900000000
+    },
+    "signature": "0x6b9fff8a5c3be7407d18d9512b2f8a57a3d9d44d15564284111f54c6a7dea10b71630c39edc26a402b11bd93ae1605d8ec3334615de1b06aea5ec0f811f169671b",
+    "typed_data": {
+      "types": {
+        "EIP712Domain": [
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "name": "chainId",
+            "type": "uint256"
+          },
+          {
+            "name": "verifyingContract",
+            "type": "address"
+          }
+        ],
+        "MintVoucher": [
+          {
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "name": "assetId",
+            "type": "bytes32"
+          },
+          {
+            "name": "contentHash",
+            "type": "bytes32"
+          },
+          {
+            "name": "price",
+            "type": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint64"
+          }
+        ]
+      },
+      "primaryType": "MintVoucher",
+      "domain": {
+        "name": "argus-mint Card",
+        "version": "1",
+        "chainId": 84532,
+        "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+      },
+      "message": {
+        "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+        "assetId": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
+        "contentHash": "0xbfb359bc4fd2f49199f3bf702808227eb46efb687150e3ec52f0d02075fa129c",
+        "price": 0,
+        "deadline": 1900000000
+      }
+    }
+  }
+}

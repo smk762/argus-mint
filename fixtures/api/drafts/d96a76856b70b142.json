@@ -1,0 +1,96 @@
+{
+  "id": "d96a76856b70b142",
+  "status": "approved",
+  "awaiting": [],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 2,
+      "template_hash": "0x1134dcbfc5f6e6b86d7800d853950a53ec79446a654829f27e9897715cb0c2fc",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single male wizard, centered and facing the viewer, wearing azure heraldry, casting a spell, background: temple, painted fantasy illustration, full bleed, detailed face",
+      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "temple",
+        "colour": "azure",
+        "gender": "male",
+        "pose": "casting a spell",
+        "role": "wizard"
+      },
+      "seed": 8455
+    },
+    "attempts": [
+      {
+        "seed": 8455,
+        "outcome": "ok",
+        "ref": "fixture-2",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x89964876bb9e20b0262233b1c023a63554302b2f1653191a12c0e63e3fdc0608",
+    "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+    "name": "Azure Stormcaller",
+    "description": "Azure Stormcaller once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Azure Stormcaller once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised."
+        }
+      ]
+    },
+    "texts": {
+      "class": "Wizard · Azure",
+      "stats": "No. 3"
+    },
+    "art_sha256": "d572b28f3837b5077dd5dc294ed85e109607731c51735ab8837993bc64869c1b",
+    "image_sha256": "3180412ba22cef72d7fe30cbc2274231688cd4b4b45b38a6e75d2ab2e122205b",
+    "created_at": "2026-11-09T04:09:57.139382Z",
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "approved",
+        "by": "moderator-1",
+        "at": "2026-11-09T04:09:57.147270Z",
+        "image_sha256": "3180412ba22cef72d7fe30cbc2274231688cd4b4b45b38a6e75d2ab2e122205b",
+        "note": ""
+      },
+      {
+        "role": "owner",
+        "decision": "approved",
+        "by": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+        "at": "2026-11-09T04:09:57.165665Z",
+        "image_sha256": "3180412ba22cef72d7fe30cbc2274231688cd4b4b45b38a6e75d2ab2e122205b",
+        "note": ""
+      }
+    ]
+  },
+  "published": null
+}

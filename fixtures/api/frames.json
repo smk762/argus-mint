@@ -1,0 +1,79 @@
+[
+  {
+    "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48",
+    "width": 969,
+    "height": 1352,
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "status": "approved",
+      "approved_by": "fixture",
+      "approved_at": "2026-11-09",
+      "overlay": "card-green-v1.png",
+      "window": {
+        "x": 81,
+        "y": 159,
+        "width": 808,
+        "height": 593
+      },
+      "texts": {
+        "name": {
+          "x": 110,
+          "y": 80,
+          "width": 760,
+          "height": 54,
+          "font": "fonts/Cinzel.ttf",
+          "size": 42,
+          "min_size": 22,
+          "colour": "#26301a",
+          "align": "center",
+          "valign": "middle",
+          "wrap": false,
+          "line_spacing": 1.15
+        },
+        "class": {
+          "x": 110,
+          "y": 768,
+          "width": 760,
+          "height": 50,
+          "font": "fonts/Cinzel.ttf",
+          "size": 30,
+          "min_size": 18,
+          "colour": "#26301a",
+          "align": "center",
+          "valign": "middle",
+          "wrap": false,
+          "line_spacing": 1.15
+        },
+        "bio": {
+          "x": 108,
+          "y": 872,
+          "width": 750,
+          "height": 318,
+          "font": "fonts/CrimsonText-Italic.ttf",
+          "size": 38,
+          "min_size": 22,
+          "colour": "#2b2a1e",
+          "align": "left",
+          "valign": "top",
+          "wrap": true,
+          "line_spacing": 1.1
+        },
+        "stats": {
+          "x": 738,
+          "y": 1216,
+          "width": 136,
+          "height": 56,
+          "font": "fonts/CrimsonText-Bold.ttf",
+          "size": 34,
+          "min_size": 16,
+          "colour": "#26301a",
+          "align": "center",
+          "valign": "middle",
+          "wrap": false,
+          "line_spacing": 1.15
+        }
+      }
+    }
+  }
+]

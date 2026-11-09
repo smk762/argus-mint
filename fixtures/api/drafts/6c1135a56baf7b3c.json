@@ -1,0 +1,82 @@
+{
+  "id": "6c1135a56baf7b3c",
+  "status": "pending",
+  "awaiting": [
+    "moderator",
+    "owner"
+  ],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 2,
+      "template_hash": "0x1134dcbfc5f6e6b86d7800d853950a53ec79446a654829f27e9897715cb0c2fc",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single non-binary cyborg, centered and facing the viewer, wearing steel heraldry, repairing, background: workshop, painted fantasy illustration, full bleed, detailed face",
+      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "workshop",
+        "colour": "steel",
+        "gender": "non-binary",
+        "pose": "repairing",
+        "role": "cyborg"
+      },
+      "seed": 8454
+    },
+    "attempts": [
+      {
+        "seed": 8454,
+        "outcome": "ok",
+        "ref": "fixture-1",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x309a65fb4c95d87a9b67c21ca029d0e120baab30d9931785d1408f9886cc71e2",
+    "to": "0x4081c97935136EeACb5c798B47ca0334AcF236ab",
+    "name": "Steel Tinker",
+    "description": "Steel Tinker mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Steel Tinker mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
+        }
+      ]
+    },
+    "texts": {
+      "class": "Cyborg · Steel",
+      "stats": "No. 2"
+    },
+    "art_sha256": "8d3386f1dcc3e734ee8191705f2ece5220039813ba22cf543e2113f26f02cc62",
+    "image_sha256": "8f1a90cd7f8eb9fe8045fa5e7a478c11f2639fb767a879ae09b486a1f5cf74da",
+    "created_at": "2026-11-09T04:09:56.661431Z",
+    "reviews": []
+  },
+  "published": null
+}

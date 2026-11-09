@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -28,6 +30,8 @@ __all__ = [
     "REVIEWERS",
     "BioRecord",
     "CardDraft",
+    "DraftNotFound",
+    "DraftStore",
     "DraftError",
     "NotApproved",
     "Review",
@@ -190,3 +194,56 @@ def load_draft(directory: Path) -> tuple[CardDraft, bytes, bytes]:
     except (ValueError, ValidationError) as e:
         raise DraftError(f"{directory}/{DRAFT_FILE}: {e}") from e
     return draft, art, image
+
+
+PUBLISHED_FILE = "publish.json"
+_DRAFT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
+
+
+class DraftStore:
+    """Drafts as directories under ``root``, addressed by id (the HTTP server's view).
+
+    Ids are validated before they touch the filesystem, so a request can't name a path.
+    A published draft also holds ``publish.json``: the pins, metadata and signed voucher.
+    """
+
+    def __init__(self, root: Path):
+        self.root = Path(root)
+
+    def new_id(self) -> str:
+        return secrets.token_hex(8)
+
+    def path(self, draft_id: str) -> Path:
+        if not _DRAFT_ID.match(draft_id):
+            raise DraftError(f"not a draft id: {draft_id!r}")
+        return self.root / draft_id
+
+    def exists(self, draft_id: str) -> bool:
+        return (self.path(draft_id) / DRAFT_FILE).is_file()
+
+    def ids(self) -> list[str]:
+        """Every draft id, newest first."""
+        if not self.root.is_dir():
+            return []
+        found = [p for p in self.root.iterdir() if _DRAFT_ID.match(p.name) and (p / DRAFT_FILE).is_file()]
+        return [p.name for p in sorted(found, key=lambda p: (p / DRAFT_FILE).stat().st_mtime, reverse=True)]
+
+    def load(self, draft_id: str) -> tuple[CardDraft, bytes, bytes]:
+        if not self.exists(draft_id):
+            raise DraftNotFound(f"no draft {draft_id}")
+        return load_draft(self.path(draft_id))
+
+    def save(self, draft_id: str, draft: CardDraft, art: bytes | None = None, image: bytes | None = None) -> None:
+        save_draft(self.path(draft_id), draft, art, image)
+
+    def published(self, draft_id: str) -> dict[str, Any] | None:
+        f = self.path(draft_id) / PUBLISHED_FILE
+        return json.loads(f.read_text(encoding="utf-8")) if f.is_file() else None
+
+    def save_published(self, draft_id: str, result: dict[str, Any]) -> None:
+        f = self.path(draft_id) / PUBLISHED_FILE
+        f.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+class DraftNotFound(DraftError):
+    """No draft with that id."""

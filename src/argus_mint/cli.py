@@ -6,8 +6,6 @@ import json
 import os
 import random
 import sys
-import time
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -24,8 +22,6 @@ from argus_mint.cards import (
     CARD_FILE,
     DRAFT_FILE,
     REVIEWERS,
-    BioRecord,
-    CardDraft,
     DraftError,
     check_publishable,
     load_draft,
@@ -34,21 +30,21 @@ from argus_mint.cards import (
     sha256_hex,
 )
 from argus_mint.darkroom import DarkroomClient, DarkroomError
-from argus_mint.frames import FrameError, compose, load_frame, require_approved
+from argus_mint.frames import FrameError, compose, load_frame
 from argus_mint.keys import KEY_ENV, KeyLoadError, load_signer
-from argus_mint.metadata import card_metadata, content_hash
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
-from argus_mint.render import Darklight, GenResult, RenderError, render, render_for_review
+from argus_mint.render import GenResult, RenderError, render_for_review
 from argus_mint.templates import (
     RenderRequest,
     TemplateError,
     combinations,
-    fill,
     fill_for_review,
     load_registry,
     load_template,
 )
-from argus_mint.vouchers import Domain, MintVoucher, recover, sign, typed_data
+from argus_mint.vouchers import Domain, MintVoucher, recover
+from argus_mint.workflow import bio_attempts, card_texts, create_draft
+from argus_mint.workflow import publish as publish_draft
 
 app = typer.Typer(help="argus-mint: provenance tokens for game assets.", no_args_is_help=True)
 
@@ -184,10 +180,6 @@ def _attempts_json(attempts: Any) -> list[dict[str, Any]]:
     return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
 
 
-def _bio_attempts_json(attempts: Any) -> list[dict[str, Any]]:
-    return [{"outcome": a.outcome, "detail": a.detail, "text": a.text} for a in attempts]
-
-
 def _render_failed(e: RenderError) -> typer.Exit:
     for a in e.attempts:
         typer.echo(f"  attempt seed={a.seed} {a.outcome} {a.ref} {a.detail}", err=True)
@@ -206,13 +198,6 @@ def _parse_texts(pairs: list[str]) -> dict[str, str]:
             raise typer.BadParameter(f"{key} given twice", param_hint="--text")
         texts[key] = value
     return texts
-
-
-def _card_texts(lf: Any, name: str, bio: str | None, extra: dict[str, str]) -> dict[str, str]:
-    """What to draw in each of the frame's slots: name and bio where it has them, plus --text."""
-    slots = lf.frame.texts
-    texts = {k: v for k, v in (("name", name), ("bio", bio)) if v and k in slots}
-    return texts | extra
 
 
 def _writer(writer_url: str | None) -> ChatWriter:
@@ -287,7 +272,7 @@ def sample(
             b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
         except (DarkroomError, BioFailed) as e:
             if isinstance(e, BioFailed):
-                entry |= {"error": str(e), "bio_attempts": _bio_attempts_json(e.attempts)}
+                entry |= {"error": str(e), "bio_attempts": bio_attempts(e.attempts)}
                 results.append(entry)
                 typer.echo(f"{i}: {e}", err=True)
                 continue
@@ -303,11 +288,11 @@ def sample(
         art.write_bytes(r.image)
         entry |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": _attempts_json(r.attempts), "art": str(art)}
         if b is not None:
-            entry |= {"bio": b.text, "bio_attempts": _bio_attempts_json(b.attempts)}
+            entry |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
         if lf is not None:
             framed = out / f"{i:02d}-{r.seed}-framed.png"
             try:
-                framed.write_bytes(compose(lf, r.image, _card_texts(lf, name, b.text if b else None, extra)))
+                framed.write_bytes(compose(lf, r.image, card_texts(lf, name, b.text if b else None, extra)))
             except FrameError as e:
                 raise _fail(str(e)) from e
             entry["framed"] = str(framed)
@@ -369,19 +354,26 @@ def draft(
     bio_writer = _writer(writer) if bio else None
     client = DarkroomClient(darkroom, policy=policy, accept_review=accept_review) if darkroom else None
     try:
-        t = load_template(template)
-        values = _parse_vars(var)
-        lf = require_approved(load_frame(frame)) if frame else None
-        bt = load_bio(bio) if bio else None
-        if image is not None:
-            req = fill(t, values, seed)
-            art, attempts = image.read_bytes(), [{"seed": req.seed, "outcome": "supplied", "ref": str(image)}]
-        else:
-            renderer: Darklight = client if (client and not placeholder) else _PlaceholderRenderer()
-            rendered = render(renderer, t, values, seed)
-            art, req, attempts = rendered.image, rendered.request, _attempts_json(rendered.attempts)
-        b = write_bio(bio_writer, client, bt, values, t, name) if bt and bio_writer and client else None
-        card_image = compose(lf, art, _card_texts(lf, name, b.text if b else None, extra)) if lf else art
+        made = create_draft(
+            template=load_template(template),
+            values=_parse_vars(var),
+            seed=seed,
+            asset_id=aid,
+            to=to,
+            name=name,
+            renderer=None if image is not None else (_PlaceholderRenderer() if placeholder else client),
+            renderer_name="placeholder" if placeholder else "darkroom",
+            image=image.read_bytes() if image is not None else None,
+            image_ref=str(image) if image is not None else "",
+            description=description,
+            external_url=external_url,
+            consumer=consumer,
+            frame=load_frame(frame) if frame else None,
+            bio=load_bio(bio) if bio else None,
+            writer=bio_writer,
+            guard=client,
+            texts=extra,
+        )
     except (TemplateError, FrameError) as e:
         raise _fail(str(e)) from e
     except BioFailed as e:
@@ -392,34 +384,18 @@ def draft(
         raise _fail(str(e)) from e
     except RenderError as e:
         raise _render_failed(e) from e
-    d = CardDraft(
-        request=req,
-        attempts=tuple(attempts),
-        renderer="supplied" if image else ("placeholder" if placeholder else "darkroom"),
-        asset_id=aid,
-        to=to,
-        name=name,
-        description=description or (b.text if b else ""),
-        external_url=external_url,
-        consumer=consumer,
-        frame=lf.ref() if lf else None,
-        bio=BioRecord(ref=b.template.ref(), text=b.text, attempts=tuple(_bio_attempts_json(b.attempts))) if b else None,
-        texts=extra,
-        art_sha256=sha256_hex(art),
-        image_sha256=sha256_hex(card_image),
-        created_at=datetime.now(UTC),
-    )
-    save_draft(out, d, art, card_image)
+    d = made.draft
+    save_draft(out, d, made.art, made.image)
     typer.echo(
         json.dumps(
             {
                 "draft": str(out),
-                "image": str(out / (CARD_FILE if lf else ART_FILE)),
+                "image": str(out / (CARD_FILE if d.frame else ART_FILE)),
                 "image_sha256": d.image_sha256,
-                "prompt": req.prompt,
-                "seed": req.seed,
-                "attempts": attempts,
-                "bio": b.text if b else None,
+                "prompt": d.request.prompt,
+                "seed": d.request.seed,
+                "attempts": list(d.attempts),
+                "bio": d.bio.text if d.bio else None,
                 "status": d.status,
                 "awaiting": d.awaiting(),
             },
@@ -495,50 +471,14 @@ def publish(
             raise _fail(f"a live publish needs {', '.join(missing)} (or use --dry-run)", 2)
     signer = key or Account.create()
     pinner: Pinner = KuboPinner(ipfs_api) if (ipfs_api and not dry_run) else LocalPinner()
-    req = d.request
-    stem = f"{req.template_id}-v{req.template_version}-{req.seed}"
     try:
-        art_cid = pinner.pin_bytes(art, f"{stem}-art.png") if d.frame is not None else None
-        image_cid = pinner.pin_bytes(image, f"{stem}.png")
-        doc = card_metadata(
-            name=d.name,
-            description=d.description,
-            image_cid=image_cid,
-            external_url=d.external_url,
-            attributes=[],
-            provenance=d.provenance(art_cid),
-        )
-        metadata_cid = pinner.pin_json(doc, f"{req.template_id}-metadata.json")
+        result = publish_draft(
+            d, art, image, pinner=pinner, signer=signer, chain_id=resolved_chain_id, card=card,
+            price=price, deadline=deadline, ttl=ttl,
+        )  # fmt: skip
     except PinError as e:
         raise _fail(str(e)) from e
-    voucher = MintVoucher(
-        to=d.to,
-        asset_id=d.asset_id,
-        content_hash=content_hash(doc),
-        price=price,
-        deadline=deadline if deadline is not None else int(time.time()) + ttl,
-    )
-    domain = Domain(chain_id=resolved_chain_id, verifying_contract=card)
-    out = {
-        "dry_run": dry_run,
-        "draft": str(draft_dir),
-        "signer": signer.address,
-        "signer_is_ephemeral": key is None,
-        "render": {
-            "renderer": d.renderer,
-            "prompt": req.prompt,
-            "seed": req.seed,
-            "attempts": list(d.attempts),
-            "art_cid": art_cid,
-            "image_cid": image_cid,
-        },
-        "reviews": [r.model_dump(mode="json") for r in d.reviews],
-        "metadata": doc,
-        "metadata_cid": metadata_cid,
-        "voucher": voucher.model_dump(mode="json"),
-        "signature": hex0x(sign(voucher, domain, signer)),
-        "typed_data": typed_data(voucher, domain),
-    }
+    out = {"dry_run": dry_run, "draft": str(draft_dir), "signer_is_ephemeral": key is None, **result}
     typer.echo(json.dumps(out, indent=2, ensure_ascii=False))
 
 
@@ -726,3 +666,61 @@ def anchor(
         "tree": str(tree_out) if tree_out else None,
     }
     typer.echo(json.dumps(out, indent=2))
+
+
+# --- service: the card workflow over HTTP, and its wire schema ------------------------------
+# Needs the `server` extra. Configuration is ARGUS_MINT_* (see argus_mint.server.Settings).
+
+WIRE_SCHEMA_PATH = Path("schema") / "mint-wire.schema.json"
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Bind address (default: localhost only)")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port")] = 8108,
+    cors: Annotated[
+        str | None, typer.Option(help="Comma-separated browser origins allowed to call it (overrides the env)")
+    ] = None,
+) -> None:
+    """Serve drafts, reviews and publishing over HTTP for argus-studio and argus-assay.
+
+    Configured by ARGUS_MINT_* variables: DRAFTS_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR,
+    DARKROOM_URL, WRITER_URL, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE) or SIGNER_KEY,
+    NETWORK, CARD, MODERATOR_TOKEN, SIWE_DOMAIN, CORS_ORIGINS, READ_ONLY.
+    """
+    try:
+        import uvicorn
+
+        from argus_mint.server import Settings, create_app
+    except ImportError as e:
+        raise _fail(f'the server needs the server extra: pip install "argus-mint[server]" ({e})') from e
+    settings = Settings.from_env()
+    if cors is not None:
+        from dataclasses import replace
+
+        settings = replace(settings, cors_origins=tuple(o.strip() for o in cors.split(",") if o.strip()))
+    uvicorn.run(create_app(settings), host=host, port=port, log_level="info")
+
+
+@app.command()
+def schema(
+    check: Annotated[bool, typer.Option("--check", help="Fail if the committed schema is out of date")] = False,
+    path: Annotated[Path, typer.Option(help="Schema file")] = WIRE_SCHEMA_PATH,
+) -> None:
+    """Write (or --check) the HTTP wire schema that argus-studio and argus-assay pin."""
+    try:
+        from argus_cortex.wire import render_schema
+
+        from argus_mint.wire import WIRE_MODELS, WIRE_VERSION
+    except ImportError as e:
+        raise _fail(f'the schema needs the server extra: pip install "argus-mint[server]" ({e})') from e
+    text = render_schema(WIRE_MODELS, title=f"argus-mint wire {WIRE_VERSION}")
+    if check:
+        current = path.read_text(encoding="utf-8") if path.exists() else ""
+        if current != text:
+            raise _fail(f"{path} is out of date: run `argus-mint schema`")
+        typer.echo(f"{path} is up to date", err=True)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    typer.echo(str(path), err=True)
