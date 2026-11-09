@@ -173,7 +173,7 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
         # drafts awaiting review, for the catalogue pages: the placeholder frame, and a v3 of the template
         shutil.copy(ROOT / "frames" / "example-plain-v1.yaml", work / "frames")
         shutil.copy(ROOT / "frames" / "example-plain-v1.png", work / "frames")
-        v3 = yaml.safe_load((ROOT / "templates" / "example-portrait-v2.yaml").read_text())
+        v3 = yaml.safe_load(v2.read_text())
         v3 |= {"version": 3, "status": "draft", "negative": v3["negative"] + ", blurry"}
         (work / "templates" / "t3.yaml").write_text(yaml.safe_dump(v3, sort_keys=False))
         shutil.copytree(ROOT / "frames" / "fonts", work / "frames" / "fonts")
@@ -235,8 +235,9 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
             if fate == "published":
                 c.post(f"/drafts/{draft_id}/publish", headers=AUTH, json={"deadline": 1900000000}).raise_for_status()
 
-        # A card from the library, on another checkpoint: no render; its variables and seed come with it.
-        pick = next(e for e in reversed(lib.entries) if e.model != default)
+        # A card from the library, on another checkpoint if it has one: no render; its variables and
+        # seed come with it.
+        pick = next((e for e in reversed(lib.entries) if e.model != default), lib.entries[-1])
         c.post(
             "/drafts",
             headers=AUTH,
@@ -325,4 +326,6 @@ if __name__ == "__main__":
     ap.add_argument("--library", type=Path, default=ROOT / "library", help="a built library (default ./library)")
     ap.add_argument("--groups", type=int, default=6, help="whole groups to keep (default 6)")
     a = ap.parse_args()
+    if a.groups < 1:
+        ap.error("--groups must be at least 1")
     main(a.art, a.library, a.groups)
