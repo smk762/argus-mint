@@ -30,7 +30,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from argus_mint._codec import canonical, keccak256
-from argus_mint.metadata import FrameRef
+from argus_mint.metadata import CardStyle, FrameRef, SlotStyle, Tint
 
 __all__ = [
     "Frame",
@@ -38,8 +38,12 @@ __all__ = [
     "LoadedFrame",
     "Rect",
     "TextSlot",
+    "check_style",
     "compose",
+    "effect_sizes",
     "fit_text",
+    "layout",
+    "tint_matrix",
     "load_frame",
     "require_approved",
 ]
@@ -102,9 +106,9 @@ class Frame(BaseModel):
     approved_at: date | None = None
     overlay: str = Field(min_length=1)  # PNG path, relative to the frame file
     window: Rect
-    texts: dict[str, TextSlot] = Field(
-        default_factory=dict
-    )  # slot name -> box; "name" and "bio" are filled by argus-mint
+    # slot name -> box; "name" and "bio" are filled by argus-mint
+    texts: dict[str, TextSlot] = Field(default_factory=dict)
+    style_locked: bool = False  # true: owners can't restyle cards in this frame
 
     @model_validator(mode="after")
     def _check(self) -> Frame:
@@ -201,12 +205,106 @@ def require_approved(f: LoadedFrame) -> LoadedFrame:
     return f
 
 
-def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None) -> bytes:
+LUMA = (0.299, 0.587, 0.114)
+
+
+def tint_matrix(tint: Tint | None) -> tuple[float, ...]:
+    """The 3x4 colour matrix of ``tint`` (row-major, offsets zero), as Pillow's ``convert`` takes it.
+
+    Each channel moves toward ``colour`` scaled by the pixel's luma, by ``strength``: the
+    texture survives, the hue changes. The browser applies the same numbers as an SVG
+    ``feColorMatrix`` (with ``color-interpolation-filters="sRGB"``), so its preview matches.
+    """
+    if tint is None:
+        return (1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    s = tint.strength
+    target = [int(tint.colour[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+    rows: list[float] = []
+    for channel, t in enumerate(target):
+        row = [s * t * w for w in LUMA]
+        row[channel] += 1 - s
+        rows += [round(v, 6) for v in row] + [0.0]
+    return tuple(rows)
+
+
+def effect_sizes(size: int) -> dict[str, int]:
+    """Pixel sizes of the text effects at font ``size``: shared with the browser preview."""
+    return {
+        "shadow": max(1, round(size * 0.06)),
+        "outline": max(1, round(size * 0.05)),
+        "glow": max(2, round(size * 0.18)),
+    }
+
+
+def check_style(f: LoadedFrame, style: CardStyle | None) -> None:
+    """A style may only name the frame's slots, and only a frame that allows restyling."""
+    if style is None or style.is_plain():
+        return
+    if f.frame.style_locked:
+        raise FrameError(f"frame {f.frame.id} v{f.frame.version} can't be restyled")
+    unknown = sorted(style.slots.keys() - f.frame.texts.keys())
+    if unknown:
+        raise FrameError(f"frame {f.frame.id} v{f.frame.version} has no text slot {unknown}")
+
+
+def layout(f: LoadedFrame, texts: dict[str, str]) -> dict[str, dict[str, Any]]:
+    """Where each slot's text goes, exactly as :func:`compose` draws it.
+
+    Per slot: the font file (or None for Pillow's built-in one), its size, ascent and descent,
+    the effect sizes, and each line with its left ``x`` and top ``y`` (in overlay pixels).
+    """
+    _, draw_mod, font_mod = _pil()
+    probe = draw_mod.Draw(_pil()[0].new("RGBA", (1, 1)))
+    out: dict[str, dict[str, Any]] = {}
+    for slot_name, text in sorted(texts.items()):
+        if not text:
+            continue
+        slot = f.frame.texts[slot_name]
+        font, lines = _place(f, font_mod, probe, slot, text)
+        ascent, descent = font.getmetrics()
+        out[slot_name] = {
+            "font": slot.font,
+            "size": font.size,
+            "ascent": ascent,
+            "descent": descent,
+            "effects": effect_sizes(font.size),
+            "lines": [{"text": t, "x": x, "y": y} for t, x, y in lines],
+        }
+    return out
+
+
+def _place(
+    f: LoadedFrame, font_mod: Any, draw: Any, slot: TextSlot, text: str
+) -> tuple[Any, list[tuple[str, int, int]]]:
+    """The fitted font and each line's text with its top-left position."""
+    font_bytes = f.fonts.get(slot.font) if slot.font else None
+
+    def load(size: int) -> Any:
+        return font_mod.truetype(io.BytesIO(font_bytes), size) if font_bytes else font_mod.load_default(size)
+
+    font, lines = fit_text(load, text, slot)
+    ascent, descent = font.getmetrics()
+    line_h = round((ascent + descent) * slot.line_spacing)
+    block_h = line_h * (len(lines) - 1) + ascent + descent
+    y = slot.y if slot.valign == "top" else slot.y + (slot.height - block_h) // 2
+    placed = []
+    for line in lines:
+        width = font.getlength(line)
+        x = {"left": slot.x, "center": slot.x + (slot.width - width) / 2, "right": slot.x + slot.width - width}[
+            slot.align
+        ]
+        placed.append((line, round(x), y))
+        y += line_h
+    return font, placed
+
+
+def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, style: CardStyle | None = None) -> bytes:
     """The finished card: ``art`` scaled to cover the window, the overlay on top, then ``texts``.
 
     ``texts`` maps the frame's slot names to the text drawn in them; a slot without text is
-    left empty, and text for a slot the frame doesn't have is an error. Deterministic for a
-    given Pillow version. Returns PNG bytes without ancillary metadata.
+    left empty, and text for a slot the frame doesn't have is an error. ``style`` tints the
+    overlay and sets each slot's colour, effect and background. Deterministic for a given
+    Pillow version. Returns PNG bytes without ancillary metadata.
     """
     texts = {k: v for k, v in (texts or {}).items() if v}
     unknown = texts.keys() - f.frame.texts.keys()
@@ -215,7 +313,10 @@ def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None) -> 
             f"frame {f.frame.id} v{f.frame.version} has no text slot {sorted(unknown)}; "
             f"its slots: {sorted(f.frame.texts)}"
         )
+    check_style(f, style)
+    style = style or CardStyle()
     image_mod, draw_mod, font_mod = _pil()
+    filter_mod = _filters()
     try:
         src = image_mod.open(io.BytesIO(art))
         src.load()
@@ -231,32 +332,67 @@ def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None) -> 
     left, top = (scaled.width - win.width) // 2, (scaled.height - win.height) // 2
     card = image_mod.new("RGBA", f.size, (0, 0, 0, 0))
     card.paste(scaled.crop((left, top, left + win.width, top + win.height)), (win.x, win.y))
-    card = image_mod.alpha_composite(card, image_mod.open(io.BytesIO(f.overlay)).convert("RGBA"))
+    overlay = image_mod.open(io.BytesIO(f.overlay)).convert("RGBA")
+    if style.tint is not None:
+        alpha = overlay.getchannel("A")
+        overlay = overlay.convert("RGB").convert("RGB", tint_matrix(style.tint))
+        overlay.putalpha(alpha)
+    card = image_mod.alpha_composite(card, overlay)
+
+    backgrounds = image_mod.new("RGBA", f.size, (0, 0, 0, 0))
+    bg_draw = draw_mod.Draw(backgrounds)
+    for slot_name, slot_style in sorted(style.slots.items()):
+        bg = slot_style.background
+        if bg is None:
+            continue
+        slot = f.frame.texts[slot_name]
+        box = (
+            slot.x - bg.padding,
+            slot.y - bg.padding,
+            slot.x + slot.width + bg.padding,
+            slot.y + slot.height + bg.padding,
+        )
+        bg_draw.rounded_rectangle(box, radius=bg.radius, fill=_rgba(bg.colour, bg.opacity))
+    card = image_mod.alpha_composite(card, backgrounds)
 
     draw = draw_mod.Draw(card)
     for slot_name, text in sorted(texts.items()):
         slot = f.frame.texts[slot_name]
-        font_bytes = f.fonts.get(slot.font) if slot.font else None
-
-        def load(size: int, font_bytes: bytes | None = font_bytes) -> Any:
-            return font_mod.truetype(io.BytesIO(font_bytes), size) if font_bytes else font_mod.load_default(size)
-
-        font, lines = fit_text(load, text, slot)
-        ascent, descent = font.getmetrics()
-        line_h = round((ascent + descent) * slot.line_spacing)
-        block_h = line_h * (len(lines) - 1) + ascent + descent
-        y = slot.y if slot.valign == "top" else slot.y + (slot.height - block_h) // 2
-        for line in lines:
-            width = font.getlength(line)
-            x = {"left": slot.x, "center": slot.x + (slot.width - width) / 2, "right": slot.x + slot.width - width}[
-                slot.align
-            ]
-            draw.text((round(x), y), line, font=font, fill=slot.colour, anchor="la")
-            y += line_h
+        slot_style = style.slots.get(slot_name, SlotStyle())
+        colour = slot_style.colour or slot.colour
+        font, lines = _place(f, font_mod, draw, slot, text)
+        sizes = effect_sizes(font.size)
+        if slot_style.effect == "glow":
+            glow = image_mod.new("RGBA", f.size, (0, 0, 0, 0))
+            glow_draw = draw_mod.Draw(glow)
+            for line, x, y in lines:
+                glow_draw.text((x, y), line, font=font, fill=slot_style.effect_colour, anchor="la",
+                               stroke_width=sizes["outline"], stroke_fill=slot_style.effect_colour)  # fmt: skip
+            card = image_mod.alpha_composite(card, glow.filter(filter_mod.GaussianBlur(sizes["glow"])))
+            draw = draw_mod.Draw(card)
+        for line, x, y in lines:
+            if slot_style.effect == "shadow":
+                d = sizes["shadow"]
+                draw.text((x + d, y + d), line, font=font, fill=slot_style.effect_colour, anchor="la")
+            if slot_style.effect == "outline":
+                draw.text((x, y), line, font=font, fill=colour, anchor="la",
+                          stroke_width=sizes["outline"], stroke_fill=slot_style.effect_colour)  # fmt: skip
+            else:
+                draw.text((x, y), line, font=font, fill=colour, anchor="la")
 
     out = io.BytesIO()
     card.save(out, format="PNG", optimize=False, compress_level=6)
     return out.getvalue()
+
+
+def _rgba(hex_colour: str, opacity: float) -> tuple[int, int, int, int]:
+    return (*(int(hex_colour[i : i + 2], 16) for i in (1, 3, 5)), round(opacity * 255))  # type: ignore[return-value]
+
+
+def _filters() -> Any:
+    from PIL import ImageFilter
+
+    return ImageFilter
 
 
 def fit_text(load: Any, text: str, slot: TextSlot) -> tuple[Any, list[str]]:

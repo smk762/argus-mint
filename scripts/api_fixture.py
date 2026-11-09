@@ -70,6 +70,8 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
   term) and the placeholder example-plain frame. One sample job renders v3 in the frame.
 - Backends were stand-ins: art from files, canned bios, local (non-IPFS) CIDs, a throwaway owner
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
+- `drafts/<id>/layout.json` is where each line of the card's text sits (`POST /frames/…/layout`), and
+  `frames/<id>/<v>/fonts/` holds the fonts the frame names (SIL OFL), for the style editor's preview.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.
 """
@@ -214,6 +216,11 @@ def main(arts: list[Path]) -> None:
             for which in ("image", "art"):
                 png = preview(c.get(f"/drafts/{item['id']}/{which}").content)
                 (OUT / "drafts" / item["id"] / f"{which}.png").write_bytes(png)
+            d = c.get(f"/drafts/{item['id']}").json()["draft"]
+            if d["frame"]:  # where the card's text sits, for the style editor's preview
+                texts = {"name": d["name"], **({"bio": d["bio"]["text"]} if d["bio"] else {}), **d["texts"]}
+                lay = c.post(f"/frames/{d['frame']['id']}/{d['frame']['version']}/layout", json={"texts": texts})
+                (OUT / "drafts" / item["id"] / "layout.json").write_text(json.dumps(lay.json(), indent=1) + "\n")
         jobs = dump("samples.json", "/samples")
         (OUT / "samples").mkdir()
         for job in jobs["items"]:  # type: ignore[index]
@@ -228,6 +235,10 @@ def main(arts: list[Path]) -> None:
             fid, ver = f["frame"]["id"], f["frame"]["version"]
             (OUT / "frames" / fid / str(ver)).mkdir(parents=True)
             (OUT / "frames" / fid / str(ver) / "overlay.png").write_bytes(c.get(f"/frames/{fid}/{ver}/overlay").content)
+            for font in sorted({s["font"] for s in f["frame"]["texts"].values() if s.get("font")}):
+                dest = OUT / "frames" / fid / str(ver) / "fonts" / font
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(c.get(f"/frames/{fid}/{ver}/fonts/{font}").content)
     (OUT / "README.md").write_text(README)
     print(OUT)
 

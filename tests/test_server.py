@@ -104,7 +104,7 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.2" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert h["wire_version"] == "1.3" and h["chain_id"] == 84532 and h["card"] == CARD
     assert all(v for k, v in h["capabilities"].items() if k != "auto_moderate")
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
@@ -286,7 +286,7 @@ def test_catalogue_decisions_edit_the_file(setup, tmp_path):
 def _edit_as_owner(c, draft_id, wallet, edit):
     ch = c.post(f"/drafts/{draft_id}/challenge", json={"action": "edit", "edit": edit}).json()
     sig = wallet.sign_message(encode_defunct(text=ch["message"])).signature.hex()
-    return c.post(f"/drafts/{draft_id}/text", json=edit | {"role": "owner", "message": ch["message"], "signature": sig})
+    return c.post(f"/drafts/{draft_id}/edit", json=edit | {"message": ch["message"], "signature": sig})
 
 
 def test_editing_text_redraws_and_needs_new_approvals(setup, owner):
@@ -309,15 +309,53 @@ def test_editing_text_redraws_and_needs_new_approvals(setup, owner):
     # an owner signature covers exactly the edit it was issued for
     ch = c.post(f"/drafts/{draft_id}/challenge", json={"action": "edit", "edit": {"name": "A"}}).json()
     sig = owner.sign_message(encode_defunct(text=ch["message"])).signature.hex()
-    swapped = {"name": "B", "role": "owner", "message": ch["message"], "signature": sig}
-    assert c.post(f"/drafts/{draft_id}/text", json=swapped).status_code == 401
+    swapped = {"name": "B", "message": ch["message"], "signature": sig}
+    assert c.post(f"/drafts/{draft_id}/edit", json=swapped).status_code == 401
 
-    moderator_edit = {"role": "moderator", "by": "mod", "texts": {"name": "x"}}
-    assert c.post(f"/drafts/{draft_id}/text", json=moderator_edit).status_code == 401  # no token
-    r = c.post(f"/drafts/{draft_id}/text", json={"role": "moderator", "by": "mod", "name": "Hana"}, headers=AUTH)
-    assert r.status_code == 200 and r.json()["draft"]["name"] == "Hana"
-    nothing = c.post(f"/drafts/{draft_id}/text", json={"role": "moderator", "by": "mod", "name": "Hana"}, headers=AUTH)
-    assert nothing.status_code == 409
+    # the moderator approves or rejects; only the owner changes the card, even with the token
+    as_moderator = {"name": "x", "role": "moderator", "by": "mod"}
+    assert c.post(f"/drafts/{draft_id}/edit", json=as_moderator, headers=AUTH).status_code == 422
+    assert _edit_as_owner(c, draft_id, owner, {"name": "Hana of the Strait"}).status_code == 409  # nothing changed
+
+
+def test_owner_restyles_the_card(setup, owner, tmp_path):
+    c = setup()
+    d = _create(c, owner).json()
+    draft_id, before = d["id"], d["draft"]["image_sha256"]
+    style = {
+        "tint": {"colour": "#7a3cc8", "strength": 0.8},
+        "slots": {"name": {"colour": "#000000", "effect": "outline", "effect_colour": "#000000",
+                           "background": {"colour": "#000000", "opacity": 1}}},  # black on black: so be it
+    }  # fmt: skip
+    r = _edit_as_owner(c, draft_id, owner, {"style": style})
+    assert r.status_code == 200, r.text
+    e = r.json()
+    assert e["draft"]["image_sha256"] != before and e["draft"]["edits"][-1]["fields"] == ["style"]
+    assert e["draft"]["style"]["tint"]["colour"] == "#7a3cc8"
+    assert _edit_as_owner(c, draft_id, owner, {"style": {"slots": {"stats": {}}}}).status_code == 409  # no such slot
+    assert _edit_as_owner(c, draft_id, owner, {"style": {}}).json()["draft"]["style"] is None  # cleared
+
+    c.post(f"/drafts/{draft_id}/edit", json={})  # needs a signature
+    _edit_as_owner(c, draft_id, owner, {"style": style})
+    c.post(f"/drafts/{draft_id}/review", json={"role": "moderator", "approve": True, "by": "m"}, headers=AUTH)
+    _owner_review(c, draft_id, owner)
+    pub = c.post(f"/drafts/{draft_id}/publish", json={}, headers=AUTH).json()
+    assert pub["published"]["metadata"]["provenance"]["style"]["tint"]["strength"] == 0.8  # redrawable exactly
+
+
+def test_layout_and_fonts_for_the_browser_preview(setup, tmp_path):
+    from argus_mint.frames import layout, load_frame
+
+    c = setup()
+    r = c.post("/frames/test-frame/1/layout", json={"texts": {"name": "Hana", "bio": "word " * 60}})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["width"] == 300 and set(body["slots"]) == {"name", "bio"}
+    assert len(body["slots"]["bio"]["lines"]) > 1 and body["slots"]["bio"]["lines"][-1]["text"].endswith("…")
+    same = layout(load_frame(tmp_path / "frames" / "f.yaml"), {"name": "Hana", "bio": "word " * 60})
+    assert body["slots"]["name"]["lines"] == same["name"]["lines"]  # exactly what compose draws
+    assert c.post("/frames/test-frame/1/layout", json={"texts": {"stats": "1"}}).status_code == 422
+    assert c.get("/frames/test-frame/1/fonts/nope.ttf").status_code == 404
 
 
 def test_auto_moderation_approves_clean_drafts_and_holds_the_rest(setup, owner, tmp_path):
@@ -337,6 +375,5 @@ def test_auto_moderation_approves_clean_drafts_and_holds_the_rest(setup, owner, 
     assert "name" in held["draft"]["auto_check"]["held"][0]
 
     # a hand-edited bio reached no model, so it goes through the word filter
-    r = c.post(f"/drafts/{d['id']}/text", json={"role": "moderator", "by": "m", "bio": "Sh1t happens."}, headers=AUTH)
-    e = r.json()
+    e = _edit_as_owner(c, d["id"], owner, {"bio": "Sh1t happens."}).json()
     assert e["awaiting"] == ["moderator", "owner"] and "bio" in e["draft"]["auto_check"]["held"][0]

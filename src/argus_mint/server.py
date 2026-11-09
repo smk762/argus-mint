@@ -11,10 +11,12 @@
 ``POST /drafts/{id}/challenge``        the SIWE message the owner signs to approve or reject
 ``POST /drafts/{id}/review``           a decision: moderator by token, owner by signed challenge
 ``POST /drafts/{id}/publish``          pin and sign an approved draft (moderator token)
-``POST /drafts/{id}/text``             change the card's name, bio or display text: redrawn, reviewed again
+``POST /drafts/{id}/edit``             the owner changes the card's text or style: redrawn, reviewed again
 ``POST /samples`` ``GET /samples[/{id}]``  sample cards of a draft template/frame/bio, as background jobs
 ``GET  /samples/{id}/{n}/art|framed``  a sample's images (local only: never pinned, signed or minted)
 ``POST /frames/{id}/{version}/preview``  a frame (any status) on a draft's or sample's art, as a PNG
+``POST /frames/{id}/{version}/layout``   where each line of text goes, for a browser's SVG preview
+``GET  /frames/{id}/{version}/fonts/…``  the fonts a frame names, for that preview
 ``POST /{templates,frames,bios}/{id}/{version}/review``  approve a draft or retire an approved file
 =====================================  =============================================================================
 
@@ -69,7 +71,7 @@ from argus_mint.cards import (
 )
 from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
-from argus_mint.frames import FrameError, LoadedFrame, compose, load_frame
+from argus_mint.frames import FrameError, LoadedFrame, compose, layout, load_frame
 from argus_mint.keys import KeyLoadError, load_signer
 from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
@@ -88,8 +90,10 @@ from argus_mint.wire import (
     DraftSummary,
     EditTextRequest,
     FrameInfo,
+    FrameLayout,
     FramePreviewRequest,
     Health,
+    LayoutRequest,
     PublishRequest,
     PublishResult,
     Ref,
@@ -279,7 +283,7 @@ def create_app(
             owner_review=writable and bool(cfg.siwe_domain),
             publish=writable and has_token and pinner is not None and signer_configured and bool(cfg.card),
             sample=writable and has_token and darkroom is not None,
-            edit_text=writable and (has_token or bool(cfg.siwe_domain)),
+            edit_text=writable and bool(cfg.siwe_domain),
             auto_moderate=cfg.auto_moderate,
             review_catalogue=writable
             and has_token
@@ -506,7 +510,7 @@ def create_app(
                 template=t, values=body.variables, seed=body.seed, asset_id=aid, to=to, name=body.name,
                 renderer=darkroom, description=body.description, external_url=body.external_url,
                 consumer=cfg.consumer, frame=lf, bio=bt, writer=writer if bt else None,
-                guard=darkroom if bt else None, texts=body.texts,
+                guard=darkroom if bt else None, texts=body.texts, style=body.style,
             )  # fmt: skip
         except RenderError as e:
             raise HTTPException(
@@ -557,18 +561,11 @@ def create_app(
     def moderate_automatically(d: CardDraft, image: bytes) -> CardDraft:
         return auto_review(d, image, word_filter()) if cfg.auto_moderate else d
 
-    @app.post("/drafts/{draft_id}/text")
-    def post_text(
-        draft_id: str, body: EditTextRequest, authorization: Annotated[str | None, Header()] = None
-    ) -> DraftDetail:
-        edit = TextEdit(name=body.name, bio=body.bio, texts=body.texts)
-        if body.role == "moderator":
-            require_token(authorization)
-            if not body.by:
-                raise HTTPException(422, "the moderator's edit needs `by` (their name or id)")
-            by = body.by
-        else:
-            by = _verify_owner(draft_id, body.message, body.signature, f"edit:{_edit_hash(edit)}")
+    @app.post("/drafts/{draft_id}/edit")
+    def post_edit(draft_id: str, body: EditTextRequest) -> DraftDetail:
+        """The owner changes the card's text or style; it is redrawn and reviewed again."""
+        edit = TextEdit(name=body.name, bio=body.bio, texts=body.texts, style=body.style)
+        by = _verify_owner(draft_id, body.message, body.signature, f"edit:{_edit_hash(edit)}")
         with lock:
             try:
                 d, art, _image = store.load(draft_id)
@@ -579,7 +576,9 @@ def create_app(
                 lf = frames().get((d.frame.id, d.frame.version))
                 if lf is None:
                     raise DraftError(f"frame {d.frame.id} v{d.frame.version} is no longer served here")
-                d, image = edit_text(d, art, lf, role=body.role, by=by, name=edit.name, bio=edit.bio, texts=edit.texts)
+                d, image = edit_text(
+                    d, art, lf, role="owner", by=by, name=edit.name, bio=edit.bio, texts=edit.texts, style=edit.style
+                )
                 d = moderate_automatically(d, image)
                 store.save(draft_id, d, image=image)
             except DraftNotFound as e:
@@ -744,6 +743,7 @@ def create_app(
             return sample_card(
                 renderer=darkroom, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
                 writer=writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
+                style=body.style,
             )  # fmt: skip
 
         return samples.submit(body, picks, run_one)
@@ -782,10 +782,28 @@ def create_app(
             art = samples.image(src.sample or "", src.n or 0, "art")
         try:
             check_texts(body.texts, lf)
-            png = compose(lf, art, card_texts(lf, body.name, body.bio, body.texts))
+            png = compose(lf, art, card_texts(lf, body.name, body.bio, body.texts), body.style)
         except FrameError as e:
             raise HTTPException(422, str(e)) from e
         return Response(png, media_type="image/png")
+
+    @app.post("/frames/{frame_id}/{version}/layout")
+    def frame_layout(frame_id: str, version: int, body: LayoutRequest) -> FrameLayout:
+        """Where Pillow puts each line, so a browser can draw the same card as SVG while it is styled."""
+        lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
+        unknown = sorted(body.texts.keys() - lf.frame.texts.keys())
+        if unknown:
+            raise HTTPException(422, f"frame {frame_id} v{version} has no text slot {unknown}")
+        return FrameLayout(width=lf.size[0], height=lf.size[1], slots=layout(lf, body.texts))  # type: ignore[arg-type]
+
+    @app.get("/frames/{frame_id}/{version}/fonts/{font:path}")
+    def frame_font(frame_id: str, version: int, font: str) -> Response:
+        """A font the frame names (its path as the frame YAML gives it), for the browser preview."""
+        lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
+        if font not in lf.fonts:
+            raise HTTPException(404, f"frame {frame_id} v{version} names no font {font!r}")
+        media = "font/otf" if font.lower().endswith(".otf") else "font/ttf"
+        return Response(lf.fonts[font], media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
     return app
 

@@ -16,8 +16,8 @@ from eth_account.signers.local import LocalAccount
 from argus_mint._codec import hex0x
 from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
 from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
-from argus_mint.frames import FrameError, LoadedFrame, compose, require_approved
-from argus_mint.metadata import card_metadata, content_hash
+from argus_mint.frames import FrameError, LoadedFrame, check_style, compose, require_approved
+from argus_mint.metadata import CardStyle, card_metadata, content_hash
 from argus_mint.pin import Pinner
 from argus_mint.render import Darklight, RenderError, render, render_for_review
 from argus_mint.templates import Template, fill
@@ -99,6 +99,7 @@ def create_draft(
     writer: Writer | None = None,
     guard: TextGuard | None = None,
     texts: dict[str, str] | None = None,
+    style: CardStyle | None = None,
 ) -> Made:
     """Render (or take ``image``), write the bio, frame the card. Nothing is pinned or signed.
 
@@ -109,6 +110,11 @@ def create_draft(
     if frame is not None:
         require_approved(frame)
     check_texts(texts, frame)
+    style = _plain_to_none(style)
+    if style is not None:
+        if frame is None:
+            raise FrameError("a style needs a frame to style")
+        check_style(frame, style)
     if (image is None) == (renderer is None):
         raise ValueError("give exactly one of renderer or image")
     if bio is not None and (writer is None or guard is None):
@@ -125,7 +131,7 @@ def create_draft(
         art, req = rendered.image, rendered.request
         attempts = _render_attempts(rendered.attempts)
     b = write_bio(writer, guard, bio, values, template, name) if bio and writer and guard else None
-    card_image = compose(frame, art, card_texts(frame, name, b.text if b else None, texts)) if frame else art
+    card_image = compose(frame, art, card_texts(frame, name, b.text if b else None, texts), style) if frame else art
     draft = CardDraft(
         request=req,
         attempts=tuple(attempts),
@@ -139,6 +145,7 @@ def create_draft(
         frame=frame.ref() if frame else None,
         bio=BioRecord(ref=b.template.ref(), text=b.text, attempts=tuple(bio_attempts(b.attempts))) if b else None,
         texts=texts,
+        style=style,
         art_sha256=sha256_hex(art),
         image_sha256=sha256_hex(card_image),
         created_at=datetime.now(UTC),
@@ -225,6 +232,7 @@ def sample_card(
     guard: TextGuard | None = None,
     name: str = "Sample",
     texts: dict[str, str] | None = None,
+    style: CardStyle | None = None,
 ) -> Sample:
     """Render a sample of a template (any status), with an optional bio and frame (any status).
 
@@ -249,7 +257,7 @@ def sample_card(
         else:
             bio_text = b.text
             item |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
-    framed = compose(frame, r.image, card_texts(frame, name, bio_text, texts)) if frame else None
+    framed = compose(frame, r.image, card_texts(frame, name, bio_text, texts), _plain_to_none(style)) if frame else None
     return Sample(item, r.image, framed)
 
 
@@ -267,11 +275,13 @@ def edit_text(
     name: str | None = None,
     bio: str | None = None,
     texts: dict[str, str] | None = None,
+    style: CardStyle | None = None,
 ) -> tuple[CardDraft, bytes]:
-    """Change the card's text and redraw it on the same art; return the draft and its new image.
+    """Change the card's text or style and redraw it on the same art; return the draft and its new image.
 
     ``None`` leaves a field as it is; ``texts`` replaces the given slots (an empty string clears
-    one). Only a framed draft, with the very frame it was made with (by hash), can be edited.
+    one); ``style`` replaces the whole style (a plain style clears it). Only a framed draft,
+    with the very frame it was made with (by hash), can be edited.
     The new image needs both approvals again; the old reviews stay as history. Hand-written
     text never goes to a model (hard rule 1).
     """
@@ -311,9 +321,16 @@ def edit_text(
         for slot in sorted(set(new_texts) | set(draft.texts))
         if new_texts.get(slot) != draft.texts.get(slot)
     ]
+    new_style = draft.style
+    if style is not None:
+        candidate = _plain_to_none(style)
+        if candidate != draft.style:
+            check_style(frame, candidate)
+            new_style = candidate
+            fields.append("style")
     if not fields:
         raise DraftError("nothing changed")
-    image = compose(frame, art, card_texts(frame, new_name, new_bio.text if new_bio else None, new_texts))
+    image = compose(frame, art, card_texts(frame, new_name, new_bio.text if new_bio else None, new_texts), new_style)
     edit = Edit(role=role, by=by, at=datetime.now(UTC), fields=tuple(fields), image_sha256=sha256_hex(image))  # type: ignore[arg-type]
     updated = draft.model_copy(
         update={
@@ -321,9 +338,14 @@ def edit_text(
             "bio": new_bio,
             "description": new_description,
             "texts": new_texts,
+            "style": new_style,
             "image_sha256": sha256_hex(image),
             "edits": (*draft.edits, edit),
             "auto_check": None,
         }
     )
     return updated, image
+
+
+def _plain_to_none(style: CardStyle | None) -> CardStyle | None:
+    return None if style is None or style.is_plain() else style

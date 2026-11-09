@@ -19,7 +19,20 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, Stric
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
 
-__all__ = ["Attribute", "BioRef", "FrameRef", "Provenance", "canonical", "card_metadata", "content_hash", "ipfs_uri"]
+__all__ = [
+    "Attribute",
+    "BioRef",
+    "CardStyle",
+    "FrameRef",
+    "SlotBackground",
+    "SlotStyle",
+    "Tint",
+    "Provenance",
+    "canonical",
+    "card_metadata",
+    "content_hash",
+    "ipfs_uri",
+]
 
 # CIDv0 (base58btc, "Qm…") or CIDv1 in base32 lower case ("b…", e.g. "bafy…").
 _CID = re.compile(r"^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$")
@@ -69,6 +82,52 @@ class FrameRef(BaseModel):
     hash: Bytes32
 
 
+_HEX = r"^#[0-9a-fA-F]{6}$"
+
+
+class Tint(BaseModel):
+    """Recolour the frame overlay: every pixel moves toward ``colour`` at its own brightness."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    colour: str = Field(pattern=_HEX)
+    strength: float = Field(default=0.6, ge=0.0, le=1.0)
+
+
+class SlotBackground(BaseModel):
+    """A filled, rounded box behind a text slot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    colour: str = Field(pattern=_HEX)
+    opacity: float = Field(default=0.6, ge=0.0, le=1.0)
+    radius: int = Field(default=8, ge=0, le=200)
+    padding: int = Field(default=4, ge=0, le=100)
+
+
+class SlotStyle(BaseModel):
+    """How one text slot is drawn. Unset fields keep the frame's own choices."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    colour: str | None = Field(default=None, pattern=_HEX)
+    effect: Literal["none", "shadow", "outline", "glow"] = "none"
+    effect_colour: str = Field(default="#000000", pattern=_HEX)
+    background: SlotBackground | None = None
+
+
+class CardStyle(BaseModel):
+    """The owner's styling of a framed card: any colours, so be it if that's black on black."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    tint: Tint | None = None
+    slots: dict[str, SlotStyle] = Field(default_factory=dict)
+
+    def is_plain(self) -> bool:
+        return self.tint is None and not self.slots
+
+
 class BioRef(BaseModel):
     """The reviewed bio template (and model) that wrote the card's bio (see :mod:`argus_mint.bios`)."""
 
@@ -85,7 +144,8 @@ class Provenance(BaseModel):
 
     ``frame`` and ``art`` are set only for a framed card: the frame, and ``ipfs://`` of the
     unframed render. ``bio`` names the bio template and model when a bio was written (the
-    text itself is the card's ``description`` and is drawn on the image). Unset fields are left out of the JSON, so unframed cards serialize (and
+    text itself is the card's ``description`` and is drawn on the image). ``style`` is the
+    owner's styling of the frame, so the card can be redrawn exactly. Unset fields are left out of the JSON, so unframed cards serialize (and
     hash) exactly as before frames existed.
     """
 
@@ -101,6 +161,7 @@ class Provenance(BaseModel):
     frame: FrameRef | None = None
     art: str | None = None
     bio: BioRef | None = None
+    style: CardStyle | None = None  # the owner's styling of the frame, when they chose any
 
     @field_validator("art")
     @classmethod

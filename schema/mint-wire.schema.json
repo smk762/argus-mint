@@ -455,6 +455,17 @@
           "title": "Reviews",
           "type": "array"
         },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "texts": {
           "additionalProperties": {
             "type": "string"
@@ -480,6 +491,32 @@
         "created_at"
       ],
       "title": "CardDraft",
+      "type": "object"
+    },
+    "CardStyle": {
+      "additionalProperties": false,
+      "description": "The owner's styling of a framed card: any colours, so be it if that's black on black.",
+      "properties": {
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotStyle"
+          },
+          "title": "Slots",
+          "type": "object"
+        },
+        "tint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "CardStyle",
       "type": "object"
     },
     "CatalogueDecision": {
@@ -696,6 +733,17 @@
           "minimum": 0,
           "title": "Seed",
           "type": "integer"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "template": {
           "$ref": "#/$defs/Ref"
@@ -916,7 +964,7 @@
     },
     "EditTextRequest": {
       "additionalProperties": false,
-      "description": "POST /drafts/{id}/text: the moderator by token and ``by``; the owner with a signed edit challenge.",
+      "description": "POST /drafts/{id}/edit: only the owner edits, with the signed challenge for exactly this edit.\n\nThe moderator approves or rejects; they don't change the card.",
       "properties": {
         "bio": {
           "anyOf": [
@@ -931,30 +979,9 @@
           "default": null,
           "title": "Bio"
         },
-        "by": {
-          "anyOf": [
-            {
-              "maxLength": 128,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "By"
-        },
         "message": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Message"
+          "title": "Message",
+          "type": "string"
         },
         "name": {
           "anyOf": [
@@ -969,25 +996,20 @@
           "default": null,
           "title": "Name"
         },
-        "role": {
-          "enum": [
-            "moderator",
-            "owner"
-          ],
-          "title": "Role",
+        "signature": {
+          "title": "Signature",
           "type": "string"
         },
-        "signature": {
+        "style": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/CardStyle"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Signature"
+          "default": null
         },
         "texts": {
           "anyOf": [
@@ -1006,7 +1028,8 @@
         }
       },
       "required": [
-        "role"
+        "message",
+        "signature"
       ],
       "title": "EditTextRequest",
       "type": "object"
@@ -1058,6 +1081,11 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "style_locked": {
+          "default": false,
+          "title": "Style Locked",
+          "type": "boolean"
         },
         "texts": {
           "additionalProperties": {
@@ -1118,6 +1146,33 @@
       "title": "FrameInfo",
       "type": "object"
     },
+    "FrameLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/SlotLayout"
+          },
+          "title": "Slots",
+          "type": "object"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "slots"
+      ],
+      "title": "FrameLayout",
+      "type": "object"
+    },
     "FramePreviewRequest": {
       "additionalProperties": false,
       "description": "POST /frames/{id}/{version}/preview: a frame (any status) on existing art; returns a PNG.",
@@ -1144,6 +1199,17 @@
           "minLength": 1,
           "title": "Name",
           "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "texts": {
           "additionalProperties": {
@@ -1255,7 +1321,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.2",
+          "default": "1.3",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1273,6 +1339,48 @@
         "backends"
       ],
       "title": "Health",
+      "type": "object"
+    },
+    "LayoutRequest": {
+      "additionalProperties": false,
+      "description": "POST /frames/{id}/{version}/layout: where these texts go, for a browser preview.",
+      "properties": {
+        "texts": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Texts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "texts"
+      ],
+      "title": "LayoutRequest",
+      "type": "object"
+    },
+    "LineLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "x": {
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "text",
+        "x",
+        "y"
+      ],
+      "title": "LineLayout",
       "type": "object"
     },
     "LoraRef": {
@@ -1888,6 +1996,17 @@
           "title": "Seed",
           "type": "integer"
         },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "template": {
           "$ref": "#/$defs/Ref"
         },
@@ -1953,6 +2072,144 @@
         "cfg"
       ],
       "title": "Sampling",
+      "type": "object"
+    },
+    "SlotBackground": {
+      "additionalProperties": false,
+      "description": "A filled, rounded box behind a text slot.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Colour",
+          "type": "string"
+        },
+        "opacity": {
+          "default": 0.6,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "padding": {
+          "default": 4,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Padding",
+          "type": "integer"
+        },
+        "radius": {
+          "default": 8,
+          "maximum": 200,
+          "minimum": 0,
+          "title": "Radius",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "title": "SlotBackground",
+      "type": "object"
+    },
+    "SlotLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "ascent": {
+          "title": "Ascent",
+          "type": "integer"
+        },
+        "descent": {
+          "title": "Descent",
+          "type": "integer"
+        },
+        "effects": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Effects",
+          "type": "object"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Font"
+        },
+        "lines": {
+          "items": {
+            "$ref": "#/$defs/LineLayout"
+          },
+          "title": "Lines",
+          "type": "array"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "font",
+        "size",
+        "ascent",
+        "descent",
+        "effects",
+        "lines"
+      ],
+      "title": "SlotLayout",
+      "type": "object"
+    },
+    "SlotStyle": {
+      "additionalProperties": false,
+      "description": "How one text slot is drawn. Unset fields keep the frame's own choices.",
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SlotBackground"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "colour": {
+          "anyOf": [
+            {
+              "pattern": "^#[0-9a-fA-F]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Colour"
+        },
+        "effect": {
+          "default": "none",
+          "enum": [
+            "none",
+            "shadow",
+            "outline",
+            "glow"
+          ],
+          "title": "Effect",
+          "type": "string"
+        },
+        "effect_colour": {
+          "default": "#000000",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Effect Colour",
+          "type": "string"
+        }
+      },
+      "title": "SlotStyle",
       "type": "object"
     },
     "Template": {
@@ -2110,7 +2367,7 @@
     },
     "TextEdit": {
       "additionalProperties": false,
-      "description": "A change to the card's text. ``None`` leaves a field as it is; an empty slot text clears it.",
+      "description": "The owner's change to the card: text and style. ``None`` leaves a field as it is; an empty\nslot text clears it; ``style`` replaces the whole style (an empty one clears it).",
       "properties": {
         "bio": {
           "anyOf": [
@@ -2137,6 +2394,17 @@
           ],
           "default": null,
           "title": "Name"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CardStyle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "texts": {
           "anyOf": [
@@ -2253,7 +2521,30 @@
       ],
       "title": "TextSlot",
       "type": "object"
+    },
+    "Tint": {
+      "additionalProperties": false,
+      "description": "Recolour the frame overlay: every pixel moves toward ``colour`` at its own brightness.",
+      "properties": {
+        "colour": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "title": "Colour",
+          "type": "string"
+        },
+        "strength": {
+          "default": 0.6,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Strength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "title": "Tint",
+      "type": "object"
     }
   },
-  "title": "argus-mint wire 1.2"
+  "title": "argus-mint wire 1.3"
 }

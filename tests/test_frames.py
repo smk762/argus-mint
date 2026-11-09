@@ -159,3 +159,39 @@ def test_existing_demo_metadata_still_hashes_to_its_voucher():
         out = json.loads(f.read_text())
         assert Provenance.model_validate(out["metadata"]["provenance"]).to_json() == out["metadata"]["provenance"]
         assert "0x" + content_hash(out["metadata"]).hex() == out["voucher"]["content_hash"]
+
+
+def test_style_tints_and_paints_slots_deterministically(tmp_path):
+    from argus_mint.frames import tint_matrix
+    from argus_mint.metadata import CardStyle
+
+    f = load_frame(_frame(tmp_path))
+    style = CardStyle.model_validate(
+        {
+            "tint": {"colour": "#ff0000", "strength": 1.0},
+            "slots": {
+                "name": {"colour": "#00ff00", "effect": "glow", "effect_colour": "#0000ff",
+                         "background": {"colour": "#123456", "opacity": 1, "radius": 0, "padding": 0}},
+                "bio": {"effect": "shadow"},
+            },
+        }
+    )  # fmt: skip
+    plain = Image.open(io.BytesIO(compose(f, ART, {"name": "Hana"}))).convert("RGBA")
+    styled_png = compose(f, ART, {"name": "Hana", "bio": "x"}, style)
+    assert styled_png == compose(f, ART, {"name": "Hana", "bio": "x"}, style)
+    styled = Image.open(io.BytesIO(styled_png)).convert("RGBA")
+    r, g, b, _ = styled.getpixel((2, 2))  # the overlay, tinted fully red at its own brightness
+    assert r > g and r > b and plain.getpixel((2, 2)) != styled.getpixel((2, 2))
+    assert styled.getpixel((11, 301)) == (0x12, 0x34, 0x56, 255)  # the name slot's background corner
+    assert styled.getpixel((150, 150)) == plain.getpixel((150, 150))  # the art isn't tinted
+    assert tint_matrix(None) == (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0)
+    assert tint_matrix(style.tint)[:4] == (0.299, 0.587, 0.114, 0.0)
+
+
+def test_locked_frames_refuse_styles(tmp_path):
+    from argus_mint.metadata import CardStyle
+
+    f = load_frame(_frame(tmp_path, style_locked=True))
+    with pytest.raises(FrameError, match="can't be restyled"):
+        compose(f, ART, {}, CardStyle.model_validate({"tint": {"colour": "#000000"}}))
+    assert compose(f, ART, {}, CardStyle())  # a plain style is no style

@@ -20,9 +20,12 @@ All notable changes to this project are documented here. Versions come from git 
   - **Frame previews:** `POST /frames/{id}/{v}/preview` shows a frame on a draft's or sample's art.
   - **Decisions:** `POST /{templates,frames,bios}/{id}/{v}/review` approves or retires a file. `catalogue.record_decision` writes the decision into the YAML, keeping its comments, and restores the file if it no longer validates.
   - **Listings:** they gain `file` and, for templates, `combinations`; `/health` gains the `sample` and `review_catalogue` capabilities.
-- **Editable card text (wire 1.2).**
-  - **Endpoint:** `POST /drafts/{id}/text` changes a framed draft's name, bio or display text and redraws it on the same art; both approvals are needed again.
-  - **Who can edit:** the moderator, with the token; or the owner, by signing a challenge that covers exactly that edit.
+- **Owner edits and styling (wire 1.3).**
+  - **Endpoint:** `POST /drafts/{id}/edit` lets the card's owner change its name, bio, display text and style, by signing a challenge that covers exactly that change. The moderator only approves or rejects.
+  - **Styles** (`metadata.CardStyle`): a border tint (`frames.tint_matrix`, the same numbers Pillow and an SVG `feColorMatrix` use), plus per-slot text colour, an effect (shadow, outline or glow) and a background box. Any colours; `style_locked` frames refuse them.
+  - **Browser preview:** `POST /frames/{id}/{v}/layout` and `GET /frames/{id}/{v}/fonts/…` let a browser draw the card as SVG while it is styled. The baked PNG is what's reviewed.
+  - **Provenance** gains optional `style`. Create, samples and frame previews accept a style too.
+  - **Redraw:** the card is redrawn on the same art, and both approvals are needed again.
   - **History:** `CardDraft.edits` records each change, and `BioRecord.edited` marks a bio a person changed.
 - **Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`): the platform gates on safety, the owner on quality.
   - **When it approves:** when darkroom's image and text checks passed and the name and display text pass the word filter, the moderator's approval is recorded automatically.
