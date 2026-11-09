@@ -1,0 +1,606 @@
+{
+  "template": {
+    "id": "example-portrait",
+    "version": 2
+  },
+  "models": [
+    "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+    "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+    "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+    "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+    "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+    "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+    "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors"
+  ],
+  "count": 6,
+  "items": [
+    {
+      "id": "000-aureanuancexl-v2",
+      "group": 0,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "d675bf3e26207d04cfde1edd6aa2077775ff3e2e3a1a15efc9ae249cd4336420"
+    },
+    {
+      "id": "000-biglove-xl2",
+      "group": 0,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "76314053a0c7f0c96fe0721d0547ff12d1f35611391ce5d95039a9e889b4914a"
+    },
+    {
+      "id": "000-cyberrealisticxl-desirev20",
+      "group": 0,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "1e59c25aa669dbfcbc3398c432f4feeb52df8229bf7bc8c410228b05d24227af"
+    },
+    {
+      "id": "000-epicrealismxl-purefix",
+      "group": 0,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "340940952481890b3c76b88f5af7cc0c3296171c50397b06472062b66c1dcfca"
+    },
+    {
+      "id": "000-eventhorizon-xlv60",
+      "group": 0,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "844f1886ca8e060c9d2b522da5da28725449d92b37467e697dfca80d8fb26eeb"
+    },
+    {
+      "id": "000-juggernautxl-ragnarokby",
+      "group": 0,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "0583f71c559d434c7e438cfb6bb3642f45082de10bd3096a607bc5790ff187f7"
+    },
+    {
+      "id": "000-realityboundxl-soulgripv10",
+      "group": 0,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "2ca6ad892ae9a04daae794ef76219eb92a089bace9a5d7e0a7dd91ef12aab31f"
+    },
+    {
+      "id": "010-aureanuancexl-v2",
+      "group": 10,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "7d8569653a593f56d38b38d00a561503a82c3e2eb4a4228ebe467890c03f6c32"
+    },
+    {
+      "id": "010-biglove-xl2",
+      "group": 10,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "227b2765988ee3903a4583c6dcc8f2f780aea9cf79e83aecb1c621f3edbf081b"
+    },
+    {
+      "id": "010-cyberrealisticxl-desirev20",
+      "group": 10,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "bd528979853c593930671871fe16c6709faa18e89310455241f23de0f566bde7"
+    },
+    {
+      "id": "010-epicrealismxl-purefix",
+      "group": 10,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "90a6eb8aee91b352a0db17411e5eb75487014b1b8feb27aaef279fa1b3d507a0"
+    },
+    {
+      "id": "010-eventhorizon-xlv60",
+      "group": 10,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "5b17256d99fd67b473082b6063033f9e0a5861dfab1ee0b81943c4ff6243afea"
+    },
+    {
+      "id": "010-juggernautxl-ragnarokby",
+      "group": 10,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "949f09ccf49e84ec1ff7eef30a4445597d71de5ddfb4ead4c044d5b0a2d1e055"
+    },
+    {
+      "id": "010-realityboundxl-soulgripv10",
+      "group": 10,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "fe9267c8b3e10231da39b6044674f9d70206aa6754959e1d8168033d0a443cfa"
+    },
+    {
+      "id": "019-aureanuancexl-v2",
+      "group": 19,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "f6e7f4647644d9390d9ea0ee75f75855770dd25278880a12e315589c6dbce8b1"
+    },
+    {
+      "id": "019-biglove-xl2",
+      "group": 19,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "1777c812d3e5da54f6c3ddf36d52c03c76dd266fc7ab05883551947097a37962"
+    },
+    {
+      "id": "019-cyberrealisticxl-desirev20",
+      "group": 19,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "60a05ff42a268d12ad2410d38580c5c36af683818880457033f25d0dbea14a0e"
+    },
+    {
+      "id": "019-epicrealismxl-purefix",
+      "group": 19,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "38b6c093d147ce36bdaebcf558e3c88e668b21d3393f483d7db07ab7da24df6b"
+    },
+    {
+      "id": "019-eventhorizon-xlv60",
+      "group": 19,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "3e03ef94452846a8e1bdde8e370903f7bb21662151a99207fca1bfa68c9198a7"
+    },
+    {
+      "id": "019-juggernautxl-ragnarokby",
+      "group": 19,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "c3b8b84b1bde1acf04449e3fcc1ec09107d2406c9d5ff550f1ad4325a7a79a24"
+    },
+    {
+      "id": "019-realityboundxl-soulgripv10",
+      "group": 19,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "a78dfeb633b00fe4f0ef0ed3d378e6489a9cd9d98e68bc5a2cbcecd6ece2c56b"
+    },
+    {
+      "id": "028-aureanuancexl-v2",
+      "group": 28,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "4c92196bff9238637ca9ca198d8b132ee1b29c1e8964ec2ec00c5c89bbf4b7ad"
+    },
+    {
+      "id": "028-biglove-xl2",
+      "group": 28,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "669a15a57cf31782b65fc80a45e198d018b3a74a6e859f8bdeac648044ffee2b"
+    },
+    {
+      "id": "028-cyberrealisticxl-desirev20",
+      "group": 28,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "432fc8db37af3a45db6832ed265960ed069732f9efb889adda028312f84f8d1f"
+    },
+    {
+      "id": "028-epicrealismxl-purefix",
+      "group": 28,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "036a346a0ad6d00e481c1cd5f3f90b987082c7269ed984091600a4e8da165beb"
+    },
+    {
+      "id": "028-eventhorizon-xlv60",
+      "group": 28,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "e9651a32695b78208deeb7092fd5f741f71b8c09dbdc06555300358f8c1ce185"
+    },
+    {
+      "id": "028-juggernautxl-ragnarokby",
+      "group": 28,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "44d738ee137dcd0bb0687d16959d2e8c35f76eafa66c12fb298fde45915499a2"
+    },
+    {
+      "id": "028-realityboundxl-soulgripv10",
+      "group": 28,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "6c4beb6da761844cc33b1523444dc8326a69d2d8175d6cc330b91e3ce164027f"
+    },
+    {
+      "id": "037-aureanuancexl-v2",
+      "group": 37,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "2ec78738f7591fa187f7483633fef080a878f2dd82eceada90e0df16b5c58bf7"
+    },
+    {
+      "id": "037-biglove-xl2",
+      "group": 37,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "f1077589ad88d9fd18607891c7d85217834b040cbeb323927c98c6b3e1a614a1"
+    },
+    {
+      "id": "037-cyberrealisticxl-desirev20",
+      "group": 37,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "5cecc5e5efa0dc78ab2b839b484525bf6d2f4b6c944470720f86d522b6573f5a"
+    },
+    {
+      "id": "037-epicrealismxl-purefix",
+      "group": 37,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "da5feb28bbd57c00a6be6a2d3f45f896b75fb2e77cb9073934cafc164e1f0d01"
+    },
+    {
+      "id": "037-eventhorizon-xlv60",
+      "group": 37,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "8455e092c7a7dcec25aebf261385d3eceab01c668f646ae1e1b197b5c9b0a1e3"
+    },
+    {
+      "id": "037-juggernautxl-ragnarokby",
+      "group": 37,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "614f94bfefc438f10c60425dd65628de9f5c3aec5f9ffe2c7740a26e84b5f250"
+    },
+    {
+      "id": "037-realityboundxl-soulgripv10",
+      "group": 37,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "07a9ce8435012d85a4164706f34773409c2b60c41e2151156a63b37fd5dfab4b"
+    },
+    {
+      "id": "047-aureanuancexl-v2",
+      "group": 47,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "c063c75a727a28a5ac1d4a33075e6abc824499b2cf7a51a0c801c6bfc4afa214"
+    },
+    {
+      "id": "047-biglove-xl2",
+      "group": 47,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "851873288edea2ca24299ca822a2fe892b60f233e6a85dd054be48acb10a8b8a"
+    },
+    {
+      "id": "047-cyberrealisticxl-desirev20",
+      "group": 47,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "59799bf128267cfe13c86a31729f6096cdb86b40776103bfc6e2b030a53469f2"
+    },
+    {
+      "id": "047-epicrealismxl-purefix",
+      "group": 47,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "674f1c644829b75cf58d7f47d16ac4286e294f80338ee6dee6891712c23d8920"
+    },
+    {
+      "id": "047-eventhorizon-xlv60",
+      "group": 47,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "f91ef59887354a12bd0b00b806b08e8305ac8c845fd660f650977e1685a63096"
+    },
+    {
+      "id": "047-juggernautxl-ragnarokby",
+      "group": 47,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "65527f143070f8617a3469264e226ccae1b1e792118f8aaf8f92861e7ba3bd7f"
+    },
+    {
+      "id": "047-realityboundxl-soulgripv10",
+      "group": 47,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "5260d646344c6ae2d27a4903c90117cbbba03c0bd83157c0ebd1fe37b80f92b2"
+    }
+  ]
+}

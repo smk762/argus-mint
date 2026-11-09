@@ -1,10 +1,10 @@
 {
   "items": [
     {
-      "id": "623c8e79606d33fd",
+      "id": "0a04fc8363a7b6f6",
       "status": "done",
-      "created_at": "2026-11-09T06:01:25.998720Z",
-      "finished_at": "2026-11-09T06:01:26.946277Z",
+      "created_at": "2026-11-09T09:10:38.894138Z",
+      "finished_at": "2026-11-09T09:10:39.777317Z",
       "error": null,
       "request": {
         "template": {
@@ -19,6 +19,8 @@
           "id": "example-bio",
           "version": 1
         },
+        "model": null,
+        "loras": [],
         "count": 2,
         "variables": {},
         "seed": 3,
@@ -49,12 +51,12 @@
               "detail": ""
             }
           ],
-          "bio": "Sample mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+          "bio": "Sample once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
           "bio_attempts": [
             {
               "outcome": "ok",
               "detail": "",
-              "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
+              "text": "{name} once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised."
             }
           ],
           "error": null,
@@ -81,12 +83,12 @@
               "detail": ""
             }
           ],
-          "bio": "Sample once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+          "bio": "Sample keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
           "bio_attempts": [
             {
               "outcome": "ok",
               "detail": "",
-              "text": "{name} once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised."
+              "text": "{name} keeps a lantern lit for travellers who have not yet set out, just in case they lose their way."
             }
           ],
           "error": null,

@@ -93,6 +93,8 @@ argus-mint publish drafts/unit-17 --card 0x… --ipfs-api http://127.0.0.1:5001 
 
 **Frames.** Renders are clean, full-bleed art. A frame is a reviewed PNG overlay, transparent inside its art window, with an optional slot for the card's name. It's described in a YAML file next to it, which goes through the same `draft | approved | retired` review as templates ([frames/card-green-v1.yaml](frames/card-green-v1.yaml)). Render at the art window's aspect ratio (the template's `width`/`height`): the art is scaled to cover the window and the overflow is cropped. A framed card's provenance names the frame and its hash, and points to the unframed art on IPFS.
 
+**Provenance.** A card's metadata has a `provenance` block, which the mint voucher's `contentHash` covers. It names the template (id, version, hash), the seed and attempt count, and the render's choices: the template `variables`, the checkpoint (`model`) and the `loras` with their weights. Those are enough to rebuild the exact render request: `fill(template, variables, seed, model, chosen)`, where `chosen` is what `loras` lists after the template's own LoRAs (`fill` adds those itself). The variables are values from the template's fixed lists, never free text. Cards minted before 0.2.1 lack these three fields.
+
 **Card text.** A frame has text slots, each with a font, size and box; text shrinks to fit and is clipped with an ellipsis if it still doesn't. argus-mint fills `name` and `bio`. The consumer fills the rest (`--text class=…`, `--text stats=…`) with display text from its own records. That text is shown on the card, never written into the metadata as stats.
 
 **Bios.** A language model writes each card's flavour text from a reviewed bio template ([bios/example-bio-v1.yaml](bios/example-bio-v1.yaml): Mistral NeMo, fruity). It sees only the template's fixed-list values and writes a `{name}` token; argus-mint puts the real name in afterwards, so a player's name never reaches a model. darkroom's text check screens every bio, and flagged ones are rewritten. The moderator and the owner then read it on the card during review. The bio becomes the card's `description`.
@@ -178,7 +180,7 @@ Like the other suite services, it binds to localhost and refuses writes from bro
 
 **For UI authors:**
 - The wire contract is [schema/mint-wire.schema.json](schema/mint-wire.schema.json) (`argus-mint schema`), pinned by release tag and sha256 the way argus-studio pins the other services.
-- [fixtures/api/](fixtures/api/) holds recorded responses with a draft in each state, for demo mode.
+- [fixtures/api/](fixtures/api/) holds recorded responses for demo mode: a draft in each state, a sample job, and a subset of the portrait library. Re-record it with `uv run python scripts/api_fixture.py` after `argus-mint library build`; `tests/test_api_fixture.py` fails when it's stale.
 - The image is `ghcr.io/smk762/argus-mint`.
 
 ## Live demo (Base Sepolia)

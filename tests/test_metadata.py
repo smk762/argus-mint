@@ -117,3 +117,19 @@ def test_provenance_validation():
         PROV.model_validate({**PROV.model_dump(), "asset_id": "0x1234"})
     with pytest.raises(ValueError):
         PROV.model_validate({**PROV.model_dump(), "attempts": 0})
+
+
+def test_unset_render_choices_leave_the_content_hash_as_it_was():
+    # A provenance without variables, model or LoRAs (cards minted before they were recorded)
+    # serializes, and so hashes, exactly as it did.
+    assert set(PROV.to_json()) == {
+        "template",
+        "template_version",
+        "template_hash",
+        "seed",
+        "attempts",
+        "asset_id",
+        "consumer",
+    }
+    with_choices = PROV.model_copy(update={"variables": {"role": "ranger"}, "model": "sdxl/a/a.safetensors"})
+    assert content_hash(make(provenance=with_choices)) != content_hash(make())

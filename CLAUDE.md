@@ -41,7 +41,7 @@ templates/        example template YAML (example-portrait v1: approved; v2: draf
 bios/             example bio template (draft; mistral-nemo, fruity flavour text)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
 schema/           mint-wire.schema.json: the HTTP wire contract (`argus-mint schema`; a test fails if stale)
-fixtures/api/     recorded API responses for the UIs' demo mode (scripts/api_fixture.py)
+fixtures/api/     recorded API responses for the UIs' demo mode, incl. a library subset (scripts/api_fixture.py; needs ./library)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
 tests/fixtures/   committed cross-implementation fixtures (Merkle, vouchers)
 ```
@@ -51,7 +51,7 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 ## Settled decisions (beyond the spec)
 
 - The ERC-721 contract is **`Card`** (not `UnitCard`): no game words in argus-mint. EIP-712 domain name `"argus-mint Card"`, version `"1"`. Token name/symbol are constructor args.
-- The voucher's **`contentHash` = keccak256(canonical({"image": …, "provenance": …}))** — only the immutable part of the metadata, so it stays checkable after live attribute refreshes. `metadata.content_hash()` is the one place this is computed.
+- The voucher's **`contentHash` = keccak256(canonical({"image": …, "provenance": …}))** — only the immutable part of the metadata, so it stays checkable after live attribute refreshes. `metadata.content_hash()` is the one place this is computed. Provenance records the render's choices (`variables`, `model`, `loras`; `Provenance.for_render(req, …)` is the one builder) so the request can be rebuilt from public metadata; unset fields are left out, so cards minted without them (before 0.2.1) hash as before.
 - Template hash = keccak256 of the canonical JSON of the template **minus `status`**, so retiring a template doesn't change the hash cards already carry. `approved_by`/`approved_at` are included.
 - Ledger commitments are **sha256** (atlas-realms already publishes `sha256(secret)`); Merkle leaves are OpenZeppelin `StandardMerkleTree` `["bytes32"]` (double keccak).
 - **Target chain: Base** (OP Stack; mainnet 8453, testnet Base Sepolia 84532), chosen 2026-11-08 for consumer onboarding and ecosystem exposure. `networks.py` holds the constants; `foundry.toml` has `base` / `base_sepolia` RPC and Basescan entries; `make deploy [NETWORK=base]` deploys and verifies (settings in `.env`, deployer from a Foundry keystore, never a raw key in a file).

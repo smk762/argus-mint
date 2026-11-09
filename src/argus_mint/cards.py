@@ -154,11 +154,8 @@ class CardDraft(BaseModel):
 
     def provenance(self, art_cid: str | None) -> Provenance:
         """The card's provenance. ``art_cid`` (the unframed render) is required for a framed card."""
-        return Provenance(
-            template=self.request.template_id,
-            template_version=self.request.template_version,
-            template_hash=self.request.template_hash,
-            seed=self.request.seed,
+        return Provenance.for_render(
+            self.request,
             attempts=len(self.attempts),
             asset_id=self.asset_id,
             consumer=self.consumer,

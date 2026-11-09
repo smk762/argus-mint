@@ -1,0 +1,88 @@
+{
+  "id": "0f532caab9439b42",
+  "status": "pending",
+  "awaiting": [
+    "moderator",
+    "owner"
+  ],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 2,
+      "template_hash": "0x5c36dcb87248112c3c6a1c876cd76718f72063a155cc762147d871da2b8e08e7",
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1,
+        "guidance": null
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single non-binary knight, centered and facing the viewer, wearing gold heraldry, standing, background: academy, painted fantasy illustration, full bleed, detailed face",
+      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047
+    },
+    "attempts": [
+      {
+        "seed": 8453047,
+        "outcome": "ok",
+        "ref": "53b5cda368f24c00a9b816828af6c3e2",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x4e7c4b1ae555535666b339bbef3ecfd778991593efc8590c56c77501872e8ea5",
+    "to": "0x8B371B14Cdb39a431a199EAd85A096A5Bd59FF72",
+    "name": "Library Pick",
+    "description": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen."
+        }
+      ],
+      "edited": false
+    },
+    "texts": {
+      "class": "Knight · Gold",
+      "stats": "No. 5"
+    },
+    "style": null,
+    "library": "047-realityboundxl-soulgripv10",
+    "edits": [],
+    "auto_check": null,
+    "art_sha256": "5260d646344c6ae2d27a4903c90117cbbba03c0bd83157c0ebd1fe37b80f92b2",
+    "image_sha256": "b29d6b0bf7b577adf278c74243ac74ac226163dd624482a233f10beb4d466587",
+    "created_at": "2026-11-09T09:10:38.729315Z",
+    "reviews": []
+  },
+  "published": null
+}
