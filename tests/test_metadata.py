@@ -133,3 +133,21 @@ def test_unset_render_choices_leave_the_content_hash_as_it_was():
     }
     with_choices = PROV.model_copy(update={"variables": {"role": "ranger"}, "model": "sdxl/a/a.safetensors"})
     assert content_hash(make(provenance=with_choices)) != content_hash(make())
+
+
+def test_whole_style_numbers_hash_as_a_js_verifier_hashes_them():
+    # JavaScript writes 1 where Python writes 1.0, so a whole float in provenance must be written
+    # as an int, or a JS verifier can't reproduce the contentHash.
+    from argus_mint.metadata import CardStyle
+
+    style = CardStyle.model_validate(
+        {
+            "tint": {"colour": "#112233", "strength": 1},
+            "slots": {"bio": {"background": {"colour": "#000000", "opacity": 0}}},
+        }
+    )
+    doc = make(provenance=PROV.model_copy(update={"style": style}))
+    js_view = json.loads(json.dumps(doc), parse_float=lambda s: int(float(s)) if float(s).is_integer() else float(s))
+    assert canonical(js_view) == canonical(doc)
+    assert b'"strength":1,' in canonical(doc) or b'"strength":1}' in canonical(doc)
+    assert b'"opacity":0,' in canonical(doc)

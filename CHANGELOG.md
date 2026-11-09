@@ -24,6 +24,10 @@ All notable changes to this project are documented here. Versions come from git 
 - **Template v2** drops `sdxl/makeArtNotGoon_v8` (weaker output); it lists seven SDXL checkpoints.
 - The fixture is re-recorded at wire 1.6 (it was 1.3).
 
+### Fixed
+
+- **Whole numbers in a card's style hash the same in JavaScript.** A tint `strength` or background `opacity` of exactly 0 or 1 was written as `0.0`/`1.0` in provenance, which a JS verifier rewrites as `0`/`1`, so its `contentHash` didn't verify. They are now written as integers, like LoRA weights. Styles exist since 0.2.0; no card minted so far has one.
+
 ## 0.2.0 (2026-11-09)
 
 ### Changed (breaking)
