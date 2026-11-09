@@ -15,7 +15,17 @@ import math
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
 
@@ -139,6 +149,12 @@ class LoraUse(BaseModel):
 
     name: str = Field(min_length=1)
     weight: float
+
+    @field_serializer("weight", when_used="json")
+    def _whole_as_int(self, w: float) -> int | float:
+        # Provenance is hashed as canonical JSON, and JSON libraries disagree on a whole float:
+        # Python writes 1.0, JavaScript 1. Written as an int, every verifier hashes the same bytes.
+        return int(w) if w.is_integer() else w
 
 
 class BioRef(BaseModel):
