@@ -17,7 +17,7 @@ from argus_mint.bios import BioTemplate
 from argus_mint.cards import CardDraft
 from argus_mint.frames import Frame
 from argus_mint.metadata import CardStyle
-from argus_mint.templates import Template
+from argus_mint.templates import LoraChoice, Template
 
 __all__ = [
     "WIRE_VERSION",
@@ -53,9 +53,9 @@ __all__ = [
     "SampleRequest",
 ]
 
-WIRE_VERSION = (
-    "1.4"  # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library
-)
+# 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
+# 1.5 LoRA choices, sampling per checkpoint family
+WIRE_VERSION = "1.5"
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -130,6 +130,7 @@ class CreateDraft(_Wire):
     variables: dict[str, str] = Field(default_factory=dict)
     seed: int = Field(default=0, ge=0, le=2**32 - 1)
     model: str | None = None  # a checkpoint the template allows; default: the template's own
+    loras: list[LoraChoice] = Field(default_factory=list)  # from the template's lora_options
     library: str | None = None  # a library entry id instead of rendering
     asset: str | None = Field(default=None, min_length=1, max_length=256)  # asset id = keccak256(utf8)
     asset_id: str | None = None  # 0x + 64 hex
@@ -243,6 +244,7 @@ class SampleRequest(_Wire):
     frame: Ref | None = None
     bio: Ref | None = None
     model: str | None = None  # a checkpoint the template allows; default: the template's own
+    loras: list[LoraChoice] = Field(default_factory=list)  # from the template's lora_options
     count: int = Field(default=4, ge=1, le=12)
     variables: dict[str, str] = Field(default_factory=dict)  # fixed values; the rest vary
     seed: int = Field(default=0, ge=0, le=2**32 - 1)  # picks the combinations, and the first render seed

@@ -583,7 +583,7 @@ def create_app(
                 template=t, values=entry.variables if entry else body.variables,
                 seed=entry.seed if entry else body.seed, asset_id=aid, to=to, name=body.name,
                 renderer=None if entry else darkroom, image=entry_image, library=entry,
-                model=entry.model if entry else body.model, description=body.description,
+                model=entry.model if entry else body.model, loras=tuple(body.loras), description=body.description,
                 external_url=body.external_url, consumer=cfg.consumer, frame=lf, bio=bt,
                 writer=writer if bt else None, guard=darkroom if bt else None, texts=body.texts, style=body.style,
             )  # fmt: skip
@@ -820,7 +820,7 @@ def create_app(
             return sample_card(
                 renderer=darkroom, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
                 writer=writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
-                style=body.style, model=body.model,
+                style=body.style, model=body.model, loras=tuple(body.loras),
             )  # fmt: skip
 
         return samples.submit(body, picks, run_one)

@@ -74,7 +74,9 @@ def request_body(
         "expand": False,
         "seed": req.seed,
         "checkpoint": req.model,
-        "sampling": {**req.sampling.model_dump(), "width": req.width, "height": req.height} if req.sampling else None,
+        "sampling": {**req.sampling.model_dump(exclude_none=True), "width": req.width, "height": req.height}
+        if req.sampling
+        else None,
         "loras": [{"name": lo.name, "weight": lo.weight, "trigger_words": list(lo.trigger_words)} for lo in req.loras],
         "enforcing_policy": policy,
         "advisory_policies": list(advisory_policies),

@@ -38,6 +38,7 @@ from argus_mint.library import describe as describe_library
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
 from argus_mint.render import GenResult, RenderError, render_for_review
 from argus_mint.templates import (
+    LoraChoice,
     RenderRequest,
     TemplateError,
     combinations,
@@ -168,6 +169,9 @@ IpfsOpt = Annotated[
     str | None,
     typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
 ]
+LoraOpt = Annotated[
+    list[str], typer.Option(help="A LoRA from the template's lora_options, NAME or NAME@WEIGHT (repeat)")
+]
 ModelOpt = Annotated[str | None, typer.Option(help="Checkpoint: the template's default, or one of its `models`")]
 BioOpt = Annotated[Path | None, typer.Option(help="Bio template YAML: a language model writes the card's bio")]
 WriterOpt = Annotated[
@@ -188,6 +192,17 @@ def _render_failed(e: RenderError) -> typer.Exit:
     for a in e.attempts:
         typer.echo(f"  attempt seed={a.seed} {a.outcome} {a.ref} {a.detail}", err=True)
     return _fail(str(e))
+
+
+def _parse_loras(items: list[str]) -> tuple[LoraChoice, ...]:
+    out = []
+    for item in items:
+        name, sep, weight = item.rpartition("@") if "@" in item else (item, "", "")
+        try:
+            out.append(LoraChoice(name=name, weight=float(weight) if sep else None))
+        except ValueError as e:
+            raise typer.BadParameter(f"expected NAME or NAME@WEIGHT, got {item!r}", param_hint="--lora") from e
+    return tuple(out)
 
 
 def _parse_texts(pairs: list[str]) -> dict[str, str]:
@@ -232,6 +247,7 @@ def sample(
     var: Annotated[list[str], typer.Option(help="Fix a variable to key=value (repeat); the rest vary")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="Picks the combinations, and the first render seed")] = 0,
     model: ModelOpt = None,
+    lora: LoraOpt = [],  # noqa: B006
     frame: Annotated[Path | None, typer.Option(help="Frame YAML to preview (any status)")] = None,
     name: Annotated[str, typer.Option(help="Name drawn in the frame's name slot")] = "Sample",
     bio: BioOpt = None,
@@ -275,7 +291,7 @@ def sample(
     for i, values in enumerate(picks, 1):
         entry: dict[str, Any] = {"n": i, "variables": values}
         try:
-            r = render_for_review(client, t, values, seed + i, model)
+            r = render_for_review(client, t, values, seed + i, model, _parse_loras(lora))
             b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
         except (DarkroomError, BioFailed) as e:
             if isinstance(e, BioFailed):
@@ -317,6 +333,7 @@ def draft(
     var: Annotated[list[str], typer.Option(help="Template variable key=value (repeat)")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="First render seed")] = 0,
     model: ModelOpt = None,
+    lora: LoraOpt = [],  # noqa: B006
     library: Annotated[Path | None, typer.Option(help="Pre-rendered library directory (with --entry)")] = None,
     entry: Annotated[str | None, typer.Option(help="Library entry id: its art, variables and seed")] = None,
     asset_id: Annotated[str | None, typer.Option(help="0x 32-byte asset id")] = None,
@@ -399,6 +416,7 @@ def draft(
             texts=extra,
             model=lib_entry.model if lib_entry else model,
             library=lib_entry,
+            loras=_parse_loras(lora),
         )
     except (TemplateError, FrameError, LibraryError) as e:
         raise _fail(str(e)) from e
