@@ -28,6 +28,8 @@ __all__ = [
     "DraftDetail",
     "DraftList",
     "DraftSummary",
+    "EditTextRequest",
+    "TextEdit",
     "FrameInfo",
     "Health",
     "PublishRequest",
@@ -46,7 +48,7 @@ __all__ = [
     "SampleRequest",
 ]
 
-WIRE_VERSION = "1.1"  # 1.1: sample jobs, frame previews, catalogue decisions
+WIRE_VERSION = "1.2"  # 1.1: samples, frame previews, catalogue decisions; 1.2: text edits, auto-moderation
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -64,6 +66,8 @@ class Capabilities(_Wire):
     publish: bool  # IPFS, signer and Card address configured, moderator token set, not read-only
     sample: bool = False  # darkroom configured, moderator token set, not read-only
     review_catalogue: bool = False  # moderator token set, catalogue files writable, not read-only
+    edit_text: bool = False  # not read-only, and a moderator token or owner sign-in is available
+    auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
 
 
 class Health(_Wire):
@@ -160,10 +164,32 @@ class DraftDetail(_Wire):
     published: PublishResult | None = None
 
 
-class ChallengeRequest(_Wire):
-    """POST /drafts/{id}/challenge: the owner asks for the message to sign."""
+class TextEdit(_Wire):
+    """A change to the card's text. ``None`` leaves a field as it is; an empty slot text clears it."""
 
-    approve: bool
+    name: str | None = Field(default=None, max_length=120)
+    bio: str | None = Field(default=None, max_length=2000)
+    texts: dict[str, str] | None = None
+
+
+class ChallengeRequest(_Wire):
+    """POST /drafts/{id}/challenge: the owner asks for the message to sign.
+
+    ``action: review`` with ``approve``; ``action: edit`` with the exact ``edit`` it will authorise.
+    """
+
+    action: Literal["review", "edit"] = "review"
+    approve: bool = True
+    edit: TextEdit | None = None
+
+
+class EditTextRequest(TextEdit):
+    """POST /drafts/{id}/text: the moderator by token and ``by``; the owner with a signed edit challenge."""
+
+    role: Literal["moderator", "owner"]
+    by: str | None = Field(default=None, max_length=128)
+    message: str | None = None
+    signature: str | None = None
 
 
 class Challenge(_Wire):
@@ -277,6 +303,8 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     DraftDetail,
     ChallengeRequest,
     Challenge,
+    TextEdit,
+    EditTextRequest,
     ReviewRequest,
     PublishRequest,
     PublishResult,

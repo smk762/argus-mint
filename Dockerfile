@@ -32,11 +32,12 @@ COPY . .
 RUN uv pip install --system --no-cache "certifi>=2026.10.19" ".[server]"
 
 # The example templates, frames and bios ship in /app; mount your own over them.
-# Drafts (and their published vouchers) live on a volume.
+# Drafts (and their published vouchers) and sample jobs live on a volume.
 ENV ARGUS_MINT_TEMPLATES_DIR=/app/templates \
     ARGUS_MINT_FRAMES_DIR=/app/frames \
     ARGUS_MINT_BIOS_DIR=/app/bios \
-    ARGUS_MINT_DRAFTS_DIR=/data/drafts
+    ARGUS_MINT_DRAFTS_DIR=/data/drafts \
+    ARGUS_MINT_SAMPLES_DIR=/data/samples
 VOLUME /data
 EXPOSE 8108
 CMD ["argus-mint", "serve", "--host", "0.0.0.0", "--port", "8108"]

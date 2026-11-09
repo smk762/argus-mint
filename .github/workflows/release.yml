@@ -100,10 +100,12 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/argus-mint
+          # pep440, not semver: pre-release tags here are v0.1.0a1, which semver can't parse
+          # (the version output would fall back to "latest" and break the build arg below).
+          # `latest` follows the default flavor (latest=auto): final releases only.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=pep440,pattern={{version}}
+            type=pep440,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v6
         with:
           context: .

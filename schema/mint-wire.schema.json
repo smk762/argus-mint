@@ -44,6 +44,49 @@
       "title": "ArtSource",
       "type": "object"
     },
+    "AutoCheck": {
+      "additionalProperties": false,
+      "description": "What auto-moderation found for the current image. ``passed`` recorded the moderator's approval.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "checks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "held": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Held",
+          "type": "array"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "at",
+        "image_sha256",
+        "passed",
+        "checks"
+      ],
+      "title": "AutoCheck",
+      "type": "object"
+    },
     "BioInfo": {
       "additionalProperties": false,
       "properties": {
@@ -78,6 +121,11 @@
           },
           "title": "Attempts",
           "type": "array"
+        },
+        "edited": {
+          "default": false,
+          "title": "Edited",
+          "type": "boolean"
         },
         "ref": {
           "$ref": "#/$defs/BioRef"
@@ -235,8 +283,18 @@
       "additionalProperties": false,
       "description": "What this server will do. A client disables a control whose capability is false.",
       "properties": {
+        "auto_moderate": {
+          "default": false,
+          "title": "Auto Moderate",
+          "type": "boolean"
+        },
         "create_drafts": {
           "title": "Create Drafts",
+          "type": "boolean"
+        },
+        "edit_text": {
+          "default": false,
+          "title": "Edit Text",
           "type": "boolean"
         },
         "moderate": {
@@ -297,6 +355,17 @@
           "title": "Attempts",
           "type": "array"
         },
+        "auto_check": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutoCheck"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "bio": {
           "anyOf": [
             {
@@ -323,6 +392,14 @@
           "default": "",
           "title": "Description",
           "type": "string"
+        },
+        "edits": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Edit"
+          },
+          "title": "Edits",
+          "type": "array"
         },
         "external_url": {
           "anyOf": [
@@ -507,16 +584,34 @@
     },
     "ChallengeRequest": {
       "additionalProperties": false,
-      "description": "POST /drafts/{id}/challenge: the owner asks for the message to sign.",
+      "description": "POST /drafts/{id}/challenge: the owner asks for the message to sign.\n\n``action: review`` with ``approve``; ``action: edit`` with the exact ``edit`` it will authorise.",
       "properties": {
+        "action": {
+          "default": "review",
+          "enum": [
+            "review",
+            "edit"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
         "approve": {
+          "default": true,
           "title": "Approve",
           "type": "boolean"
+        },
+        "edit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TextEdit"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
-      "required": [
-        "approve"
-      ],
       "title": "ChallengeRequest",
       "type": "object"
     },
@@ -773,6 +868,149 @@
       "title": "DraftSummary",
       "type": "object"
     },
+    "Edit": {
+      "additionalProperties": false,
+      "description": "A change to the card's text, which redraws the card image on the same art.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fields",
+          "type": "array"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "moderator",
+            "owner"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "by",
+        "at",
+        "fields",
+        "image_sha256"
+      ],
+      "title": "Edit",
+      "type": "object"
+    },
+    "EditTextRequest": {
+      "additionalProperties": false,
+      "description": "POST /drafts/{id}/text: the moderator by token and ``by``; the owner with a signed edit challenge.",
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "By"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "role": {
+          "enum": [
+            "moderator",
+            "owner"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "signature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signature"
+        },
+        "texts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Texts"
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "title": "EditTextRequest",
+      "type": "object"
+    },
     "Frame": {
       "additionalProperties": false,
       "description": "One version of a frame, as reviewed and recorded in its YAML file.",
@@ -1017,7 +1255,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.1",
+          "default": "1.2",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1870,6 +2108,55 @@
       "title": "TemplateInfo",
       "type": "object"
     },
+    "TextEdit": {
+      "additionalProperties": false,
+      "description": "A change to the card's text. ``None`` leaves a field as it is; an empty slot text clears it.",
+      "properties": {
+        "bio": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bio"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "texts": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Texts"
+        }
+      },
+      "title": "TextEdit",
+      "type": "object"
+    },
     "TextSlot": {
       "additionalProperties": false,
       "description": "A box for one piece of card text.\n\nThe text is drawn at ``size`` if it fits, else at the largest size down to ``min_size``\nthat fits; with ``wrap`` it breaks across lines. If it doesn't fit even at ``min_size``,\nit is clipped and ends in an ellipsis.",
@@ -1968,5 +2255,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.1"
+  "title": "argus-mint wire 1.2"
 }
