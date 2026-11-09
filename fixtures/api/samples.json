@@ -1,10 +1,10 @@
 {
   "items": [
     {
-      "id": "d7a21045decc4113",
+      "id": "623c8e79606d33fd",
       "status": "done",
-      "created_at": "2026-11-09T05:49:42.318289Z",
-      "finished_at": "2026-11-09T05:49:43.230704Z",
+      "created_at": "2026-11-09T06:01:25.998720Z",
+      "finished_at": "2026-11-09T06:01:26.946277Z",
       "error": null,
       "request": {
         "template": {
@@ -26,7 +26,8 @@
         "texts": {
           "class": "Sample class",
           "stats": "No. 0"
-        }
+        },
+        "style": null
       },
       "items": [
         {

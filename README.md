@@ -127,7 +127,8 @@ make serve-up                               # or in docker with Kubo (compose pr
 | `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs to approve or reject |
 | `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
 | `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
-| `POST /drafts/{id}/text` | change the card's name, bio or display text: it is redrawn on the same art and needs both approvals again (moderator token, or the owner's signed edit) |
+| `POST /drafts/{id}/edit` | the owner changes the card's text or style, with a wallet signature covering exactly that change. The card is redrawn on the same art and needs both approvals again. The moderator only approves or rejects |
+| `POST /frames/{id}/{version}/layout`, `GET /frames/{id}/{version}/fonts/…` | where each line of text goes, and the frame's fonts, so a browser can preview a restyled card as SVG before it is baked |
 | `POST /samples`, `GET /samples[/{id}]` | sample cards of a template, frame and bio (any status) for their reviewer, as background jobs; local only (moderator token) |
 | `POST /frames/{id}/{version}/preview` | a frame (any status) on a draft's or sample's art, as a PNG |
 | `POST /{templates,frames,bios}/{id}/{version}/review` | approve a draft or retire an approved file. This writes `status`, `approved_by` and `approved_at` into the YAML, keeping its comments (moderator token) |
@@ -140,7 +141,13 @@ make serve-up                               # or in docker with Kubo (compose pr
 - **The word filter:** better-profanity's list, which catches letter swaps, plus your own terms in `ARGUS_MINT_BLOCKLIST`, one per line.
 - **The owner** always reviews.
 
-**Editing.** Text edits never reach a model, so an edited bio goes through the word filter rather than darkroom.
+**Editing and styling are the owner's.** The owner can change the name, the bio and the display text. They can also restyle the frame:
+- **Border:** a tint colour and strength.
+- **Each text slot:** colour, an effect (shadow, outline or glow) and a background (colour, opacity, rounded corners).
+
+Any colours are allowed; if the owner wants black on black, so be it. A frame can set `style_locked: true` to refuse restyling.
+
+The browser previews a restyle as SVG from `/layout` and the fonts, using the same tint matrix as the server. argus-mint bakes the PNG when the owner confirms, and that PNG is what gets reviewed and published. Provenance records the style, so the card can be redrawn exactly. Edited text never reaches a model, so an edited bio goes through the word filter rather than darkroom.
 
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
 - **Files:** `DRAFTS_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.

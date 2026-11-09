@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from argus_mint.bios import BioTemplate
 from argus_mint.cards import CardDraft
 from argus_mint.frames import Frame
+from argus_mint.metadata import CardStyle
 from argus_mint.templates import Template
 
 __all__ = [
@@ -29,6 +30,8 @@ __all__ = [
     "DraftList",
     "DraftSummary",
     "EditTextRequest",
+    "FrameLayout",
+    "LayoutRequest",
     "TextEdit",
     "FrameInfo",
     "Health",
@@ -48,7 +51,7 @@ __all__ = [
     "SampleRequest",
 ]
 
-WIRE_VERSION = "1.2"  # 1.1: samples, frame previews, catalogue decisions; 1.2: text edits, auto-moderation
+WIRE_VERSION = "1.3"  # 1.1: samples, previews, catalogue decisions; 1.2: auto-moderation; 1.3: owner edits + style
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -66,7 +69,7 @@ class Capabilities(_Wire):
     publish: bool  # IPFS, signer and Card address configured, moderator token set, not read-only
     sample: bool = False  # darkroom configured, moderator token set, not read-only
     review_catalogue: bool = False  # moderator token set, catalogue files writable, not read-only
-    edit_text: bool = False  # not read-only, and a moderator token or owner sign-in is available
+    edit_text: bool = False  # owner edits of text and style: not read-only, and owner sign-in is set up
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
 
 
@@ -126,6 +129,7 @@ class CreateDraft(_Wire):
     frame: Ref | None = None
     bio: Ref | None = None
     texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot
+    style: CardStyle | None = None  # the owner's choices, if the consumer collected them up front
 
 
 class DraftSummary(_Wire):
@@ -165,11 +169,13 @@ class DraftDetail(_Wire):
 
 
 class TextEdit(_Wire):
-    """A change to the card's text. ``None`` leaves a field as it is; an empty slot text clears it."""
+    """The owner's change to the card: text and style. ``None`` leaves a field as it is; an empty
+    slot text clears it; ``style`` replaces the whole style (an empty one clears it)."""
 
     name: str | None = Field(default=None, max_length=120)
     bio: str | None = Field(default=None, max_length=2000)
     texts: dict[str, str] | None = None
+    style: CardStyle | None = None
 
 
 class ChallengeRequest(_Wire):
@@ -184,12 +190,13 @@ class ChallengeRequest(_Wire):
 
 
 class EditTextRequest(TextEdit):
-    """POST /drafts/{id}/text: the moderator by token and ``by``; the owner with a signed edit challenge."""
+    """POST /drafts/{id}/edit: only the owner edits, with the signed challenge for exactly this edit.
 
-    role: Literal["moderator", "owner"]
-    by: str | None = Field(default=None, max_length=128)
-    message: str | None = None
-    signature: str | None = None
+    The moderator approves or rejects; they don't change the card.
+    """
+
+    message: str
+    signature: str
 
 
 class Challenge(_Wire):
@@ -229,6 +236,7 @@ class SampleRequest(_Wire):
     seed: int = Field(default=0, ge=0, le=2**32 - 1)  # picks the combinations, and the first render seed
     name: str = Field(default="Sample", min_length=1, max_length=120)
     texts: dict[str, str] = Field(default_factory=dict)
+    style: CardStyle | None = None
 
 
 class SampleItem(_Wire):
@@ -275,6 +283,7 @@ class FramePreviewRequest(_Wire):
     name: str = Field(default="Sample", min_length=1, max_length=120)
     bio: str | None = Field(default=None, max_length=2000)
     texts: dict[str, str] = Field(default_factory=dict)
+    style: CardStyle | None = None
 
 
 class CatalogueDecision(_Wire):
@@ -291,6 +300,33 @@ class CatalogueEntry(_Wire):
     status: Literal["draft", "approved", "retired"]
     hash: str
     file: str
+
+
+class LayoutRequest(_Wire):
+    """POST /frames/{id}/{version}/layout: where these texts go, for a browser preview."""
+
+    texts: dict[str, str]
+
+
+class LineLayout(_Wire):
+    text: str
+    x: int  # left edge, overlay pixels
+    y: int  # top edge (the font's ascender line), overlay pixels
+
+
+class SlotLayout(_Wire):
+    font: str | None  # GET /frames/{id}/{version}/fonts/{font}; None: Pillow's built-in font
+    size: int
+    ascent: int
+    descent: int
+    effects: dict[str, int]  # shadow offset, outline width, glow blur radius, in pixels
+    lines: list[LineLayout]
+
+
+class FrameLayout(_Wire):
+    width: int
+    height: int
+    slots: dict[str, SlotLayout]
 
 
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
@@ -314,4 +350,6 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     FramePreviewRequest,
     CatalogueDecision,
     CatalogueEntry,
+    LayoutRequest,
+    FrameLayout,
 )

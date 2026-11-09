@@ -30,7 +30,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from argus_mint._codec import Bytes32
-from argus_mint.metadata import BioRef, FrameRef, Provenance
+from argus_mint.metadata import BioRef, CardStyle, FrameRef, Provenance
 from argus_mint.templates import RenderRequest
 
 __all__ = [
@@ -130,6 +130,7 @@ class CardDraft(BaseModel):
     frame: FrameRef | None = None
     bio: BioRecord | None = None
     texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot (class, stats...)
+    style: CardStyle | None = None  # the owner's styling of the frame
     edits: tuple[Edit, ...] = ()
     auto_check: AutoCheck | None = None
     art_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -163,6 +164,7 @@ class CardDraft(BaseModel):
             frame=self.frame,
             art=f"ipfs://{art_cid}" if self.frame is not None and art_cid else None,
             bio=self.bio.ref if self.bio is not None else None,
+            style=self.style,
         )
 
 

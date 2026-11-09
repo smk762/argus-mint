@@ -1,5 +1,5 @@
 {
-  "id": "7169fd212118e61d",
+  "id": "4caf98f406cd8662",
   "status": "approved",
   "awaiting": [],
   "draft": {
@@ -40,7 +40,7 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x89964876bb9e20b0262233b1c023a63554302b2f1653191a12c0e63e3fdc0608",
-    "to": "0x2300743C04F833868f544d9723BA8e94b1c70344",
+    "to": "0xD59748Df4530E7bcA626a7a833eA3c33FAa77cC1",
     "name": "Azure Stormcaller",
     "description": "Azure Stormcaller mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
     "external_url": null,
@@ -48,7 +48,7 @@
     "frame": {
       "id": "card-green",
       "version": 1,
-      "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48"
+      "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903"
     },
     "bio": {
       "ref": {
@@ -71,25 +71,26 @@
       "class": "Wizard · Azure",
       "stats": "No. 3"
     },
+    "style": null,
     "edits": [],
     "auto_check": null,
     "art_sha256": "d572b28f3837b5077dd5dc294ed85e109607731c51735ab8837993bc64869c1b",
     "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
-    "created_at": "2026-11-09T05:49:41.666499Z",
+    "created_at": "2026-11-09T06:01:25.334955Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-09T05:49:41.672970Z",
+        "at": "2026-11-09T06:01:25.342273Z",
         "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x2300743C04F833868f544d9723BA8e94b1c70344",
-        "at": "2026-11-09T05:49:41.691408Z",
+        "by": "0xD59748Df4530E7bcA626a7a833eA3c33FAa77cC1",
+        "at": "2026-11-09T06:01:25.367102Z",
         "image_sha256": "965c21e43108bea69db550a066d4a0bb7673dfbb267f11079e9a886a8d301960",
         "note": ""
       }

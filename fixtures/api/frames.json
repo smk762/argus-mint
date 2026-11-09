@@ -1,6 +1,6 @@
 [
   {
-    "hash": "0x9e53c3dcba50eb796a40c81b38137a873ed06ea014bf0b4ac381a27ada8f1e48",
+    "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903",
     "file": "card-green-v1.yaml",
     "width": 969,
     "height": 1352,
@@ -74,11 +74,12 @@
           "wrap": false,
           "line_spacing": 1.15
         }
-      }
+      },
+      "style_locked": false
     }
   },
   {
-    "hash": "0x69063f4bdaaa1dd446ccd800c23cb3911d916ca5e7e2c3b6f582d0fb5bf06a60",
+    "hash": "0xde11b9747cc643c44849b5fbc3f1a4bc86c16968858280161bb2916382130856",
     "file": "example-plain-v1.yaml",
     "width": 1000,
     "height": 1400,
@@ -110,7 +111,8 @@
           "wrap": false,
           "line_spacing": 1.15
         }
-      }
+      },
+      "style_locked": false
     }
   }
 ]
