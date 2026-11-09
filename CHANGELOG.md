@@ -6,6 +6,14 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- **Templates are checked against darkroom's workflows (wire 1.7, #10).** `darkroom.check_template` reads darkroom's `GET /models` and reports anything that would make a render fail with a 400:
+  - a checkpoint, LoRA, sampler or scheduler darkroom doesn't have
+  - a checkpoint with no workflow for a LoRA count the template allows
+  - a workflow given a negative prompt, `guidance` or `clip_skip` it has no slot for, or missing `guidance` it needs
+
+  It runs in three places. `argus-mint preflight` runs it before the text check. The server serves it at `GET /templates/{id}/{version}/check`, with the `check_templates` capability. Approving a template through the API is refused (409) while it reports problems.
+- **Darkroom's workflow is recorded with each attempt.** Each attempt keeps the workflow's name and sha256 (`attempts[].workflow`) in drafts, library entries and `publish` output.
+
 - **Provenance records the render's choices (wire 1.6).** The metadata's `provenance`, which the voucher's `contentHash` covers, gains `variables`, `model` (the checkpoint) and `loras` (name and weight). With the template hash and seed they rebuild the exact render request, so a card's art can be reproduced and checked from public data alone (hard rule 7). The variables come from the template's fixed lists, so no free text is added (hard rule 1). They are left out when unset: cards minted before this keep their `contentHash`, but don't say which variables, checkpoint or LoRAs made them. `Provenance.for_render` builds the block for both the CLI and the server.
 
 - **The portrait library in the API fixture** (#14), for argus-assay's and argus-studio's demo mode. `fixtures/api/library.json` is `GET /library` for six whole groups of the pre-rendered library (all seven SDXL checkpoints each, ids and group numbers as in the full library), with a 640 px JPEG per entry in `fixtures/api/library/`. One recorded draft is made from a library entry.

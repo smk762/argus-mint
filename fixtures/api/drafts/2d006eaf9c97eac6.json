@@ -1,5 +1,5 @@
 {
-  "id": "0f532caab9439b42",
+  "id": "2d006eaf9c97eac6",
   "status": "pending",
   "awaiting": [
     "moderator",
@@ -11,7 +11,7 @@
       "template_id": "example-portrait",
       "template_version": 2,
       "template_hash": "0x5c36dcb87248112c3c6a1c876cd76718f72063a155cc762147d871da2b8e08e7",
-      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
       "loras": [],
       "sampling": {
         "sampler": "euler",
@@ -23,30 +23,30 @@
       },
       "width": 1152,
       "height": 896,
-      "prompt": "waist-up portrait of a single non-binary knight, centered and facing the viewer, wearing gold heraldry, standing, background: academy, painted fantasy illustration, full bleed, detailed face",
+      "prompt": "waist-up portrait of a single non-binary cyborg, centered and facing the viewer, wearing steel heraldry, repairing, background: workshop, painted fantasy illustration, full bleed, detailed face",
       "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "workshop",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "repairing",
+        "role": "cyborg"
       },
-      "seed": 8453047
+      "seed": 8454
     },
     "attempts": [
       {
-        "seed": 8453047,
+        "seed": 8454,
         "outcome": "ok",
-        "ref": "53b5cda368f24c00a9b816828af6c3e2",
+        "ref": "fixture-1",
         "detail": ""
       }
     ],
     "renderer": "darkroom",
-    "asset_id": "0x4e7c4b1ae555535666b339bbef3ecfd778991593efc8590c56c77501872e8ea5",
-    "to": "0x8B371B14Cdb39a431a199EAd85A096A5Bd59FF72",
-    "name": "Library Pick",
-    "description": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+    "asset_id": "0x309a65fb4c95d87a9b67c21ca029d0e120baab30d9931785d1408f9886cc71e2",
+    "to": "0x5A2DD641E1Bb133F600728B8e1B5E35a15eCFAF8",
+    "name": "Steel Tinker",
+    "description": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
     "external_url": null,
     "consumer": "argus-mint",
     "frame": {
@@ -61,27 +61,27 @@
         "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
         "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
       },
-      "text": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+      "text": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
       "attempts": [
         {
           "outcome": "ok",
           "detail": "",
-          "text": "{name} hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen."
+          "text": "{name} keeps a lantern lit for travellers who have not yet set out, just in case they lose their way."
         }
       ],
       "edited": false
     },
     "texts": {
-      "class": "Knight · Gold",
-      "stats": "No. 5"
+      "class": "Cyborg · Steel",
+      "stats": "No. 2"
     },
     "style": null,
-    "library": "047-realityboundxl-soulgripv10",
+    "library": null,
     "edits": [],
     "auto_check": null,
-    "art_sha256": "5260d646344c6ae2d27a4903c90117cbbba03c0bd83157c0ebd1fe37b80f92b2",
-    "image_sha256": "b29d6b0bf7b577adf278c74243ac74ac226163dd624482a233f10beb4d466587",
-    "created_at": "2026-11-09T09:10:38.729315Z",
+    "art_sha256": "7d8569653a593f56d38b38d00a561503a82c3e2eb4a4228ebe467890c03f6c32",
+    "image_sha256": "4e31ff3c37216390cce49e268f609eb0554374ea8ae5b0440ab78320822aebb4",
+    "created_at": "2026-11-09T09:15:19.628629Z",
     "reviews": []
   },
   "published": null

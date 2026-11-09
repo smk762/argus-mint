@@ -292,10 +292,7 @@ def build(
                     variables=values,
                     seed=group_seed,
                     request=r.request,
-                    attempts=tuple(
-                        {"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail}
-                        for a in r.attempts
-                    ),
+                    attempts=tuple(a.to_json() for a in r.attempts),
                     file=file,
                     sha256=hashlib.sha256(r.image).hexdigest(),
                 )  # fmt: skip

@@ -231,6 +231,9 @@ def test_preflight_command(tmp_path, template_doc, monkeypatch):
     seen = []
 
     def handler(request):
+        if request.method == "GET":  # the workflow check: the template's checkpoint, rendered without LoRAs
+            c = {"name": template_doc["model"], "family": template_doc["model"].split("/")[0], "lora_counts": [0]}
+            return httpx.Response(200, json={"checkpoints": [c], "loras": [], "workflows": []})
         body = json.loads(request.content)
         seen.append(body)
         refused = "infantry" in body["user_prompt"] and "crimson" in body["user_prompt"]
@@ -247,4 +250,5 @@ def test_preflight_command(tmp_path, template_doc, monkeypatch):
     assert result.exit_code == 1  # one combination is refused
     assert len(seen) == 8  # 2 x 2 x 2 combinations, drafts included
     assert result.stdout.count("REFUSED") == 2
+    assert "PROBLEM" in result.stdout  # this template has no sampling: darkroom couldn't render it
     assert all(b["sampling"] is None and b["expand"] is False for b in seen)
