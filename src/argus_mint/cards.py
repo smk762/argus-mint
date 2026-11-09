@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 from datetime import UTC, datetime
@@ -39,6 +40,7 @@ __all__ = [
     "load_draft",
     "review",
     "save_draft",
+    "write_atomic",
 ]
 
 Role = Literal["moderator", "owner"]
@@ -133,6 +135,13 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def write_atomic(path: Path, text: str) -> None:
+    """Write ``text`` to ``path`` by rename: a concurrent reader sees the old file or the new one, never part of one."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def review(
     draft: CardDraft,
     *,
@@ -179,7 +188,7 @@ def save_draft(directory: Path, draft: CardDraft, art: bytes | None = None, imag
         (directory / ART_FILE).write_bytes(art)
     if image is not None and draft.frame is not None:
         (directory / CARD_FILE).write_bytes(image)
-    (directory / DRAFT_FILE).write_text(draft.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    write_atomic(directory / DRAFT_FILE, draft.model_dump_json(indent=2) + "\n")
 
 
 def load_draft(directory: Path) -> tuple[CardDraft, bytes, bytes]:
@@ -242,7 +251,7 @@ class DraftStore:
 
     def save_published(self, draft_id: str, result: dict[str, Any]) -> None:
         f = self.path(draft_id) / PUBLISHED_FILE
-        f.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        write_atomic(f, json.dumps(result, indent=2, ensure_ascii=False) + "\n")
 
 
 class DraftNotFound(DraftError):

@@ -36,6 +36,7 @@ import random
 import re
 import secrets
 import threading
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -47,7 +48,6 @@ import structlog
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
 from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -61,9 +61,9 @@ from argus_mint.cards import (
     DraftError,
     DraftNotFound,
     DraftStore,
-    NotApproved,
     review,
     sha256_hex,
+    write_atomic,
 )
 from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
@@ -96,7 +96,7 @@ from argus_mint.wire import (
     SampleRequest,
     TemplateInfo,
 )
-from argus_mint.workflow import card_texts, check_texts, create_draft, publish, sample_card
+from argus_mint.workflow import card_texts, check_bio, check_texts, create_draft, publish, sample_card
 
 __all__ = ["DEFAULT_PORT", "Settings", "create_app"]
 
@@ -270,7 +270,8 @@ def create_app(
         if not has_token:
             raise HTTPException(403, "no moderator token is configured on this server")
         scheme, _, token = (authorization or "").partition(" ")
-        if scheme.lower() != "bearer" or not secrets.compare_digest(token.strip(), cfg.moderator_token):
+        given, expected = token.strip().encode(), cfg.moderator_token.encode()  # bytes: str refuses non-ASCII
+        if scheme.lower() != "bearer" or not secrets.compare_digest(given, expected):
             raise HTTPException(401, "a valid moderator token is required", headers={"WWW-Authenticate": "Bearer"})
 
     def yaml_files(root: Path) -> list[Path]:
@@ -440,36 +441,39 @@ def create_app(
 
     # -- writes ----------------------------------------------------------------------------------
 
+    # The handlers that render, composite, pin or take the lock are plain `def`s: FastAPI runs
+    # those in its threadpool, so none of that work (or a wait for the lock) stalls the event loop.
+
     @app.post("/drafts", status_code=201)
-    async def post_draft(body: CreateDraft, authorization: Annotated[str | None, Header()] = None) -> DraftDetail:
+    def post_draft(body: CreateDraft, authorization: Annotated[str | None, Header()] = None) -> DraftDetail:
         require_token(authorization)
         if darkroom is None:
             raise HTTPException(503, "no darkroom is configured (ARGUS_MINT_DARKROOM_URL)")
         if (body.asset is None) == (body.asset_id is None):
             raise HTTPException(422, "give exactly one of asset or asset_id")
         try:
-            aid = to_bytes32(body.asset_id) if body.asset_id else keccak256(body.asset.encode())  # type: ignore[union-attr]
+            aid = to_bytes32(body.asset_id) if body.asset_id is not None else keccak256(body.asset.encode())  # type: ignore[union-attr]
             to = to_checksum_address(body.to)
         except ValueError as e:
             raise HTTPException(422, str(e)) from e
         t = pick(templates(), body.template, "template")
         lf = pick(frames(), body.frame, "frame") if body.frame else None
         bt = pick(bios(), body.bio, "bio template") if body.bio else None
-        if bt is not None and writer is None:
-            raise HTTPException(503, "no bio writer is configured (ARGUS_MINT_WRITER_URL)")
-
-        def make() -> Any:
-            return create_draft(
+        if bt is not None:
+            if writer is None:
+                raise HTTPException(503, "no bio writer is configured (ARGUS_MINT_WRITER_URL)")
+            try:
+                check_bio(bt, body.variables, t)  # the request's fault: a BioError past here is the writer's
+            except BioError as e:
+                raise HTTPException(422, str(e)) from e
+        # BioError (and so BioFailed) is a ValueError: the specific handlers come before the 422 catch-all.
+        try:
+            made = create_draft(
                 template=t, values=body.variables, seed=body.seed, asset_id=aid, to=to, name=body.name,
                 renderer=darkroom, description=body.description, external_url=body.external_url,
                 consumer=cfg.consumer, frame=lf, bio=bt, writer=writer if bt else None,
                 guard=darkroom if bt else None, texts=body.texts,
             )  # fmt: skip
-
-        try:
-            made = await run_in_threadpool(make)
-        except (TemplateError, FrameError, ValueError) as e:
-            raise HTTPException(422, str(e)) from e
         except RenderError as e:
             raise HTTPException(
                 422, {"error": str(e), "attempts": [a.__dict__ | {"outcome": str(a.outcome)} for a in e.attempts]}
@@ -478,6 +482,8 @@ def create_app(
             raise HTTPException(422, {"error": str(e), "bio_attempts": [a.__dict__ for a in e.attempts]}) from e
         except (DarkroomError, BioError) as e:
             raise HTTPException(502, str(e)) from e
+        except (TemplateError, FrameError, ValueError) as e:
+            raise HTTPException(422, str(e)) from e
         with lock:
             draft_id = store.new_id()
             store.save(draft_id, made.draft, made.art, made.image)
@@ -563,17 +569,19 @@ def create_app(
         return msg.address
 
     @app.post("/drafts/{draft_id}/publish")
-    async def post_publish(
+    def post_publish(
         draft_id: str, body: PublishRequest, authorization: Annotated[str | None, Header()] = None
     ) -> DraftDetail:
         require_token(authorization)
         if pinner is None or not cfg.card:
             raise HTTPException(503, "publishing needs ARGUS_MINT_IPFS_API and ARGUS_MINT_CARD")
+        if body.deadline is not None and body.deadline <= time.time():
+            # a draft publishes once: an already expired voucher would close it for good
+            raise HTTPException(422, "deadline is in the past: the voucher would already be expired")
         signer_now = get_signer()
         if signer_now is None:
             raise HTTPException(503, "no signer: set ARGUS_MINT_ACCOUNT (+ password file) or ARGUS_MINT_SIGNER_KEY")
-
-        def run() -> dict[str, Any]:
+        try:
             with lock:
                 if store.published(draft_id):
                     raise DraftError("this draft is already published")
@@ -585,15 +593,9 @@ def create_app(
                     price=body.price, deadline=body.deadline, ttl=cfg.voucher_ttl,
                 )  # fmt: skip
                 store.save_published(draft_id, result)
-                return result
-
-        try:
-            await run_in_threadpool(run)
         except DraftNotFound as e:
             raise HTTPException(404, str(e)) from e
-        except NotApproved as e:
-            raise HTTPException(409, str(e)) from e
-        except DraftError as e:
+        except DraftError as e:  # NotApproved included
             raise HTTPException(409, str(e)) from e
         except PinError as e:
             raise HTTPException(502, str(e)) from e
@@ -685,7 +687,7 @@ def create_app(
         return Response(samples.image(job_id, n, which), media_type="image/png")
 
     @app.post("/frames/{frame_id}/{version}/preview")
-    async def frame_preview(frame_id: str, version: int, body: FramePreviewRequest) -> Response:
+    def frame_preview(frame_id: str, version: int, body: FramePreviewRequest) -> Response:
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
         src = body.art
         if (src.draft is None) == (src.sample is None):
@@ -701,7 +703,7 @@ def create_app(
             art = samples.image(src.sample or "", src.n or 0, "art")
         try:
             check_texts(body.texts, lf)
-            png = await run_in_threadpool(compose, lf, art, card_texts(lf, body.name, body.bio, body.texts))
+            png = compose(lf, art, card_texts(lf, body.name, body.bio, body.texts))
         except FrameError as e:
             raise HTTPException(422, str(e)) from e
         return Response(png, media_type="image/png")
@@ -736,14 +738,17 @@ class _SampleRunner:
     def _save(self, job: SampleJob) -> None:
         d = self._dir(job.id)
         d.mkdir(parents=True, exist_ok=True)
-        (d / "job.json").write_text(job.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        write_atomic(d / "job.json", job.model_dump_json(indent=2) + "\n")  # GET /samples reads it mid-job
 
     def get(self, job_id: str) -> SampleJob:
         f = self._dir(job_id) / "job.json"
         if not f.is_file():
             raise HTTPException(404, f"no sample job {job_id}")
+        # Ask before reading: a job that finishes between the two (its last save, then leaving
+        # `live`) would otherwise be read as running, found not live, and reported as interrupted.
+        live = job_id in self.live
         job = SampleJob.model_validate_json(f.read_text(encoding="utf-8"))
-        if job.status in ("queued", "running") and job.id not in self.live:
+        if job.status in ("queued", "running") and not live:
             job = job.model_copy(update={"status": "failed", "error": "interrupted: the server stopped"})
         return job
 
@@ -776,9 +781,17 @@ class _SampleRunner:
             try:
                 job_id, picks, run_one = self.queue.get(timeout=5)
             except queue.Empty:
-                return
+                # Retire under the lock submit() holds: a job queued while this thread was on its
+                # way out would otherwise find it "alive" and never be picked up.
+                with self.lock:
+                    if self.queue.empty():
+                        self.thread = None
+                        return
+                continue
             try:
                 self._run(job_id, picks, run_one)
+            except Exception as e:  # e.g. job.json can't be written: keep working through the queue
+                log.warning("sample_job_crashed", job=job_id, error=str(e))
             finally:
                 self.live.discard(job_id)
 

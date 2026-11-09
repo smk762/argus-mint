@@ -14,7 +14,7 @@ from typing import Any
 from eth_account.signers.local import LocalAccount
 
 from argus_mint._codec import hex0x
-from argus_mint.bios import Bio, BioFailed, BioTemplate, TextGuard, Writer, write_bio
+from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
 from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
 from argus_mint.frames import FrameError, LoadedFrame, compose, require_approved
 from argus_mint.metadata import card_metadata, content_hash
@@ -28,6 +28,7 @@ __all__ = [
     "Made",
     "Sample",
     "card_texts",
+    "check_bio",
     "check_texts",
     "create_draft",
     "publish",
@@ -59,6 +60,16 @@ def check_texts(texts: dict[str, str], frame: LoadedFrame | None) -> None:
             f"frame {frame.frame.id} v{frame.frame.version} has no text slot {unknown}; "
             f"its slots: {sorted(frame.frame.texts)}"
         )
+
+
+def check_bio(bio: BioTemplate, values: dict[str, str], template: Template) -> None:
+    """Raise ``BioError`` if ``bio`` can't write this card's bio: it isn't approved, or doesn't fit the template.
+
+    Run before rendering, so a bio template that would be refused doesn't cost a render first.
+    """
+    if bio.status != "approved":
+        raise BioError(f"bio {bio.id} v{bio.version} is {bio.status}; only approved bio templates go on a card")
+    bio.fill(values, template)
 
 
 def card_texts(frame: LoadedFrame, name: str, bio: str | None, extra: dict[str, str]) -> dict[str, str]:
@@ -101,6 +112,8 @@ def create_draft(
         raise ValueError("give exactly one of renderer or image")
     if bio is not None and (writer is None or guard is None):
         raise ValueError("a bio needs a writer and a text guard")
+    if bio is not None:
+        check_bio(bio, values, template)
     if image is not None:
         req = fill(template, values, seed)
         art, attempts = image, [{"seed": req.seed, "outcome": "supplied", "ref": image_ref}]

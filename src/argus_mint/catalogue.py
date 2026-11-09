@@ -40,7 +40,7 @@ def _set_key(text: str, key: str, value: str, after: str) -> str:
 
 
 def _quote(s: str) -> str:
-    return yaml.safe_dump(s, default_style='"').strip()
+    return yaml.safe_dump(s, default_style='"', width=float("inf")).strip()  # one line, whatever its length
 
 
 def record_decision(path: Path, decision: Decision, *, by: str, today: date, validate: Callable[[Path], Any]) -> str:
@@ -62,13 +62,15 @@ def record_decision(path: Path, decision: Decision, *, by: str, today: date, val
         raise CatalogueError("the reviewer's name is required, on one line")
 
     new_status = "approved" if decision == "approve" else "retired"
-    text = re.sub(
+    text, found = re.subn(
         r"^status:[ \t]*\w+",
         f"status: {new_status}",
         original,
         count=1,
         flags=re.MULTILINE,
     )
+    if not found:
+        raise CatalogueError("no top-level `status: <word>` line to update (write the status unquoted)")
     if decision == "approve":
         text = _set_key(text, "approved_by", _quote(by.strip()), after="status")
         text = _set_key(text, "approved_at", today.isoformat(), after="approved_by")
