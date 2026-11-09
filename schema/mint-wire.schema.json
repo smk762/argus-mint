@@ -751,6 +751,13 @@
           "default": null,
           "title": "Library"
         },
+        "loras": {
+          "items": {
+            "$ref": "#/$defs/LoraChoice"
+          },
+          "title": "Loras",
+          "type": "array"
+        },
         "model": {
           "anyOf": [
             {
@@ -1361,7 +1368,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.4",
+          "default": "1.5",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1498,6 +1505,76 @@
         "y"
       ],
       "title": "LineLayout",
+      "type": "object"
+    },
+    "LoraChoice": {
+      "additionalProperties": false,
+      "description": "A render's pick from the template's ``lora_options``. ``weight`` defaults to the first allowed.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "LoraChoice",
+      "type": "object"
+    },
+    "LoraOption": {
+      "additionalProperties": false,
+      "description": "A LoRA a card may choose (reviewed with the template), at one of its allowed weights.\n\n``models``: the checkpoints it may pair with (a LoRA belongs to one family); empty means any\nthe template allows.",
+      "properties": {
+        "models": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "array"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "trigger_words": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Trigger Words",
+          "type": "array"
+        },
+        "weights": {
+          "default": [
+            1.0
+          ],
+          "items": {
+            "type": "number"
+          },
+          "title": "Weights",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "LoraOption",
       "type": "object"
     },
     "LoraRef": {
@@ -2099,6 +2176,13 @@
           ],
           "default": null
         },
+        "loras": {
+          "items": {
+            "$ref": "#/$defs/LoraChoice"
+          },
+          "title": "Loras",
+          "type": "array"
+        },
         "model": {
           "anyOf": [
             {
@@ -2176,6 +2260,20 @@
           "minimum": 1,
           "title": "Clip Skip",
           "type": "integer"
+        },
+        "guidance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 30,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guidance"
         },
         "sampler": {
           "minLength": 1,
@@ -2381,6 +2479,14 @@
           "title": "Id",
           "type": "string"
         },
+        "lora_options": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LoraOption"
+          },
+          "title": "Lora Options",
+          "type": "array"
+        },
         "loras": {
           "default": [],
           "items": {
@@ -2394,6 +2500,13 @@
           "maximum": 16,
           "minimum": 1,
           "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_loras": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 0,
+          "title": "Max Loras",
           "type": "integer"
         },
         "model": {
@@ -2429,6 +2542,13 @@
             }
           ],
           "default": null
+        },
+        "sampling_by_family": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Sampling"
+          },
+          "title": "Sampling By Family",
+          "type": "object"
         },
         "status": {
           "enum": [
@@ -2683,5 +2803,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.4"
+  "title": "argus-mint wire 1.5"
 }

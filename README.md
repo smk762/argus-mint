@@ -136,7 +136,18 @@ make serve-up                               # or in docker with Kubo (compose pr
 
 **Who can do what.** The moderator token (`ARGUS_MINT_MODERATOR_TOKEN`) creates drafts, renders samples, approves or retires templates, frames and bio templates, reviews as the moderator, and publishes. The owner reviews by signing an EIP-4361 (Sign-In with Ethereum) message with the wallet the card will be minted to. The message names the draft, the decision and the image's sha256, and works once. Neither role can act as the other.
 
-**Checkpoints.** A template lists the checkpoints a card may use (`models`, reviewed with it; `model` is the default). `draft --model`, `sample --model` and `POST /drafts` with `model` choose one; anything else is refused.
+**Checkpoints, sampling and LoRAs.** A template lists the checkpoints a card may use (`models`, reviewed with it; `model` is the default). `draft --model`, `sample --model` and `POST /drafts` with `model` choose one; anything else is refused.
+
+The template's `sampling` applies unless `sampling_by_family` has an entry for the checkpoint's family. The family is its top folder: `sdxl`, `flux`, `sd35`. Flux sets `guidance`.
+
+A template can also offer `lora_options`, each with:
+- allowed `weights`
+- `trigger_words`
+- the checkpoints it pairs with
+
+A card may choose up to `max_loras` of them (`--lora NAME[@WEIGHT]`, or `loras` in the API).
+
+Rendering other families, and LoRAs, also needs darkroom to choose its workflow per request (smk762/argus-darkroom#29). Until then, darkroom refuses those renders.
 
 **A library for demos without a GPU.** `argus-mint library build TEMPLATE --out library --count 48` renders COUNT diverse combinations on every checkpoint the template allows. The same combination gets the same seed on each, so they compare like for like. It renders one checkpoint at a time, so each loads once, and an interrupted build resumes. Every image passes darkroom's safety check, as always. `argus-mint serve` offers the library at `/library` (`ARGUS_MINT_LIBRARY_DIR`), and `draft --library DIR --entry ID` uses it from the CLI.
 

@@ -104,7 +104,7 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.4" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert h["wire_version"] == "1.5" and h["chain_id"] == 84532 and h["card"] == CARD
     assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library"))
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()

@@ -158,3 +158,56 @@ def test_server_drafts_from_the_library_without_darkroom(tmp_path, tdoc):
     )
     assert render.status_code == 503  # rendering needs darkroom
     assert Library(tmp_path / "library").entry(entry["id"]).model == entry["model"]
+
+
+def test_lora_options_are_a_reviewed_choice(tdoc):
+    from argus_mint.templates import LoraChoice
+
+    doc = {
+        **tdoc,
+        "lora_options": [
+            {"name": "sdxl/style/ink.safetensors", "weights": [0.6, 0.9], "trigger_words": ["ink style"],
+             "models": [MODELS[0]]},
+            {"name": "sdxl/style/glow.safetensors"},
+        ],
+        "max_loras": 1,
+    }  # fmt: skip
+    t = Template.model_validate(doc)
+    values = {"role": "ranger", "colour": "none", "pose": "standing"}
+    req = fill(t, values, 1, MODELS[0], (LoraChoice(name="sdxl/style/ink.safetensors"),))
+    assert [(lo.name, lo.weight, lo.trigger_words) for lo in req.loras] == [
+        ("sdxl/style/ink.safetensors", 0.6, ("ink style",))
+    ]
+    for bad, match in [
+        ((LoraChoice(name="sdxl/other.safetensors"),), "not one this template offers"),
+        ((LoraChoice(name="sdxl/style/ink.safetensors", weight=2.0),), "allows weights"),
+        ((LoraChoice(name="sdxl/style/ink.safetensors"), LoraChoice(name="sdxl/style/glow.safetensors")), "at most 1"),
+    ]:
+        with pytest.raises(TemplateError, match=match):
+            fill(t, values, 1, MODELS[0], bad)
+    with pytest.raises(TemplateError, match="doesn't pair"):
+        fill(t, values, 1, MODELS[1], (LoraChoice(name="sdxl/style/ink.safetensors"),))
+    assert fill(t, values, 1).loras == ()  # choosing none is fine
+    with pytest.raises(ValueError, match="doesn't allow"):
+        Template.model_validate({**doc, "lora_options": [{"name": "x", "models": ["flux/f/f.safetensors"]}]})
+
+
+def test_sampling_follows_the_checkpoint_family(template_doc):
+    from argus_mint.darkroom import request_body
+    from argus_mint.templates import family
+
+    base = {"sampler": "euler", "scheduler": "normal", "steps": 25, "cfg": 6.0}
+    flux = {"sampler": "euler", "scheduler": "simple", "steps": 20, "cfg": 1.0, "guidance": 3.5}
+    doc = {**template_doc, "loras": [], "model": "sdxl/a/a.safetensors", "models": ["flux/f/f.safetensors"],
+           "sampling": base, "sampling_by_family": {"flux": flux}}  # fmt: skip
+    t = Template.model_validate(doc)
+    values = {"role": "ranger", "colour": "none", "pose": "standing"}
+    assert family("flux/f/f.safetensors") == "flux" and family("plain.safetensors") == ""
+    sdxl_req = fill(t, values, 1)
+    flux_req = fill(t, values, 1, "flux/f/f.safetensors")
+    assert sdxl_req.sampling.cfg == 6.0 and sdxl_req.sampling.guidance is None
+    assert flux_req.sampling.guidance == 3.5 and flux_req.sampling.steps == 20
+    assert "guidance" not in request_body(sdxl_req)["sampling"]  # unset: darkroom never sees it
+    assert request_body(flux_req)["sampling"]["guidance"] == 3.5
+    plain = Template.model_validate({**template_doc, "sampling": base})
+    assert plain.hash() == Template.model_validate({**template_doc, "sampling": {**base, "guidance": None}}).hash()

@@ -21,7 +21,7 @@ from argus_mint.library import LibraryEntry, LibraryError, check_entry
 from argus_mint.metadata import CardStyle, card_metadata, content_hash
 from argus_mint.pin import Pinner
 from argus_mint.render import Darklight, RenderError, render, render_for_review
-from argus_mint.templates import Template, fill
+from argus_mint.templates import LoraChoice, Template, fill
 from argus_mint.vouchers import Domain, MintVoucher, sign, typed_data
 
 __all__ = [
@@ -103,6 +103,7 @@ def create_draft(
     style: CardStyle | None = None,
     model: str | None = None,
     library: LibraryEntry | None = None,
+    loras: tuple[LoraChoice, ...] = (),
 ) -> Made:
     """Render (or take ``image``), write the bio, frame the card. Nothing is pinned or signed.
 
@@ -120,6 +121,8 @@ def create_draft(
         check_style(frame, style)
     if (image is None) == (renderer is None):
         raise ValueError("give exactly one of renderer or image (a library entry comes with its image)")
+    if library is not None and loras:
+        raise ValueError("a library entry was rendered without chosen LoRAs; render instead")
     if library is not None and model not in (None, library.model):
         raise ValueError(f"the library entry was rendered with {library.model}, not {model}")
     if bio is not None and (writer is None or guard is None):
@@ -136,12 +139,12 @@ def create_draft(
         art, attempts = image, list(library.attempts)
         renderer_name = "darkroom"
     elif image is not None:
-        req = fill(template, values, seed, model)
+        req = fill(template, values, seed, model, loras)
         art, attempts = image, [{"seed": req.seed, "outcome": "supplied", "ref": image_ref}]
         renderer_name = "supplied"
     else:
         assert renderer is not None
-        rendered = render(renderer, template, values, seed, model)
+        rendered = render(renderer, template, values, seed, model, loras)
         art, req = rendered.image, rendered.request
         attempts = _render_attempts(rendered.attempts)
     b = write_bio(writer, guard, bio, values, template, name) if bio and writer and guard else None
@@ -249,6 +252,7 @@ def sample_card(
     texts: dict[str, str] | None = None,
     style: CardStyle | None = None,
     model: str | None = None,
+    loras: tuple[LoraChoice, ...] = (),
 ) -> Sample:
     """Render a sample of a template (any status), with an optional bio and frame (any status).
 
@@ -259,7 +263,7 @@ def sample_card(
     check_texts(texts, frame)
     item: dict[str, Any] = {"variables": dict(sorted(values.items()))}
     try:
-        r = render_for_review(renderer, template, values, seed, model)
+        r = render_for_review(renderer, template, values, seed, model, loras)
     except RenderError as e:
         item |= {"error": str(e), "attempts": _render_attempts(e.attempts)}
         return Sample(item, None, None)
