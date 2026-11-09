@@ -159,7 +159,7 @@ def test_draft_text_needs_a_frame(tmp_path, template_doc):
     (tmp_path / "t.yaml").write_text(yaml.safe_dump(template_doc))
     args = draft_args(tmp_path / "t.yaml", tmp_path / "d", "--placeholder", "--text", "class=Ranger")
     result = runner.invoke(cli.app, args)
-    plain = " ".join(re.sub(r"\x1b\[[0-9;]*m|[│╭╮╰╯─]", " ", result.output).split())
+    plain = " ".join(re.sub(r"[│╭╮╰╯─]", " ", re.sub(r"\x1b\[[0-9;]*m", "", result.output)).split())
     assert result.exit_code == 2 and "needs a --frame" in plain
     args = draft_args(tmp_path / "t.yaml", tmp_path / "d", "--placeholder", "--text", "name=Other")
     assert runner.invoke(cli.app, args).exit_code == 2
