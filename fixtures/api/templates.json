@@ -176,7 +176,7 @@
     }
   },
   {
-    "hash": "0xab41eefc067e2f7781a6d2d310a779c799b3001482164fddfc720f4b9dad64cc",
+    "hash": "0xeaecfccaa1aa9632720faaf393f1e7d2d9fbc6d2b589beaad2324f510595c5bd",
     "file": "t3.yaml",
     "combinations": 156816,
     "template": {
@@ -193,7 +193,8 @@
         "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
         "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
         "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
-        "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors"
+        "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+        "flux/flux1-dev-fp8.safetensors"
       ],
       "loras": [],
       "lora_options": [],
@@ -206,12 +207,23 @@
         "clip_skip": 1,
         "guidance": null
       },
-      "sampling_by_family": {},
+      "sampling_by_family": {
+        "flux": {
+          "sampler": "euler",
+          "scheduler": "simple",
+          "steps": 20,
+          "cfg": 1.0,
+          "clip_skip": 1,
+          "guidance": 3.5
+        }
+      },
       "width": 1152,
       "height": 896,
       "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face",
       "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore, blurry",
-      "negative_by_family": {},
+      "negative_by_family": {
+        "flux": ""
+      },
       "variables": {
         "role": [
           "knight",

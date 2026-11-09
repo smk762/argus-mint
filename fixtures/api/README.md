@@ -16,8 +16,8 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 - `library.json` is `GET /library` for whole groups of the pre-rendered library (one entry per
   checkpoint, ids and group numbers as in the full library); `library/<id>.jpg` is each entry's
   640 px thumbnail. One pending draft was made from a library entry (`draft.library`).
-- For the pickers, the fixture's copy of template v2 also offers a Flux checkpoint (its own
-  sampling, no negative prompt) and three LoRA options, as checked against argus-darkroom 0.1.3.
-  The library and the drafts use SDXL only.
+- Template v2 offers seven SDXL checkpoints and Flux dev (its own sampling, no negative prompt);
+  for the LoRA picker the fixture's copy also offers three LoRA options, as checked against
+  argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.

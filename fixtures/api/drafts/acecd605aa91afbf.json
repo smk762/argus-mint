@@ -1,5 +1,5 @@
 {
-  "id": "54a273b26b6cbe76",
+  "id": "acecd605aa91afbf",
   "status": "pending",
   "awaiting": [
     "moderator",
@@ -11,20 +11,20 @@
       "template_id": "example-portrait",
       "template_version": 2,
       "template_hash": "0x5c36dcb87248112c3c6a1c876cd76718f72063a155cc762147d871da2b8e08e7",
-      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "model": "flux/flux1-dev-fp8.safetensors",
       "loras": [],
       "sampling": {
         "sampler": "euler",
-        "scheduler": "normal",
-        "steps": 25,
-        "cfg": 6.0,
+        "scheduler": "simple",
+        "steps": 20,
+        "cfg": 1.0,
         "clip_skip": 1,
-        "guidance": null
+        "guidance": 3.5
       },
       "width": 1152,
       "height": 896,
       "prompt": "waist-up portrait of a single non-binary knight, centered and facing the viewer, wearing gold heraldry, standing, background: academy, painted fantasy illustration, full bleed, detailed face",
-      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "negative": "",
       "variables": {
         "background": "academy",
         "colour": "gold",
@@ -38,13 +38,17 @@
       {
         "seed": 8453047,
         "outcome": "ok",
-        "ref": "53b5cda368f24c00a9b816828af6c3e2",
-        "detail": ""
+        "ref": "95d795406a3940e3b2b97a8794599245",
+        "detail": "",
+        "workflow": {
+          "name": "flux",
+          "sha256": "6a7e030a4209526fc92bcb4432b7b5c8d3faca59c515736a49e5024ae884fc92"
+        }
       }
     ],
     "renderer": "darkroom",
     "asset_id": "0x4e7c4b1ae555535666b339bbef3ecfd778991593efc8590c56c77501872e8ea5",
-    "to": "0x5A2DD641E1Bb133F600728B8e1B5E35a15eCFAF8",
+    "to": "0x84d8530C85fA894c35563fD3b35a9c7695Ca9e60",
     "name": "Library Pick",
     "description": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
     "external_url": null,
@@ -76,12 +80,12 @@
       "stats": "No. 5"
     },
     "style": null,
-    "library": "047-realityboundxl-soulgripv10",
+    "library": "047-flux1-dev-fp8",
     "edits": [],
     "auto_check": null,
-    "art_sha256": "5260d646344c6ae2d27a4903c90117cbbba03c0bd83157c0ebd1fe37b80f92b2",
-    "image_sha256": "b29d6b0bf7b577adf278c74243ac74ac226163dd624482a233f10beb4d466587",
-    "created_at": "2026-11-09T09:15:20.940796Z",
+    "art_sha256": "cf13191de19bb98fd0356086e1cfa20907113ed9fdf19ea5d2abb05a75e38242",
+    "image_sha256": "b962cfe6fd21bf6c1470b73049a91690a4de5663e4893eb8d0613d8a9e60d941",
+    "created_at": "2026-11-09T10:08:17.028892Z",
     "reviews": []
   },
   "published": null

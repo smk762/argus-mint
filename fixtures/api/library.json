@@ -10,7 +10,8 @@
     "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
     "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
     "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
-    "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors"
+    "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+    "flux/flux1-dev-fp8.safetensors"
   ],
   "count": 6,
   "items": [
@@ -113,6 +114,20 @@
       "sha256": "2ca6ad892ae9a04daae794ef76219eb92a089bace9a5d7e0a7dd91ef12aab31f"
     },
     {
+      "id": "000-flux1-dev-fp8",
+      "group": 0,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "none",
+        "gender": "male",
+        "pose": "reading",
+        "role": "giant"
+      },
+      "seed": 8453000,
+      "sha256": "8076dc2c8ffbb267d281ac90e48a4c7a43628f63dacd05bc9b479c97e86d1e1f"
+    },
+    {
       "id": "010-aureanuancexl-v2",
       "group": 10,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
@@ -209,6 +224,20 @@
       },
       "seed": 8453010,
       "sha256": "fe9267c8b3e10231da39b6044674f9d70206aa6754959e1d8168033d0a443cfa"
+    },
+    {
+      "id": "010-flux1-dev-fp8",
+      "group": 10,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "drinking",
+        "role": "wizard"
+      },
+      "seed": 8453010,
+      "sha256": "5b7a3155e3c599cccd41676879f0a086ec0f7aa00b3828cb5f7828d71b4fc983"
     },
     {
       "id": "019-aureanuancexl-v2",
@@ -309,6 +338,20 @@
       "sha256": "a78dfeb633b00fe4f0ef0ed3d378e6489a9cd9d98e68bc5a2cbcecd6ece2c56b"
     },
     {
+      "id": "019-flux1-dev-fp8",
+      "group": 19,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "d59b6b1d76ecf4c4a1d271405f32621b5104107374632431cb0ab739f6e8b016"
+    },
+    {
       "id": "028-aureanuancexl-v2",
       "group": 28,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
@@ -405,6 +448,20 @@
       },
       "seed": 8453028,
       "sha256": "6c4beb6da761844cc33b1523444dc8326a69d2d8175d6cc330b91e3ce164027f"
+    },
+    {
+      "id": "028-flux1-dev-fp8",
+      "group": 28,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "044b619b212eeb64b8afd2ff8949f5ac657bbbd6f08f8006ad4ce19d045298ca"
     },
     {
       "id": "037-aureanuancexl-v2",
@@ -505,6 +562,20 @@
       "sha256": "07a9ce8435012d85a4164706f34773409c2b60c41e2151156a63b37fd5dfab4b"
     },
     {
+      "id": "037-flux1-dev-fp8",
+      "group": 37,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "forest",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "knitting",
+        "role": "ranger"
+      },
+      "seed": 8453037,
+      "sha256": "ce4d64f46b0dc38e6c48532c87746924e08bedac15918ea904bdf3ffa5cbb497"
+    },
+    {
       "id": "047-aureanuancexl-v2",
       "group": 47,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
@@ -601,6 +672,20 @@
       },
       "seed": 8453047,
       "sha256": "5260d646344c6ae2d27a4903c90117cbbba03c0bd83157c0ebd1fe37b80f92b2"
+    },
+    {
+      "id": "047-flux1-dev-fp8",
+      "group": 47,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "cf13191de19bb98fd0356086e1cfa20907113ed9fdf19ea5d2abb05a75e38242"
     }
   ]
 }
