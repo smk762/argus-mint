@@ -4,23 +4,30 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## Unreleased
 
-## 0.1.0 (2026-11-08)
+### Changed (breaking)
 
-First public release, covering milestones M0–M5. Pre-alpha: the Python API may still change, and the contracts have not had an external review. The Base mainnet deployment is a demo, not a production deployment.
+- `argus-mint mint` is gone. A card is now `draft` → `review` (the moderator and the owner each approve the exact image) → `publish`, and nothing is pinned or signed before both approvals. Scripts that called `mint` need the three steps; `submit` takes `publish`'s output as it took `mint`'s.
 
 ### Added
 
 - **Image review before publishing.** `argus-mint mint` is replaced by `draft` (render and frame into a local draft), `review` (the moderator and the owner each approve or reject the exact image, bound to its sha256) and `publish` (pin, metadata, signed voucher). `cards.check_publishable` refuses a draft that lacks either approval, was rejected, or whose files changed. Nothing reaches IPFS or a voucher before both approvals.
 - **Frames.** `frames` module and `[frames]` extra (Pillow): a reviewed PNG overlay with an art window and an optional name slot, composited onto the render. Provenance gains optional `frame` (id, version, hash) and `art` (the unframed render's ipfs:// URI). Both are omitted when unset, so existing cards' `contentHash` is unchanged. `argus-mint frames` validates a directory of frames; there's a placeholder `frames/example-plain-v1`.
+- **Card text and bios.** Frames have named text slots (`texts:`) with fonts, wrapping, shrink-to-fit and ellipsis clipping. `bios` module: a reviewed bio template prompts a language model (`ChatWriter`, OpenAI-style `/chat`; the example uses Mistral NeMo). The model sees only fixed-list values and a `{name}` token, and the real name goes in afterwards. darkroom's text pre-flight screens each bio (`DarkroomClient.check_text`), retrying flagged replies. `draft --bio --writer --text slot=value`. Provenance gains optional `bio` (template id, version, hash, model); the bio becomes the metadata `description`. The card-green frame ships with Cinzel and Crimson Text (SIL OFL).
+- **`argus-mint sample`** renders a few combinations of a draft template (optionally framed) to local files for its reviewer, through `render.render_for_review`. It never pins, signs or mints.
 - **`argus-mint serve`**: the card workflow over HTTP for argus-studio and argus-assay (`server` extra, port 8108). It lists templates, frames and bios; creates, lists and shows drafts and their images; takes reviews; and publishes. The moderator authenticates with a bearer token. The owner signs an EIP-4361 challenge naming the draft, the decision and the image hash, so neither can act as the other. It uses cortex's write guard and CORS, a read-only mode, and `/health` capabilities. The wire contract `schema/mint-wire.schema.json` comes from `argus-mint schema`, and demo-mode fixtures live in `fixtures/api/`. A Docker image (`ghcr.io/smk762/argus-mint`, published on tags) and a compose profile run it. The CLI and the server share `workflow.create_draft`/`publish`.
 - **Catalogue review over HTTP (wire 1.1).**
   - **Samples:** `POST /samples` runs sample cards of a draft template, frame or bio template as a background job, with `GET /samples` to fetch them.
   - **Frame previews:** `POST /frames/{id}/{v}/preview` shows a frame on a draft's or sample's art.
   - **Decisions:** `POST /{templates,frames,bios}/{id}/{v}/review` approves or retires a file. `catalogue.record_decision` writes the decision into the YAML, keeping its comments, and restores the file if it no longer validates.
   - **Listings:** they gain `file` and, for templates, `combinations`; `/health` gains the `sample` and `review_catalogue` capabilities.
-- **Card text and bios.** Frames have named text slots (`texts:`) with fonts, wrapping, shrink-to-fit and ellipsis clipping. `bios` module: a reviewed bio template prompts a language model (`ChatWriter`, OpenAI-style `/chat`; the example uses Mistral NeMo). The model sees only fixed-list values and a `{name}` token, and the real name goes in afterwards. darkroom's text pre-flight screens each bio (`DarkroomClient.check_text`), retrying flagged replies. `draft --bio --writer --text slot=value`. Provenance gains optional `bio` (template id, version, hash, model); the bio becomes the metadata `description`. The card-green frame ships with Cinzel and Crimson Text (SIL OFL).
-- **`argus-mint sample`** renders a few combinations of a draft template (optionally framed) to local files for its reviewer, through `render.render_for_review`. It never pins, signs or mints.
 - `templates/example-portrait-v2.yaml` (draft): clean full-bleed portraits for framing, without the card frames, lettering and badges v1's "card art" produced.
+
+## 0.1.0 (2026-11-08)
+
+First public release, covering milestones M0–M5. Pre-alpha: the Python API may still change, and the contracts have not had an external review. The Base mainnet deployment is a demo, not a production deployment.
+
+### Added
+
 - Pre-review demo on Base mainnet: same contract addresses as testnet (deployer's first transaction), Sourcify-verified, six cards rendered fresh, pinned on a VPS node, minted and frozen by `demo/base/mint-batch.sh`.
 - `scripts/kubo-vps.sh`: native Kubo as a systemd service for a public pinning node. Docker port publishing (rootless especially) left the node unable to accept incoming connections, so gateways couldn't fetch new images.
 - M5 live demo on Base Sepolia: contracts deployed and Sourcify-verified, card #1 rendered through darkroom, pinned, minted and frozen, epoch 1 Merkle root anchored. Outputs and a JS verification script are in `demo/base-sepolia/`, and the README has the walkthrough.
