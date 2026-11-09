@@ -178,7 +178,7 @@ Like the other suite services, it binds to localhost and refuses writes from bro
 
 **For UI authors:**
 - The wire contract is [schema/mint-wire.schema.json](schema/mint-wire.schema.json) (`argus-mint schema`), pinned by release tag and sha256 the way argus-studio pins the other services.
-- [fixtures/api/](fixtures/api/) holds recorded responses with a draft in each state, for demo mode.
+- [fixtures/api/](fixtures/api/) holds recorded responses for demo mode: a draft in each state, a sample job, and a subset of the portrait library. Re-record it with `uv run python scripts/api_fixture.py` after `argus-mint library build`; `tests/test_api_fixture.py` fails when it's stale.
 - The image is `ghcr.io/smk762/argus-mint`.
 
 ## Live demo (Base Sepolia)

@@ -41,7 +41,7 @@ templates/        example template YAML (example-portrait v1: approved; v2: draf
 bios/             example bio template (draft; mistral-nemo, fruity flavour text)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
 schema/           mint-wire.schema.json: the HTTP wire contract (`argus-mint schema`; a test fails if stale)
-fixtures/api/     recorded API responses for the UIs' demo mode (scripts/api_fixture.py)
+fixtures/api/     recorded API responses for the UIs' demo mode, incl. a library subset (scripts/api_fixture.py; needs ./library)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
 tests/fixtures/   committed cross-implementation fixtures (Merkle, vouchers)
 ```
