@@ -11,8 +11,8 @@ id: example-portrait
 version: 2
 status: draft             # draft | approved | retired
 model: sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors   # darkroom checkpoint (GET /models)
-# Checkpoints a card may choose instead (reviewed with the template). All SDXL: the deployed
-# darkroom workflow (sdxl.json) drives SDXL only, and they share the sampling below.
+# Checkpoints a card may choose instead (reviewed with the template). All SDXL, so they share
+# the sampling below; another family would need sampling_by_family (and negative_by_family).
 models:
   - sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors
   - sdxl/bigLove_xl2/bigLove_xl2.safetensors
@@ -20,7 +20,6 @@ models:
   - sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors
   - sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors
   - sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors
-  - sdxl/makeArtNotGoon_v8/makeArtNotGoon_v8.safetensors
   - sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors
 loras: []
 sampling:                                 # fixed here so a render is reproducible
