@@ -12,10 +12,10 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (s
 
 ## Hard rules (a change that breaks one is a bug)
 
-1. **No raw prompts.** A render is a template id + variables, each picked from that template's fixed list. Free text may appear in metadata, never in a model request. `templates.fill` rejects values outside the list, missing or extra keys.
-2. **Only reviewed templates and frames make cards.** Status `draft | approved | retired`; only `approved` templates render cards and only `approved` frames go on them. Approval is a human step recorded in the file (`approved_by`, `approved_at`). `argus-mint sample` / `render.render_for_review` render drafts for their reviewer, to local files only: never pinned, signed or minted.
+1. **No raw prompts.** A render is a template id + variables, each picked from that template's fixed list. Free text (the card name, consumer display text) may appear in metadata and on the card image, never in a model request, image or text. `templates.fill` rejects values outside the list, missing or extra keys. The bio writer sees only the variables and a literal `{name}` token; the name goes in afterwards (`bios.write_bio`).
+2. **Only reviewed templates, frames and bio templates make cards.** Status `draft | approved | retired`; only `approved` templates render cards, only `approved` frames go on them, and only `approved` bio templates write their bios. Approval is a human step recorded in the file (`approved_by`, `approved_at`). `argus-mint sample` / `render.render_for_review` render drafts for their reviewer, to local files only: never pinned, signed or minted.
 3. **Retry, don't loosen.** A safety rejection is retried with a new deterministic seed up to `max_attempts`. Never change the prompt or disable the check. Every attempt's seed + outcome is recorded.
-4. **Tokens carry no power.** Metadata describes a record; it never holds a number a game reads back as a stat. Contracts have no hooks a game calls to decide outcomes.
+4. **Tokens carry no power.** Metadata describes a record; it never holds a number a game reads back as a stat. Card text (class, stats) is display text the consumer supplies, drawn on the image only; the bio writer is told to write no numbers or stats. Contracts have no hooks a game calls to decide outcomes.
 5. **Nothing pays out.** No fungible token, revenue share or staking. Royalties, if any, are standard ERC-2981 on resale.
 6. **Consumers' deterministic code never reads the chain.** The indexer copies chain state into the consumer's DB; game logic reads that copy.
 7. **Reproducible.** Same template version + variables + seed → same render request. Metadata JSON is canonical (sorted keys, compact separators, UTF-8) so its hash is stable.
@@ -26,7 +26,7 @@ Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (s
 
 ```
 src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_codec: keccak, canonical JSON, field types)
-                  frames cards                             # frame overlays (Pillow, `frames` extra); card drafts + image review
+                  frames cards bios                        # frame overlays + text slots (Pillow, `frames` extra); card drafts + image review; LLM bios
                   render pin indexer                       # clients behind Protocols (no web3 needed)
                   chain ledger                             # web3 clients (`chain` extra)
                   keys                                     # signers: Foundry keystore (password file/prompt) or $ARGUS_MINT_SIGNER_KEY
@@ -35,6 +35,7 @@ src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_code
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
 templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing)
+bios/             example bio template (draft; mistral-nemo, fruity flavour text)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
 tests/fixtures/   committed cross-implementation fixtures (Merkle, vouchers)
@@ -66,6 +67,8 @@ Extras: base install = pure Python (no web3); `chain` = web3 for the indexer and
 - `pin.LocalPinner`/`raw_cid` produce real CIDv1 raw ids, equal to IPFS's only for single-chunk (≤ 256 KiB) files; treat them as local ids.
 - The CLI logs to stderr; every command's result is JSON on stdout (password prompts go to the tty via `getpass`). `draft` needs `--darkroom`, `--image` or `--placeholder`; a live `publish` needs `--ipfs-api` and a signer, and refuses placeholder art.
 - Frames (`frames.py`): a YAML file + PNG overlay (transparent inside `window`) + optional TTF; the render is scaled to cover the window, the overlay goes on top, the card name is drawn in the `name` slot (shrinking to fit). A framed card's provenance gains `frame` {id, version, hash} and `art` (ipfs:// of the unframed render); both are left out when unset, so unframed cards hash exactly as before. Frame hash = keccak256(canonical(frame minus `status`, overlay sha256, font sha256)). Compositing is deterministic for a given Pillow version.
+- Frame text slots (`texts:` in the frame YAML): each has a box, font, size/min_size, colour, align/valign, `wrap`. Text shrinks to fit, then is clipped with an ellipsis at `min_size` (`frames.fit_text`). argus-mint fills `name` and `bio`; other slots (class, stats...) come from `draft --text slot=value`. card-green ships Cinzel and Crimson Text (OFL) in `frames/fonts/`.
+- Bios (`bios.py`): a bio template (YAML: model, system, prompt with the render template's `{variables}` and a `{{name}}` token, temperature, max_chars, max_attempts) is filled and sent to a `Writer` (`ChatWriter`: OpenAI-style `POST /chat`, e.g. the suite's chat API at `$ARGUS_MINT_WRITER_URL` with mistral-nemo; bearer from `$ARGUS_MINT_WRITER_KEY`). The reply is tidied, any `{Name}` variant normalised, then screened by a `TextGuard` (`DarkroomClient.check_text`, darkroom's `/preflight`) *with the token still in*; flagged or unusable replies are retried, every attempt recorded. Then the name goes in. Bios aren't reproducible (no seed): the text is kept in the draft, drawn on the card and used as the metadata `description`; provenance gets `bio` {id, version, hash, model}.
 - Drafts (`cards.py`): a directory with `draft.json`, `art.png` and, when framed, `card.png`. Reviews stay in `draft.json` (not in public metadata). The template's `width`/`height` go to darkroom inside `sampling` (its workflow's `$width`/`$height`), so match the render's aspect to the frame's art window: the compositor crops whatever doesn't fit (cover).
 - Signers (`keys.load_signer`): `--account` / `$ARGUS_MINT_ACCOUNT` names a Foundry keystore (`~/.foundry/keystores/<name>` or a path), password from `$ARGUS_MINT_KEYSTORE_PASSWORD_FILE` or a hidden prompt; else `$ARGUS_MINT_SIGNER_KEY`. Never a key on the command line.
 - `submit` / `freeze` / `anchor` pre-check what the contract would refuse (role, already minted/frozen/anchored, expiry, chain id) before asking for a password or spending gas; a revert that still happens is decoded to the custom error's name by `chain.explain_revert`. `submit` refuses `dry_run` outputs. `anchor --tree` writes the standard-v1 dump *before* sending, so a landed root always has its tree.

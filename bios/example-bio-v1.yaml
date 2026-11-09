@@ -1,0 +1,24 @@
+# Example bio template. A language model writes each card's bio from the render template's
+# variables (fixed-list values only). The card's name never goes to the model: the prompt asks
+# for a literal {name} token (written {{name}} here), and argus-mint puts the name in afterwards.
+# Every bio is screened by darkroom's text check, and the moderator and owner see it on the
+# card before it is published. Review it like a render template: preview with
+#   argus-mint sample templates/example-portrait-v2.yaml --bio bios/example-bio-v1.yaml \
+#     --frame frames/card-green-v1.yaml --writer http://<writer> --darkroom http://localhost:8106 --out samples/
+id: example-bio
+version: 1
+status: draft             # draft | approved | retired
+model: mistral-nemo:12b-instruct-2407-q4_K_M
+temperature: 0.9
+max_tokens: 160
+max_chars: 320
+system: >-
+  You write flavour text for fantasy trading cards: florid, fruity, mock-heroic and a little
+  absurd, like a bard who has had one goblet too many. Two or three sentences, under 300
+  characters in total. Refer to the character only as {{name}}, written exactly like that,
+  braces included; never give them any other name or title, and never name other people.
+  Write no numbers, statistics or game rules. Keep it suitable for all ages: no gore, no sex.
+  Reply with the flavour text only.
+prompt: >-
+  Write the flavour text for {{name}}, a {gender} {role} who wears {colour} heraldry and is
+  most often found {pose}. Setting: {background}.

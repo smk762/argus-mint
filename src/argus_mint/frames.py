@@ -1,15 +1,17 @@
 """Card frames: reviewed overlays composited onto a clean render before it is pinned.
 
-A frame is a YAML file next to a PNG overlay (and optionally a font). The overlay is
-transparent inside its art ``window``; the render is scaled to cover the window and drawn
-underneath, then the overlay goes on top, then the card's name in the ``name`` slot, if the
-frame has one. The name is metadata free text drawn onto the image, never sent to a model,
-so hard rule 1 is untouched.
+A frame is a YAML file next to a PNG overlay (and optionally fonts). The overlay is
+transparent inside its art ``window``. The render is scaled to cover the window and drawn
+underneath, the overlay goes on top, then each text slot is filled: the card's name, its
+bio, and whatever display text the consumer supplies (a class line, stats...). Text is
+wrapped and shrunk to fit its slot, and clipped with an ellipsis if it still doesn't fit at
+the slot's smallest size. Card text is drawn onto the image; none of it is sent to the image
+model, so hard rule 1 is untouched.
 
 Frames are reviewed like templates (hard rule 2): ``draft | approved | retired``, and only
 ``approved`` frames go on a minted card (:func:`require_approved`). Drafts may be used by
 ``argus-mint sample`` for review. A frame's :meth:`LoadedFrame.hash` covers its YAML (minus
-``status``) and the bytes of its overlay and font, and is recorded in the card's provenance.
+``status``) and the bytes of its overlay and fonts, and is recorded in the card's provenance.
 
 Compositing needs Pillow (the ``frames`` extra). Apart from reading the frame's files this
 module does no I/O.
@@ -19,7 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal
@@ -34,15 +36,18 @@ __all__ = [
     "Frame",
     "FrameError",
     "LoadedFrame",
-    "NameSlot",
     "Rect",
+    "TextSlot",
     "compose",
+    "fit_text",
     "load_frame",
     "require_approved",
 ]
 
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
+_SLOT_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 _COLOUR_PATTERN = r"^#[0-9a-fA-F]{6}$"
+ELLIPSIS = "…"
 
 
 class FrameError(ValueError):
@@ -61,14 +66,28 @@ class Rect(BaseModel):
         return (self.x, self.y, self.x + self.width, self.y + self.height)
 
 
-class NameSlot(Rect):
-    """Where the card's name is drawn. The font shrinks until the name fits the slot."""
+class TextSlot(Rect):
+    """A box for one piece of card text.
+
+    The text is drawn at ``size`` if it fits, else at the largest size down to ``min_size``
+    that fits; with ``wrap`` it breaks across lines. If it doesn't fit even at ``min_size``,
+    it is clipped and ends in an ellipsis.
+    """
 
     font: str | None = None  # TTF/OTF path, relative to the frame file; Pillow's built-in font if unset
     size: int = Field(default=48, ge=6, le=512)
     min_size: int = Field(default=12, ge=6, le=512)
     colour: str = Field(default="#000000", pattern=_COLOUR_PATTERN)
     align: Literal["left", "center", "right"] = "center"
+    valign: Literal["top", "middle"] = "middle"
+    wrap: bool = False
+    line_spacing: float = Field(default=1.15, ge=0.8, le=3.0)
+
+    @model_validator(mode="after")
+    def _sizes(self) -> TextSlot:
+        if self.min_size > self.size:
+            raise ValueError("min_size is larger than size")
+        return self
 
 
 class Frame(BaseModel):
@@ -83,10 +102,17 @@ class Frame(BaseModel):
     approved_at: date | None = None
     overlay: str = Field(min_length=1)  # PNG path, relative to the frame file
     window: Rect
-    name: NameSlot | None = None
+    texts: dict[str, TextSlot] = Field(
+        default_factory=dict
+    )  # slot name -> box; "name" and "bio" are filled by argus-mint
 
     @model_validator(mode="after")
     def _check(self) -> Frame:
+        import re
+
+        for slot in self.texts:
+            if not re.match(_SLOT_PATTERN, slot):
+                raise ValueError(f"text slot name {slot!r} must match {_SLOT_PATTERN}")
         if self.status != "draft" and (not self.approved_by or self.approved_at is None):
             raise ValueError(f"status {self.status!r} requires approved_by and approved_at (approval is a human step)")
         return self
@@ -94,19 +120,19 @@ class Frame(BaseModel):
 
 @dataclass(frozen=True)
 class LoadedFrame:
-    """A validated frame with its overlay (and font) bytes."""
+    """A validated frame with its overlay and font bytes."""
 
     frame: Frame
     overlay: bytes
-    font: bytes | None
     size: tuple[int, int]  # the overlay's (width, height): the finished card's size
+    fonts: dict[str, bytes] = field(default_factory=dict)  # by the path the frame names them with
 
     def hash(self) -> bytes:
         """keccak256 of the canonical frame (minus ``status``) plus its files' sha256."""
         doc: dict[str, Any] = {
             "frame": self.frame.model_dump(mode="json", exclude={"status"}),
             "overlay_sha256": hashlib.sha256(self.overlay).hexdigest(),
-            "font_sha256": hashlib.sha256(self.font).hexdigest() if self.font is not None else None,
+            "fonts_sha256": {p: hashlib.sha256(b).hexdigest() for p, b in sorted(self.fonts.items())},
         }
         return keccak256(canonical(doc))
 
@@ -145,8 +171,8 @@ def load_frame(path: Path) -> LoadedFrame:
             raise FrameError(f"{path}: cannot read {rel}: {e}") from e
 
     overlay = read(frame.overlay)
-    font = read(frame.name.font) if frame.name and frame.name.font else None
-    image_mod, _, _ = _pil()
+    fonts = {s.font: read(s.font) for s in frame.texts.values() if s.font}
+    image_mod, _, font_mod = _pil()
     try:
         with image_mod.open(io.BytesIO(overlay)) as im:
             if im.format != "PNG":
@@ -154,11 +180,16 @@ def load_frame(path: Path) -> LoadedFrame:
             size = im.size
     except OSError as e:
         raise FrameError(f"{path}: overlay is not a readable image: {e}") from e
+    for rel, data in fonts.items():
+        try:
+            font_mod.truetype(io.BytesIO(data), 12)
+        except OSError as e:
+            raise FrameError(f"{path}: {rel} is not a usable font: {e}") from e
     w, h = size
-    for label, rect in (("window", frame.window), ("name", frame.name)):
-        if rect is not None and (rect.x + rect.width > w or rect.y + rect.height > h):
+    for label, rect in (("window", frame.window), *frame.texts.items()):
+        if rect.x + rect.width > w or rect.y + rect.height > h:
             raise FrameError(f"{path}: {label} {rect.box()} lies outside the {w}x{h} overlay")
-    return LoadedFrame(frame=frame, overlay=overlay, font=font, size=size)
+    return LoadedFrame(frame=frame, overlay=overlay, size=size, fonts=fonts)
 
 
 def require_approved(f: LoadedFrame) -> LoadedFrame:
@@ -170,15 +201,21 @@ def require_approved(f: LoadedFrame) -> LoadedFrame:
     return f
 
 
-def compose(f: LoadedFrame, art: bytes, name: str | None = None) -> bytes:
-    """The finished card: ``art`` scaled to cover the window, the overlay on top, then ``name``.
+def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None) -> bytes:
+    """The finished card: ``art`` scaled to cover the window, the overlay on top, then ``texts``.
 
-    Deterministic for a given Pillow version. Returns PNG bytes without ancillary metadata.
+    ``texts`` maps the frame's slot names to the text drawn in them; a slot without text is
+    left empty, and text for a slot the frame doesn't have is an error. Deterministic for a
+    given Pillow version. Returns PNG bytes without ancillary metadata.
     """
+    texts = {k: v for k, v in (texts or {}).items() if v}
+    unknown = texts.keys() - f.frame.texts.keys()
+    if unknown:
+        raise FrameError(
+            f"frame {f.frame.id} v{f.frame.version} has no text slot {sorted(unknown)}; "
+            f"its slots: {sorted(f.frame.texts)}"
+        )
     image_mod, draw_mod, font_mod = _pil()
-    slot = f.frame.name
-    if slot is not None and not name:
-        raise FrameError(f"frame {f.frame.id} v{f.frame.version} has a name slot: give the card's name")
     try:
         src = image_mod.open(io.BytesIO(art))
         src.load()
@@ -196,26 +233,83 @@ def compose(f: LoadedFrame, art: bytes, name: str | None = None) -> bytes:
     card.paste(scaled.crop((left, top, left + win.width, top + win.height)), (win.x, win.y))
     card = image_mod.alpha_composite(card, image_mod.open(io.BytesIO(f.overlay)).convert("RGBA"))
 
-    if slot is not None and name:
-        draw = draw_mod.Draw(card)
-        font, bbox = _fit(font_mod, draw, f.font, name, slot)
-        text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        x = {"left": slot.x, "center": slot.x + (slot.width - text_w) // 2, "right": slot.x + slot.width - text_w}[
-            slot.align
-        ]
-        y = slot.y + (slot.height - text_h) // 2
-        draw.text((x - bbox[0], y - bbox[1]), name, font=font, fill=slot.colour)
+    draw = draw_mod.Draw(card)
+    for slot_name, text in sorted(texts.items()):
+        slot = f.frame.texts[slot_name]
+        font_bytes = f.fonts.get(slot.font) if slot.font else None
+
+        def load(size: int, font_bytes: bytes | None = font_bytes) -> Any:
+            return font_mod.truetype(io.BytesIO(font_bytes), size) if font_bytes else font_mod.load_default(size)
+
+        font, lines = fit_text(load, text, slot)
+        ascent, descent = font.getmetrics()
+        line_h = round((ascent + descent) * slot.line_spacing)
+        block_h = line_h * (len(lines) - 1) + ascent + descent
+        y = slot.y if slot.valign == "top" else slot.y + (slot.height - block_h) // 2
+        for line in lines:
+            width = font.getlength(line)
+            x = {"left": slot.x, "center": slot.x + (slot.width - width) / 2, "right": slot.x + slot.width - width}[
+                slot.align
+            ]
+            draw.text((round(x), y), line, font=font, fill=slot.colour, anchor="la")
+            y += line_h
 
     out = io.BytesIO()
     card.save(out, format="PNG", optimize=False, compress_level=6)
     return out.getvalue()
 
 
-def _fit(font_mod: Any, draw: Any, font_bytes: bytes | None, text: str, slot: NameSlot) -> tuple[Any, tuple]:
-    """The largest font size from ``slot.size`` down to ``slot.min_size`` at which ``text`` fits."""
+def fit_text(load: Any, text: str, slot: TextSlot) -> tuple[Any, list[str]]:
+    """The font and lines for ``text`` in ``slot``: the largest size that fits, else clipped at ``min_size``.
+
+    ``load(size)`` returns a font at that size.
+    """
+    text = " ".join(text.split())
     for size in range(slot.size, slot.min_size - 1, -1):
-        font = font_mod.truetype(io.BytesIO(font_bytes), size) if font_bytes else font_mod.load_default(size)
-        bbox = draw.textbbox((0, 0), text, font=font)
-        if bbox[2] - bbox[0] <= slot.width and bbox[3] - bbox[1] <= slot.height:
-            return font, bbox
-    raise FrameError(f"name {text!r} does not fit the frame's name slot even at size {slot.min_size}")
+        font = load(size)
+        lines = _wrap(font, text, slot.width) if slot.wrap else [text]
+        if _fits(font, lines, slot):
+            return font, lines
+    font = load(slot.min_size)
+    lines = _wrap(font, text, slot.width) if slot.wrap else [text]
+    ascent, descent = font.getmetrics()
+    line_h = round((ascent + descent) * slot.line_spacing)
+    max_lines = max(1, 1 + (slot.height - ascent - descent) // line_h) if slot.wrap else 1
+    kept = lines[:max_lines]
+    kept[-1] = _ellipsize(font, " ".join([kept[-1], *lines[max_lines:]]), slot.width)
+    return font, kept
+
+
+def _fits(font: Any, lines: list[str], slot: TextSlot) -> bool:
+    ascent, descent = font.getmetrics()
+    line_h = round((ascent + descent) * slot.line_spacing)
+    height = line_h * (len(lines) - 1) + ascent + descent
+    return height <= slot.height and all(font.getlength(line) <= slot.width for line in lines)
+
+
+def _wrap(font: Any, text: str, width: int) -> list[str]:
+    lines: list[str] = []
+    current = ""
+    for word in text.split(" "):
+        candidate = f"{current} {word}" if current else word
+        if current and font.getlength(candidate) > width:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
+def _ellipsize(font: Any, text: str, width: int) -> str:
+    """``text`` cut back to fit ``width`` with a trailing ellipsis (at a word boundary when possible)."""
+    if font.getlength(text) <= width:
+        return text
+    words = text.split(" ")
+    while len(words) > 1 and font.getlength(" ".join(words) + ELLIPSIS) > width:
+        words.pop()
+    clipped = " ".join(words).rstrip(",;:—-")
+    while clipped and font.getlength(clipped + ELLIPSIS) > width:
+        clipped = clipped[:-1]
+    return clipped + ELLIPSIS

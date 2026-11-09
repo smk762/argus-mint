@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, Stric
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
 
-__all__ = ["Attribute", "FrameRef", "Provenance", "canonical", "card_metadata", "content_hash", "ipfs_uri"]
+__all__ = ["Attribute", "BioRef", "FrameRef", "Provenance", "canonical", "card_metadata", "content_hash", "ipfs_uri"]
 
 # CIDv0 (base58btc, "Qm…") or CIDv1 in base32 lower case ("b…", e.g. "bafy…").
 _CID = re.compile(r"^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{50,})$")
@@ -69,11 +69,23 @@ class FrameRef(BaseModel):
     hash: Bytes32
 
 
+class BioRef(BaseModel):
+    """The reviewed bio template (and model) that wrote the card's bio (see :mod:`argus_mint.bios`)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str = Field(min_length=1)
+    version: int = Field(ge=1)
+    hash: Bytes32
+    model: str = Field(min_length=1)
+
+
 class Provenance(BaseModel):
     """How the card's image was made. Fixed at mint; covered by :func:`content_hash`.
 
     ``frame`` and ``art`` are set only for a framed card: the frame, and ``ipfs://`` of the
-    unframed render. Unset fields are left out of the JSON, so unframed cards serialize (and
+    unframed render. ``bio`` names the bio template and model when a bio was written (the
+    text itself is the card's ``description`` and is drawn on the image). Unset fields are left out of the JSON, so unframed cards serialize (and
     hash) exactly as before frames existed.
     """
 
@@ -88,6 +100,7 @@ class Provenance(BaseModel):
     consumer: str = Field(min_length=1, max_length=64)
     frame: FrameRef | None = None
     art: str | None = None
+    bio: BioRef | None = None
 
     @field_validator("art")
     @classmethod

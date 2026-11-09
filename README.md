@@ -82,13 +82,18 @@ argus-mint sample my-template.yaml --out samples/ --count 6 --frame frames/my-fr
 
 # a card
 argus-mint draft --template my-template.yaml --frame frames/my-frame.yaml --out drafts/unit-17 \
-  --var ... --asset unit-17 --to 0x… --name "…" --darkroom http://localhost:8106
+  --var ... --asset unit-17 --to 0x… --name "…" --darkroom http://localhost:8106 \
+  --bio bios/my-bio.yaml --writer http://<chat api> --text "class=Ranger of the Strait" --text "stats=No. 17"
 argus-mint review drafts/unit-17 --as moderator --by <name> --approve       # or --reject --note "why"
 argus-mint review drafts/unit-17 --as owner --by <name> --approve
 argus-mint publish drafts/unit-17 --card 0x… --ipfs-api http://127.0.0.1:5001 > unit-17.json   # pins, signs
 ```
 
 **Frames.** Renders are clean, full-bleed art. A frame is a reviewed PNG overlay, transparent inside its art window, with an optional slot for the card's name. It's described in a YAML file next to it, which goes through the same `draft | approved | retired` review as templates ([frames/card-green-v1.yaml](frames/card-green-v1.yaml)). Render at the art window's aspect ratio (the template's `width`/`height`): the art is scaled to cover the window and the overflow is cropped. A framed card's provenance names the frame and its hash, and points to the unframed art on IPFS.
+
+**Card text.** A frame has text slots, each with a font, size and box; text shrinks to fit and is clipped with an ellipsis if it still doesn't. argus-mint fills `name` and `bio`. The consumer fills the rest (`--text class=…`, `--text stats=…`) with display text from its own records. That text is shown on the card, never written into the metadata as stats.
+
+**Bios.** A language model writes each card's flavour text from a reviewed bio template ([bios/example-bio-v1.yaml](bios/example-bio-v1.yaml): Mistral NeMo, fruity). It sees only the template's fixed-list values and writes a `{name}` token; argus-mint puts the real name in afterwards, so a player's name never reaches a model. darkroom's text check screens every bio, and flagged ones are rewritten. The moderator and the owner then read it on the card during review. The bio becomes the card's `description`.
 
 On-chain, each step signs with a Foundry keystore account (`--account` / `$ARGUS_MINT_ACCOUNT`) or `$ARGUS_MINT_SIGNER_KEY`:
 

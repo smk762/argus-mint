@@ -148,6 +148,31 @@ class DarkroomClient:
         resp.raise_for_status()
         return resp.json()
 
+    def check_text(self, text: str) -> tuple[bool, str]:
+        """Screen card text (a bio) with darkroom's text pre-flight under this client's policy.
+
+        Implements :class:`argus_mint.bios.TextGuard`: ``(passes, detail)``.
+        """
+        body = {
+            "user_prompt": text,
+            "negative_prompt": "",
+            "expand": False,
+            "enforcing_policy": self.policy,
+            "advisory_policies": list(self.advisory_policies),
+        }
+        try:
+            resp = self.client.post(f"{self.base_url}/preflight", json=body)
+            if resp.status_code == 400:
+                raise DarkroomError(f"darkroom refused the request: {resp.text}")
+            resp.raise_for_status()
+            verdict = resp.json()
+        except httpx.HTTPError as e:
+            raise DarkroomError(f"darkroom text check failed: {e}") from e
+        if verdict.get("outcome") == "ok":
+            return True, ""
+        refusal = verdict.get("refusal") or {}
+        return False, (refusal.get("rule") or refusal.get("reason") or verdict.get("outcome") or "refused")
+
     # -- generation -----------------------------------------------------------------------------
 
     def _stream(self, req: RenderRequest) -> dict[str, Any] | str:

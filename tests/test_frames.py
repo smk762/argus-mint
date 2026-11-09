@@ -11,7 +11,7 @@ from PIL import Image
 from typer.testing import CliRunner
 
 from argus_mint.cli import app
-from argus_mint.frames import FrameError, compose, load_frame, require_approved
+from argus_mint.frames import FrameError, compose, fit_text, load_frame, require_approved
 from argus_mint.metadata import Provenance
 
 from .test_cli import approve, make_draft, publish_args
@@ -37,7 +37,10 @@ def _frame(tmp_path, *, status="approved", name=True, **over):
     if status != "draft":
         doc |= {"approved_by": "reviewer", "approved_at": "2026-11-09"}
     if name:
-        doc["name"] = {"x": 10, "y": 300, "width": 280, "height": 60, "size": 40, "colour": "#102030"}
+        doc["texts"] = {
+            "name": {"x": 10, "y": 300, "width": 280, "height": 60, "size": 40, "colour": "#102030"},
+            "bio": {"x": 10, "y": 362, "width": 280, "height": 50, "size": 20, "min_size": 10, "wrap": True},
+        }
     doc |= over
     path = tmp_path / "f.yaml"
     path.write_text(yaml.safe_dump(doc))
@@ -49,27 +52,36 @@ ART = _png((64, 64), (0, 0, 255, 255))
 
 def test_compose_puts_art_in_the_window_under_the_overlay(tmp_path):
     f = load_frame(_frame(tmp_path))
-    out = Image.open(io.BytesIO(compose(f, ART, "Hana"))).convert("RGBA")
+    out = Image.open(io.BytesIO(compose(f, ART, {"name": "Hana"}))).convert("RGBA")
     assert out.size == (300, 420)
     assert out.getpixel((150, 150)) == (0, 0, 255, 255)  # art shows through the window
     assert out.getpixel((2, 2)) == (200, 180, 140, 255)  # overlay elsewhere
     assert any(
         out.getpixel((x, y)) != (200, 180, 140, 255) for x in range(10, 290) for y in range(300, 360)
     )  # the name is drawn
-    assert compose(f, ART, "Hana") == compose(f, ART, "Hana")  # deterministic
+    assert compose(f, ART, {"name": "Hana"}) == compose(f, ART, {"name": "Hana"})  # deterministic
 
 
-def test_name_slot_needs_a_name_and_must_fit(tmp_path):
+def test_text_slots_shrink_wrap_and_clip(tmp_path):
     f = load_frame(_frame(tmp_path))
-    with pytest.raises(FrameError, match="name slot"):
-        compose(f, ART)
-    with pytest.raises(FrameError, match="does not fit"):
-        compose(
-            f,
-            ART,
-            "an extremely long name that cannot possibly fit in two hundred and eighty pixels, not even at the smallest size",
-        )
-    assert compose(load_frame(_frame(tmp_path, name=False)), ART)
+    plain = compose(f, ART)  # slots may be left empty
+    assert compose(f, ART, {"name": "Hana"}) != plain
+    with pytest.raises(FrameError, match="no text slot"):
+        compose(f, ART, {"stats": "3/2"})
+
+    from PIL import ImageFont
+
+    slot = f.frame.texts["bio"]
+    load = ImageFont.load_default
+    font, lines = fit_text(load, "A short bio.", slot)
+    assert lines == ["A short bio."] and font.size == slot.size
+    long = "word " * 200
+    font, lines = fit_text(load, long, slot)
+    assert font.size == slot.min_size and lines[-1].endswith("…")  # clipped at the smallest size
+    assert all(font.getlength(line) <= slot.width for line in lines)
+    name_slot = f.frame.texts["name"]
+    font, lines = fit_text(load, "an extremely long name that cannot possibly fit on one line at all", name_slot)
+    assert len(lines) == 1 and lines[0].endswith("…") and font.getlength(lines[0]) <= name_slot.width
 
 
 def test_frame_validation(tmp_path):

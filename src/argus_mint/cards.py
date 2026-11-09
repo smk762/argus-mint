@@ -21,11 +21,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from argus_mint._codec import Bytes32
-from argus_mint.metadata import FrameRef, Provenance
+from argus_mint.metadata import BioRef, FrameRef, Provenance
 from argus_mint.templates import RenderRequest
 
 __all__ = [
     "REVIEWERS",
+    "BioRecord",
     "CardDraft",
     "DraftError",
     "NotApproved",
@@ -62,6 +63,16 @@ class Review(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
+class BioRecord(BaseModel):
+    """The bio written for this card: its template and model, the text, and every attempt."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ref: BioRef
+    text: str
+    attempts: tuple[dict[str, Any], ...]
+
+
 class CardDraft(BaseModel):
     """Everything needed to publish a card, except the pins and the signature."""
 
@@ -78,6 +89,8 @@ class CardDraft(BaseModel):
     external_url: str | None = None
     consumer: str = Field(min_length=1, max_length=64)
     frame: FrameRef | None = None
+    bio: BioRecord | None = None
+    texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot (class, stats...)
     art_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # the finished card image (== art when unframed)
     created_at: datetime
@@ -108,6 +121,7 @@ class CardDraft(BaseModel):
             consumer=self.consumer,
             frame=self.frame,
             art=f"ipfs://{art_cid}" if self.frame is not None and art_cid else None,
+            bio=self.bio.ref if self.bio is not None else None,
         )
 
 

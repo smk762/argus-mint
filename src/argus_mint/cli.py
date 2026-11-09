@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import sys
 import time
@@ -17,11 +18,13 @@ from eth_account import Account
 import argus_mint
 from argus_mint import merkle, networks
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
+from argus_mint.bios import WRITER_KEY_ENV, BioError, BioFailed, ChatWriter, load_bio, write_bio
 from argus_mint.cards import (
     ART_FILE,
     CARD_FILE,
     DRAFT_FILE,
     REVIEWERS,
+    BioRecord,
     CardDraft,
     DraftError,
     check_publishable,
@@ -166,10 +169,23 @@ IpfsOpt = Annotated[
     str | None,
     typer.Option(envvar="ARGUS_MINT_IPFS_API", help="Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001"),
 ]
+BioOpt = Annotated[Path | None, typer.Option(help="Bio template YAML: a language model writes the card's bio")]
+WriterOpt = Annotated[
+    str | None,
+    typer.Option(envvar="ARGUS_MINT_WRITER_URL", help="Bio writer base URL (OpenAI-style POST /chat)"),
+]
+TextOpt = Annotated[
+    list[str],
+    typer.Option("--text", help="Display text for a frame slot, slot=text (repeat), e.g. class=Ranger"),
+]
 
 
 def _attempts_json(attempts: Any) -> list[dict[str, Any]]:
     return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
+
+
+def _bio_attempts_json(attempts: Any) -> list[dict[str, Any]]:
+    return [{"outcome": a.outcome, "detail": a.detail, "text": a.text} for a in attempts]
 
 
 def _render_failed(e: RenderError) -> typer.Exit:
@@ -178,9 +194,36 @@ def _render_failed(e: RenderError) -> typer.Exit:
     return _fail(str(e))
 
 
+def _parse_texts(pairs: list[str]) -> dict[str, str]:
+    texts: dict[str, str] = {}
+    for p in pairs:
+        key, sep, value = p.partition("=")
+        if not sep or not key:
+            raise typer.BadParameter(f"expected slot=text, got {p!r}", param_hint="--text")
+        if key in ("name", "bio"):
+            raise typer.BadParameter(f"the {key} slot is filled by argus-mint", param_hint="--text")
+        if key in texts:
+            raise typer.BadParameter(f"{key} given twice", param_hint="--text")
+        texts[key] = value
+    return texts
+
+
+def _card_texts(lf: Any, name: str, bio: str | None, extra: dict[str, str]) -> dict[str, str]:
+    """What to draw in each of the frame's slots: name and bio where it has them, plus --text."""
+    slots = lf.frame.texts
+    texts = {k: v for k, v in (("name", name), ("bio", bio)) if v and k in slots}
+    return texts | extra
+
+
+def _writer(writer_url: str | None) -> ChatWriter:
+    if not writer_url:
+        raise _fail("--bio needs --writer (or $ARGUS_MINT_WRITER_URL)", 2)
+    return ChatWriter(writer_url, api_key=os.environ.get(WRITER_KEY_ENV) or None)
+
+
 @app.command()
 def frames(directory: Annotated[Path, typer.Argument(help="Directory of frame YAML files")]) -> None:
-    """Validate every frame under DIRECTORY and list id, version, status, size and hash."""
+    """Validate every frame under DIRECTORY and list id, version, status, size, text slots and hash."""
     files = sorted([*directory.rglob("*.yaml"), *directory.rglob("*.yml")])
     for f in files:
         try:
@@ -188,7 +231,8 @@ def frames(directory: Annotated[Path, typer.Argument(help="Directory of frame YA
         except FrameError as e:
             raise _fail(str(e)) from e
         w, h = lf.size
-        typer.echo(f"{lf.frame.id}\tv{lf.frame.version}\t{lf.frame.status}\t{w}x{h}\t{hex0x(lf.hash())}")
+        slots = ",".join(lf.frame.texts) or "-"
+        typer.echo(f"{lf.frame.id}\tv{lf.frame.version}\t{lf.frame.status}\t{w}x{h}\t{slots}\t{hex0x(lf.hash())}")
 
 
 @app.command()
@@ -200,23 +244,32 @@ def sample(
     seed: Annotated[int, typer.Option(help="Picks the combinations, and the first render seed")] = 0,
     frame: Annotated[Path | None, typer.Option(help="Frame YAML to preview (any status)")] = None,
     name: Annotated[str, typer.Option(help="Name drawn in the frame's name slot")] = "Sample",
+    bio: BioOpt = None,
+    writer: WriterOpt = None,
+    text: TextOpt = [],  # noqa: B006
     darkroom: DarkroomOpt = None,
     policy: PolicyOpt = "default",
 ) -> None:
-    """Render sample images of TEMPLATE for its reviewer. Local files only: never pins, signs or mints.
+    """Render sample cards of TEMPLATE for its reviewer. Local files only: never pins, signs or mints.
 
     Picks COUNT combinations (deterministic for --seed) among those matching --var, renders
-    each through darkroom with the usual safety check and retries, and writes the images
-    (and framed previews with --frame) to --out. Prints a JSON summary.
+    each through darkroom with the usual safety check and retries, and writes the images to
+    --out. With --frame it also writes framed previews; --bio adds a written bio (any status
+    of template, frame or bio template may be previewed). Prints a JSON summary.
     """
     if not darkroom:
         raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
     try:
         t = load_template(template)
         fixed = _parse_vars(var)
+        extra = _parse_texts(text)
         lf = load_frame(frame) if frame else None
-    except (TemplateError, FrameError) as e:
+        bt = load_bio(bio) if bio else None
+    except (TemplateError, FrameError, BioError) as e:
         raise _fail(str(e)) from e
+    if extra and lf is None:
+        raise typer.BadParameter("display text needs a --frame to draw it on", param_hint="--text")
+    bio_writer = _writer(writer) if bt else None
     unknown = fixed.keys() - t.variables.keys()
     if unknown:
         raise typer.BadParameter(f"unknown variables: {sorted(unknown)}", param_hint="--var")
@@ -231,7 +284,15 @@ def sample(
         entry: dict[str, Any] = {"n": i, "variables": values}
         try:
             r = render_for_review(client, t, values, seed + i)
-        except DarkroomError as e:
+            b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
+        except (DarkroomError, BioFailed) as e:
+            if isinstance(e, BioFailed):
+                entry |= {"error": str(e), "bio_attempts": _bio_attempts_json(e.attempts)}
+                results.append(entry)
+                typer.echo(f"{i}: {e}", err=True)
+                continue
+            raise _fail(str(e)) from e
+        except BioError as e:
             raise _fail(str(e)) from e
         except RenderError as e:
             entry |= {"error": str(e), "attempts": _attempts_json(e.attempts)}
@@ -241,15 +302,17 @@ def sample(
         art = out / f"{i:02d}-{r.seed}.png"
         art.write_bytes(r.image)
         entry |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": _attempts_json(r.attempts), "art": str(art)}
+        if b is not None:
+            entry |= {"bio": b.text, "bio_attempts": _bio_attempts_json(b.attempts)}
         if lf is not None:
             framed = out / f"{i:02d}-{r.seed}-framed.png"
             try:
-                framed.write_bytes(compose(lf, r.image, name if lf.frame.name else None))
+                framed.write_bytes(compose(lf, r.image, _card_texts(lf, name, b.text if b else None, extra)))
             except FrameError as e:
                 raise _fail(str(e)) from e
             entry["framed"] = str(framed)
         results.append(entry)
-        typer.echo(f"{i}: {art}", err=True)
+        typer.echo(f"{i}: {entry.get('framed', art)}", err=True)
     typer.echo(json.dumps({"template": f"{t.id} v{t.version}", "status": t.status, "samples": results}, indent=2))
 
 
@@ -258,15 +321,18 @@ def draft(
     template: Annotated[Path, typer.Option(help="Template YAML file (must be approved)")],
     out: Annotated[Path, typer.Option(help="Draft directory to create (art.png, card.png, draft.json)")],
     to: Annotated[str, typer.Option(help="Address the card will be minted to (the owner who reviews it)")],
-    name: Annotated[str, typer.Option(help="Card name (free text: metadata only, never sent to the model)")],
+    name: Annotated[str, typer.Option(help="Card name (free text: metadata and image only, never sent to a model)")],
     var: Annotated[list[str], typer.Option(help="Template variable key=value (repeat)")] = [],  # noqa: B006
     seed: Annotated[int, typer.Option(help="First render seed")] = 0,
     asset_id: Annotated[str | None, typer.Option(help="0x 32-byte asset id")] = None,
     asset: Annotated[str | None, typer.Option(help="Asset key; asset id = keccak256(utf8 key)")] = None,
-    description: Annotated[str, typer.Option()] = "",
+    description: Annotated[str, typer.Option(help="Metadata description (default: the bio, if one is written)")] = "",
     consumer: Annotated[str, typer.Option(help="Consumer name recorded in provenance")] = "argus-mint",
     external_url: Annotated[str | None, typer.Option()] = None,
     frame: Annotated[Path | None, typer.Option(help="Frame YAML to composite on top (must be approved)")] = None,
+    bio: BioOpt = None,
+    writer: WriterOpt = None,
+    text: TextOpt = [],  # noqa: B006
     image: Annotated[Path | None, typer.Option(help="Use this image instead of rendering")] = None,
     darkroom: DarkroomOpt = None,
     policy: PolicyOpt = "default",
@@ -275,10 +341,13 @@ def draft(
         bool, typer.Option("--placeholder", help="Placeholder art (for dry runs; publish needs --dry-run)")
     ] = False,
 ) -> None:
-    """Step 1 of 3: render a card (and frame it) into a local draft for review.
+    """Step 1 of 3: render a card, write its bio and frame it into a local draft for review.
 
-    Nothing is pinned or signed. Next, the moderator and the owner each run
-    `argus-mint review`; then `argus-mint publish` pins it and signs the mint voucher.
+    The art comes from darkroom (--darkroom), a file (--image) or a placeholder. With --bio, a
+    language model at --writer writes the bio, screened by darkroom's text check (so --bio
+    needs --darkroom too). --text fills the frame's other slots (class, stats...) with the
+    consumer's display text. Nothing is pinned or signed: next the moderator and the owner
+    each run `argus-mint review`, then `argus-mint publish`.
     """
     if (asset_id is None) == (asset is None):
         raise typer.BadParameter("give exactly one of --asset-id or --asset")
@@ -286,46 +355,56 @@ def draft(
         aid = to_bytes32(asset_id) if asset_id is not None else keccak256(asset.encode())  # type: ignore[union-attr]
     except ValueError as e:
         raise typer.BadParameter(str(e), param_hint="--asset-id") from e
-    sources = [
-        s for s, given in (("--darkroom", darkroom), ("--image", image), ("--placeholder", placeholder)) if given
-    ]
-    if len(sources) != 1:
-        raise _fail("give exactly one of --darkroom, --image or --placeholder", 2)
+    if image is not None and placeholder:
+        raise _fail("give one of --image or --placeholder, not both", 2)
+    if image is None and not placeholder and not darkroom:
+        raise _fail("give --darkroom (render), --image or --placeholder", 2)
+    if bio and not darkroom:
+        raise _fail("--bio needs --darkroom: darkroom's text check screens every bio", 2)
+    extra = _parse_texts(text)
+    if extra and frame is None:
+        raise typer.BadParameter("display text needs a --frame to draw it on", param_hint="--text")
     if (out / DRAFT_FILE).exists():
         raise _fail(f"{out} already holds a draft; use a new directory")
+    bio_writer = _writer(writer) if bio else None
+    client = DarkroomClient(darkroom, policy=policy, accept_review=accept_review) if darkroom else None
     try:
         t = load_template(template)
         values = _parse_vars(var)
         lf = require_approved(load_frame(frame)) if frame else None
+        bt = load_bio(bio) if bio else None
         if image is not None:
             req = fill(t, values, seed)
             art, attempts = image.read_bytes(), [{"seed": req.seed, "outcome": "supplied", "ref": str(image)}]
         else:
-            renderer: Darklight = (
-                DarkroomClient(darkroom, policy=policy, accept_review=accept_review)
-                if darkroom
-                else _PlaceholderRenderer()
-            )
+            renderer: Darklight = client if (client and not placeholder) else _PlaceholderRenderer()
             rendered = render(renderer, t, values, seed)
             art, req, attempts = rendered.image, rendered.request, _attempts_json(rendered.attempts)
-        card_image = compose(lf, art, name if lf.frame.name else None) if lf else art
+        b = write_bio(bio_writer, client, bt, values, t, name) if bt and bio_writer and client else None
+        card_image = compose(lf, art, _card_texts(lf, name, b.text if b else None, extra)) if lf else art
     except (TemplateError, FrameError) as e:
         raise _fail(str(e)) from e
-    except DarkroomError as e:
+    except BioFailed as e:
+        for a in e.attempts:
+            typer.echo(f"  bio attempt {a.outcome} {a.detail}: {a.text}", err=True)
+        raise _fail(str(e)) from e
+    except (DarkroomError, BioError) as e:
         raise _fail(str(e)) from e
     except RenderError as e:
         raise _render_failed(e) from e
     d = CardDraft(
         request=req,
         attempts=tuple(attempts),
-        renderer="darkroom" if darkroom else ("supplied" if image else "placeholder"),
+        renderer="supplied" if image else ("placeholder" if placeholder else "darkroom"),
         asset_id=aid,
         to=to,
         name=name,
-        description=description,
+        description=description or (b.text if b else ""),
         external_url=external_url,
         consumer=consumer,
         frame=lf.ref() if lf else None,
+        bio=BioRecord(ref=b.template.ref(), text=b.text, attempts=tuple(_bio_attempts_json(b.attempts))) if b else None,
+        texts=extra,
         art_sha256=sha256_hex(art),
         image_sha256=sha256_hex(card_image),
         created_at=datetime.now(UTC),
@@ -340,10 +419,12 @@ def draft(
                 "prompt": req.prompt,
                 "seed": req.seed,
                 "attempts": attempts,
+                "bio": b.text if b else None,
                 "status": d.status,
                 "awaiting": d.awaiting(),
             },
             indent=2,
+            ensure_ascii=False,
         )
     )
 
