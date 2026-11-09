@@ -2527,6 +2527,13 @@
           "title": "Negative",
           "type": "string"
         },
+        "negative_by_family": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Negative By Family",
+          "type": "object"
+        },
         "prompt": {
           "minLength": 1,
           "title": "Prompt",

@@ -211,3 +211,24 @@ def test_sampling_follows_the_checkpoint_family(template_doc):
     assert request_body(flux_req)["sampling"]["guidance"] == 3.5
     plain = Template.model_validate({**template_doc, "sampling": base})
     assert plain.hash() == Template.model_validate({**template_doc, "sampling": {**base, "guidance": None}}).hash()
+
+
+def test_negative_follows_the_checkpoint_family(template_doc):
+    from argus_mint.darkroom import request_body
+    from argus_mint.templates import family
+
+    doc = {**template_doc, "loras": [], "model": "sdxl/a/a.safetensors", "models": ["flux/f/f.safetensors"],
+        "sampling": {"sampler": "euler", "scheduler": "normal", "steps": 25, "cfg": 6.0},
+           "negative": "blurry", "negative_by_family": {"flux": ""}}  # fmt: skip
+    t = Template.model_validate(doc)
+    values = {"role": "ranger", "colour": "none", "pose": "standing"}
+    assert fill(t, values, 1).negative == "blurry"
+    flux_req = fill(t, values, 1, "flux/f/f.safetensors")
+    assert flux_req.negative == "" and request_body(flux_req)["negative_prompt"] == ""  # Flux has no $negative
+    assert family("sdxl/../flux/f.safetensors") == "flux"  # normalised, as darkroom reads it
+    unused = {k: v for k, v in doc.items() if k != "negative_by_family"}
+    assert (
+        Template.model_validate({**unused, "negative_by_family": {}}).hash() == Template.model_validate(unused).hash()
+    )
+    with pytest.raises(ValueError, match="placeholders"):
+        Template.model_validate({**doc, "negative_by_family": {"flux": "no {role}"}})
