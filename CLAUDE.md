@@ -8,7 +8,15 @@ Provenance tokens for game assets. A Python package (and an HTTP service, `argus
 
 **argus-mint has no game in it.** It never knows about units, battles, hexes or coins. A consumer supplies a template's variables, a record to show, and 32-byte leaf hashes. Out of scope: game rules/stats, marketplaces, fungible tokens, staking or yield, free-text prompts, a frontend (only a JS verifier module ships; the UIs are argus-studio's pages and argus-assay, clients of `argus-mint serve`).
 
-Part of the [Argus suite](https://github.com/smk762?tab=repositories&q=argus) (sibling of argus-atlas, argus-studio).
+## Argus suite
+<!-- argus-suite: keep this block; argus-ci checks for it -->
+This repo is part of the Argus suite. The suite map below lists every sibling and what it owns; check it before
+building something a sibling may already do. **On every release, update this repo's row and capabilities in
+argus-cortex's SUITE.md** (a PR to argus-cortex in the same release).
+
+@../argus-core/SUITE.md
+
+Not checked out? Read https://github.com/smk762/argus-cortex/blob/main/SUITE.md
 
 ## Hard rules (a change that breaks one is a bug)
 
