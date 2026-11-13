@@ -121,4 +121,7 @@ Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.loc
 - `uv.lock` is committed; a dependency change needs `make lock` in the same commit.
 - Template origin: `argus-pkg-template` via copier. The Dockerfile and GHCR image job are back (for `argus-mint serve`), adapted: the image's context has no `.git`, so the release job passes `VERSION` as a build arg (`SETUPTOOLS_SCM_PRETEND_VERSION`). CI is standalone because the shared argus-ci workflow has no Foundry hook.
 - **Wire schema:** a change to `wire.py` (or a model it embeds: `Template`, `Frame`, `BioTemplate`, `CardDraft`) changes `schema/mint-wire.schema.json`; run `make schema` and commit it. Bump `WIRE_VERSION`'s major for breaking changes. Regenerate `fixtures/api/` when responses change shape.
-- Branches: `dev` is the default and takes feature PRs; `main` gets `dev` → `main` release PRs (same as argus-atlas).
+
+## Branches
+
+`dev` is the default branch and the base for every PR. Cut feature branches from `origin/dev` and bring them up to date by merging `origin/dev`, never `main`. Never open a PR against `main` or push work to it directly: `main` must never be ahead of `dev`. A release fast-forwards `main` to a `dev` commit that passed CI (`git push origin origin/dev:main`), then tags it. If `main` is protected and needs a PR, merge the release PR, then immediately merge `main` back into `dev` so the merge commit is not left on `main` alone.
