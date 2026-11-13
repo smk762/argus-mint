@@ -2,13 +2,7 @@
 
 All notable changes to this project are documented here. Versions come from git tags (`hatch-vcs`).
 
-## Unreleased
-
-### Documentation
-
-- **README catches up with the code (#23).** It now lists the sample image routes (`GET /samples/{id}/{n}/art|framed`), how an owner edit is signed (`POST /drafts/{id}/challenge` with `action: "edit"`, then `/edit` with the same fields), and that a rejection closes only that image. It also covers every `serve` setting, plus `argus-mint frames`, `library list`, `schema --check` and the `serve` and `preflight` options. `argus-mint serve --help` lists every setting too.
-
-## 0.2.1 (2026-11-09)
+## 0.2.1 (2026-11-13)
 
 ### Added
 
@@ -39,6 +33,11 @@ All notable changes to this project are documented here. Versions come from git 
 ### Fixed
 
 - **Whole numbers in a card's style hash the same in JavaScript.** A tint `strength` or background `opacity` of exactly 0 or 1 was written as `0.0`/`1.0` in provenance, which a JS verifier rewrites as `0`/`1`, so its `contentHash` didn't verify. They are now written as integers, like LoRA weights. Styles exist since 0.2.0; no card minted so far has one.
+
+### Documentation
+
+- **README catches up with the code (#23).** It now lists the sample image routes (`GET /samples/{id}/{n}/art|framed`), how an owner edit is signed (`POST /drafts/{id}/challenge` with `action: "edit"`, then `/edit` with the same fields), and that a rejection closes only that image. It also covers every `serve` setting, plus `argus-mint frames`, `library list`, `schema --check` and the `serve` and `preflight` options. `argus-mint serve --help` lists every setting too.
+- CLAUDE.md imports the Argus suite map (argus-cortex `SUITE.md`) and documents the `dev`/`main` branch model; a suite check runs on `dev`, `main` and tags.
 
 ## 0.2.0 (2026-11-09)
 

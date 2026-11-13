@@ -45,7 +45,7 @@ src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_code
                   abi/   # committed contract ABIs (`make abi`, abi.load(name)), so pip users never need Foundry
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
-templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing)
+templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing, seven SDXL checkpoints + Flux dev; v3: draft, v2 reworded for clothing, described roles and no lettering)
 bios/             example bio template (draft; mistral-nemo, fruity flavour text)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
 schema/           mint-wire.schema.json: the HTTP wire contract (`argus-mint schema`; a test fails if stale)
