@@ -31,6 +31,9 @@ uv pip install "argus-mint[server]"  # + the HTTP service (argus-mint serve)
 
 ```bash
 argus-mint templates templates/                 # validate templates, show status and hash
+argus-mint frames frames/                       # validate frames: status, size, text slots, hash
+argus-mint library list library/                # summarise a pre-rendered library
+argus-mint schema --check                       # fail if schema/mint-wire.schema.json is stale
 argus-mint draft --template my-approved.yaml --out drafts/unit-17 --placeholder \
   --var role=ranger --var colour=none --var pose=standing --seed 81234 \
   --asset unit-17 --to 0x7099…79C8 --name "Hana of the Strait"
@@ -72,13 +75,14 @@ The script deploys `Card`, `Deed` and `Ledger` over plain JSON-RPC, grants roles
 
 ## Making a card: draft, review, publish
 
-Every card image is seen by people before it is published. Rendering makes a local **draft**. The moderator and the card's owner each **review** that exact image (its sha256), and only when both approve does **publish** pin it and sign the mint voucher. A rejection closes the draft; render a new one.
+Every card image is seen by people before it is published. Rendering makes a local **draft**. The moderator and the card's owner each **review** that exact image (its sha256), and only when both approve does **publish** pin it and sign the mint voucher. A rejection closes that image: no further reviews or publishing for it. To go on, render a new draft, or (through the API) the owner edits the card's text or style, which makes a new image that both reviewers see afresh.
 
 ```bash
 make ipfs                                    # local Kubo node (compose.yaml): RPC 127.0.0.1:5001, gateway :8080
 
 # reviewing a template or frame, before approving it
 argus-mint preflight my-template.yaml --darkroom http://localhost:8106      # darkroom's workflows, then text check of every combination
+                                            # (--limit N refuses templates with more combinations; --no-text skips the text check)
 argus-mint sample my-template.yaml --out samples/ --count 6 --frame frames/my-frame.yaml \
   --darkroom http://localhost:8106                                          # sample images, local files only
 
@@ -116,6 +120,7 @@ The Kubo RPC port is an admin API and is published on localhost only. Swarm port
 ```bash
 make serve                                  # local, 127.0.0.1:8108, settings from .env
 make serve-up                               # or in docker with Kubo (compose profile `server`)
+argus-mint serve --host 127.0.0.1 --port 8108 --cors http://localhost:3108   # directly; --cors overrides ARGUS_MINT_CORS_ORIGINS
 ```
 
 | Endpoint | |
@@ -126,14 +131,15 @@ make serve-up                               # or in docker with Kubo (compose pr
 | `GET /drafts/{id}` | the draft and its reviews; the pins and signed voucher once published |
 | `GET /drafts/{id}/image` `/art` | the card image reviewers approve, and the unframed render |
 | `POST /drafts` | render, write the bio, frame: a new pending draft (moderator token) |
-| `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs to approve or reject |
+| `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs: `{action: "review", approve}` to approve or reject, or `{action: "edit", edit: {name?, bio?, texts?, style?}}` for an edit. An edit's message covers the sha256 of exactly that edit |
 | `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
 | `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
-| `POST /drafts/{id}/edit` | the owner changes the card's text or style, with a wallet signature covering exactly that change. The card is redrawn on the same art and needs both approvals again. The moderator only approves or rejects |
+| `POST /drafts/{id}/edit` | the owner changes the card's text or style, with the signed edit challenge (`message`, `signature`) and the same `name`, `bio`, `texts` and `style` it was issued for; any difference is refused. Works on a rejected draft too, not on a published one. The card is redrawn on the same art and needs both approvals again. The moderator only approves or rejects |
 | `POST /frames/{id}/{version}/layout`, `GET /frames/{id}/{version}/fonts/…` | where each line of text goes, and the frame's fonts, so a browser can preview a restyled card as SVG before it is baked |
 | `GET /library`, `GET /library/{id}/image[?thumb=w]` | pre-rendered portraits; `POST /drafts` with `library: <id>` makes a card from one without a GPU |
 | `POST /samples`, `GET /samples[/{id}]` | sample cards of a template, frame and bio (any status) for their reviewer, as background jobs; local only (moderator token) |
-| `POST /frames/{id}/{version}/preview` | a frame (any status) on a draft's or sample's art, as a PNG |
+| `GET /samples/{id}/{n}/art`, `/framed` | sample *n*'s unframed render and framed card, as PNGs (`art` / `framed` in the job say which exist) |
+| `POST /frames/{id}/{version}/preview` | a frame (any status) on a draft's art (`art: {draft}`) or a sample's (`art: {sample, n}`), as a PNG |
 | `GET /templates/{id}/{version}/check` | what would make darkroom refuse to render the template, from its model list: missing checkpoints or LoRAs, no workflow for a LoRA count, a negative prompt, `guidance` or `clip_skip` a workflow can't take |
 | `POST /{templates,frames,bios}/{id}/{version}/review` | approve a draft or retire an approved file. This writes `status`, `approved_by` and `approved_at` into the YAML, keeping its comments (moderator token). With a darkroom configured, a template it can't render isn't approved (409, with the problems) |
 
@@ -171,11 +177,12 @@ Any colours are allowed; if the owner wants black on black, so be it. A frame ca
 The browser previews a restyle as SVG from `/layout` and the fonts, using the same tint matrix as the server. argus-mint bakes the PNG when the owner confirms, and that PNG is what gets reviewed and published. Provenance records the style, so the card can be redrawn exactly. Edited text never reaches a model, so an edited bio goes through the word filter rather than darkroom.
 
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
-- **Files:** `DRAFTS_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.
-- **Backends:** `DARKROOM_URL`, `WRITER_URL`, `IPFS_API`.
-- **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`.
-- **Chain:** `NETWORK`, `CARD`.
-- **Access:** `MODERATOR_TOKEN`, `SIWE_DOMAIN` (the UI's host, as wallets show it), `CORS_ORIGINS`, `READ_ONLY`.
+- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.
+- **Backends:** `DARKROOM_URL`, `POLICY` (darkroom's enforcing policy, default `default`, the SFW one), `WRITER_URL`, `WRITER_KEY` (its bearer token), `IPFS_API`.
+- **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`. Keystores are looked up in `KEYSTORE_DIR` (default `~/.foundry/keystores`).
+- **Chain and metadata:** `NETWORK`, `CARD`, `CONSUMER` (the consumer named in card metadata, default `argus-mint`), `VOUCHER_TTL` (seconds a signed voucher stays valid, default 3600).
+- **Access:** `MODERATOR_TOKEN`, `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.
+- **Moderation:** `AUTO_MODERATE`, `BLOCKLIST` (above).
 
 Like the other suite services, it binds to localhost and refuses writes from browser origins it wasn't told about.
 
