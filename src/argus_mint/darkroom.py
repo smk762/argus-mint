@@ -118,12 +118,21 @@ def check_template(t: Template, models: dict[str, Any]) -> list[str]:
     sampler and the scheduler exist. Pure; an empty list means nothing was found.
     """
     problems: list[str] = []
-    checkpoints = {c["name"]: c for c in models.get("checkpoints", []) if isinstance(c, dict) and "name" in c}
-    loras = {x if isinstance(x, str) else x.get("name") for x in models.get("loras", [])}
-    workflows = [w for w in models.get("workflows") or [] if isinstance(w, dict)]
+    checkpoints = {c["name"]: c for c in models.get("checkpoints") or [] if isinstance(c, dict) and "name" in c}
+    # A list darkroom sends is authoritative even when empty (no LoRA files means none render);
+    # only a list it doesn't send at all goes unchecked.
+    loras = (
+        {x if isinstance(x, str) else x.get("name") for x in models["loras"] or [] if isinstance(x, str | dict)}
+        if "loras" in models
+        else None
+    )
+    # darkroom picks a workflow of the checkpoint's own family before a family-agnostic one.
+    workflows = sorted(
+        (w for w in models.get("workflows") or [] if isinstance(w, dict)), key=lambda w: w.get("family") is None
+    )
     samplers, schedulers = set(models.get("samplers") or []), set(models.get("schedulers") or [])
     for lora in [*(x.name for x in t.loras), *(o.name for o in t.lora_options)]:
-        if loras and lora not in loras:
+        if loras is not None and lora not in loras:
             problems.append(f"LoRA {lora}: darkroom has no such file")
     for model in t.allowed_models():
         c = checkpoints.get(model)
@@ -214,9 +223,12 @@ class DarkroomClient:
         try:
             resp = self.client.get(f"{self.base_url}/models")
             resp.raise_for_status()
-            return resp.json()
+            models = resp.json()
         except (httpx.HTTPError, ValueError) as e:
             raise DarkroomError(f"darkroom's model list is unavailable: {e}") from e
+        if not isinstance(models, dict):
+            raise DarkroomError(f"darkroom's model list is not an object: {type(models).__name__}")
+        return models
 
     def check_template(self, t: Template) -> list[str]:
         """:func:`check_template` against this darkroom."""
@@ -318,5 +330,5 @@ class DarkroomClient:
         if not expected or hashlib.sha256(img.content).hexdigest() != expected:
             return GenResult.error(f"image {rid} does not match the record's sha256", ref=rid)
         r = record.get("request") or {}
-        workflow = {"name": r["workflow"], "sha256": r.get("workflow_sha256", "")} if r.get("workflow") else None
+        workflow = {"name": r["workflow"], "sha256": r.get("workflow_sha256") or ""} if r.get("workflow") else None
         return GenResult.ok(img.content, ref=rid, workflow=workflow)

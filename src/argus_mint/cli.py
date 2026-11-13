@@ -201,10 +201,6 @@ TextOpt = Annotated[
 ]
 
 
-def _attempts_json(attempts: Any) -> list[dict[str, Any]]:
-    return [a.to_json() for a in attempts]
-
-
 def _render_failed(e: RenderError) -> typer.Exit:
     for a in e.attempts:
         typer.echo(f"  attempt seed={a.seed} {a.outcome} {a.ref} {a.detail}", err=True)
@@ -320,13 +316,18 @@ def sample(
         except BioError as e:
             raise _fail(str(e)) from e
         except RenderError as e:
-            entry |= {"error": str(e), "attempts": _attempts_json(e.attempts)}
+            entry |= {"error": str(e), "attempts": [a.to_json() for a in e.attempts]}
             results.append(entry)
             typer.echo(f"{i}: {e}", err=True)
             continue
         art = out / f"{i:02d}-{r.seed}.png"
         art.write_bytes(r.image)
-        entry |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": _attempts_json(r.attempts), "art": str(art)}
+        entry |= {
+            "prompt": r.request.prompt,
+            "seed": r.seed,
+            "attempts": [a.to_json() for a in r.attempts],
+            "art": str(art),
+        }
         if b is not None:
             entry |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
         if lf is not None:

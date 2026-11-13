@@ -156,6 +156,16 @@ def test_check_template_against_darkroom_models(tdoc):
     assert any(
         "with [1] LoRA(s)" in p for p in check_template(t, _models((sdxl, [0]), (flux, [0, 1]), workflows=workflows))
     )
+    # darkroom with no LoRA files at all can't render the template's LoRA
+    no_loras = check_template(t, _models((sdxl, [0, 1]), (flux, [0, 1]), workflows=workflows, loras=[]))
+    assert any("LoRA fantasy-portrait.safetensors" in p for p in no_loras)
+    # a family-agnostic workflow listed first doesn't hide the family's own (which lacks $guidance)
+    generic_first = [_wf("any+lora1", None, 1, "$guidance", "$negative", "$clip_skip"), *workflows]
+    generic_first[2] = _wf("flux+lora1", "flux", 1)
+    assert any(
+        "flux+lora1" in p and "takes no guidance" in p
+        for p in check_template(t, _models((sdxl, [0, 1]), (flux, [0, 1]), workflows=generic_first))
+    )
 
 
 def test_safety_outcomes_retry_with_new_seeds(tdoc):
