@@ -15,7 +15,17 @@ import math
 import re
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
 
@@ -89,6 +99,15 @@ class FrameRef(BaseModel):
 _HEX = r"^#[0-9a-fA-F]{6}$"
 
 
+def _whole_as_int(x: float) -> int | float:
+    """A whole float as an int, for JSON that's hashed.
+
+    Provenance is hashed as canonical JSON, and JSON libraries disagree on a whole float: Python
+    writes ``1.0``, JavaScript ``1``. Written as an int, every verifier hashes the same bytes.
+    """
+    return int(x) if x.is_integer() else x
+
+
 class Tint(BaseModel):
     """Recolour the frame overlay: every pixel moves toward ``colour`` at its own brightness."""
 
@@ -96,6 +115,10 @@ class Tint(BaseModel):
 
     colour: str = Field(pattern=_HEX)
     strength: float = Field(default=0.6, ge=0.0, le=1.0)
+
+    @field_serializer("strength", when_used="json")
+    def _strength_json(self, x: float) -> int | float:
+        return _whole_as_int(x)
 
 
 class SlotBackground(BaseModel):
@@ -107,6 +130,10 @@ class SlotBackground(BaseModel):
     opacity: float = Field(default=0.6, ge=0.0, le=1.0)
     radius: int = Field(default=8, ge=0, le=200)
     padding: int = Field(default=4, ge=0, le=100)
+
+    @field_serializer("opacity", when_used="json")
+    def _opacity_json(self, x: float) -> int | float:
+        return _whole_as_int(x)
 
 
 class SlotStyle(BaseModel):
@@ -139,6 +166,10 @@ class LoraUse(BaseModel):
 
     name: str = Field(min_length=1)
     weight: float
+
+    @field_serializer("weight", when_used="json")
+    def _weight_json(self, x: float) -> int | float:
+        return _whole_as_int(x)
 
 
 class BioRef(BaseModel):

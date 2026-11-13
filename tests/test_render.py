@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from argus_mint.metadata import canonical
 from argus_mint.render import GenResult, Outcome, RenderError, RenderFailed, derive_seed, render
-from argus_mint.templates import NotApprovedError, RenderRequest, Template
+from argus_mint.templates import LoraChoice, NotApprovedError, RenderRequest, Template, fill
 
 VALUES = {"role": "ranger", "colour": "crimson", "pose": "on guard"}
 
@@ -90,14 +91,10 @@ def test_provenance_from_render(template_doc):
     # The render's choices are recorded, so anyone can rebuild the request from the metadata.
     assert p.variables == dict(sorted(VALUES.items())) and p.model == t.model
     assert [(x.name, x.weight) for x in p.loras or ()] == [(x.name, x.weight) for x in t.loras]
-    from argus_mint.templates import fill
-
     assert fill(t, p.variables, p.seed, p.model) == r.request
 
 
 def test_provenance_records_chosen_loras_and_checkpoint(template_doc):
-    from argus_mint.templates import LoraChoice
-
     alt = "sdxl/alt/alt.safetensors"
     t = Template.model_validate(
         {
@@ -121,6 +118,21 @@ def test_provenance_records_chosen_loras_and_checkpoint(template_doc):
         asset_id=b"\x01" * 32, consumer="c"
     )
     assert "loras" not in plain.to_json()  # none applied: left out
+
+
+def test_request_is_rebuilt_from_provenance_with_fixed_and_chosen_loras(template_doc):
+    t = Template.model_validate(
+        {**template_doc, "lora_options": [{"name": "style.safetensors", "weights": [0.7, 1.0]}], "max_loras": 1}
+    )
+    assert t.loras  # the template's own LoRA comes first in the provenance, the chosen one after it
+    choice = LoraChoice(name="style.safetensors", weight=1.0)
+    r = render(ScriptedDarklight(GenResult.ok(b"png")), t, VALUES, seed=3, loras=(choice,))
+    p = r.provenance(asset_id=b"\x01" * 32, consumer="c")
+    assert [x.name for x in p.loras or ()] == [*(x.name for x in t.loras), "style.safetensors"]
+    chosen = tuple(LoraChoice(name=x.name, weight=x.weight) for x in (p.loras or ())[len(t.loras) :])
+    assert fill(t, p.variables, p.seed, p.model, chosen) == r.request
+    # A whole weight is written as an int: Python would hash 1.0 and JavaScript 1 otherwise.
+    assert b'"weight":1}' in canonical(p.to_json()) and b"1.0" not in canonical(p.to_json()["loras"])
 
 
 def test_render_for_review_renders_drafts_but_render_does_not(template_doc):

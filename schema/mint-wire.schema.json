@@ -2316,11 +2316,15 @@
           "type": "string"
         },
         "opacity": {
-          "default": 0.6,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Opacity",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Opacity"
         },
         "padding": {
           "default": 4,
@@ -2828,11 +2832,15 @@
           "type": "string"
         },
         "strength": {
-          "default": 0.6,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Strength",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Strength"
         }
       },
       "required": [

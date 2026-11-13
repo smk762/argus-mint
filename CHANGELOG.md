@@ -13,8 +13,7 @@ All notable changes to this project are documented here. Versions come from git 
 
   It runs in three places. `argus-mint preflight` runs it before the text check. The server serves it at `GET /templates/{id}/{version}/check`, with the `check_templates` capability. Approving a template through the API is refused (409) while it reports problems.
 - **Darkroom's workflow is recorded with each attempt.** Each attempt keeps the workflow's name and sha256 (`attempts[].workflow`) in drafts, library entries and `publish` output.
-
-- **Provenance records the render's choices (wire 1.6).** The metadata's `provenance`, which the voucher's `contentHash` covers, gains `variables`, `model` (the checkpoint) and `loras` (name and weight). With the template hash and seed they rebuild the exact render request, so a card's art can be reproduced and checked from public data alone (hard rule 7). The variables come from the template's fixed lists, so no free text is added (hard rule 1). They are left out when unset: cards minted before this keep their `contentHash`, but don't say which variables, checkpoint or LoRAs made them. `Provenance.for_render` builds the block for both the CLI and the server.
+- **Provenance records the render's choices (wire 1.6).** The metadata's `provenance`, which the voucher's `contentHash` covers, gains `variables`, `model` (the checkpoint) and `loras` (name and weight; a whole weight is written as an integer, so every JSON library hashes the same bytes). With the template hash and seed they rebuild the exact render request, so a card's art can be reproduced and checked from public data alone (hard rule 7). The variables come from the template's fixed lists, so no free text is added (hard rule 1). They are left out when unset: cards minted before this keep their `contentHash`, but don't say which variables, checkpoint or LoRAs made them. `Provenance.for_render` builds the block for both the CLI and the server.
 
 - **The portrait library in the API fixture** (#14), for argus-assay's and argus-studio's demo mode. `fixtures/api/library.json` is `GET /library` for six whole groups of the pre-rendered library (every checkpoint each, ids and group numbers as in the full library), with a 640 px JPEG per entry in `fixtures/api/library/`. One recorded draft is made from a library entry.
 - `scripts/api_fixture.py` takes its art and library subset from a built library (`--library`, `--groups`); `ART.png` arguments are optional. The fixture's copy of template v2 also offers LoRA options, for the picker.
@@ -29,7 +28,11 @@ All notable changes to this project are documented here. Versions come from git 
   - the prompt asks for no lettering, and colour "none" becomes "plain".
 
   A full library (48 groups × 8 checkpoints, seed 8453) got 384 of 384 images, against v2's 371 (13 lost to the safety check, nearly all for nudity), with 11 safety retries against v2's 46. Giants, cyborgs and Flux's stray handwriting improved. Centaurs still come out as a rider or a figure beside a horse.
-- The fixture is re-recorded at wire 1.5 (it was 1.3).
+- The fixture is re-recorded at wire 1.7 (it was 1.3).
+
+### Fixed
+
+- **Whole numbers in a card's style hash the same in JavaScript.** A tint `strength` or background `opacity` of exactly 0 or 1 was written as `0.0`/`1.0` in provenance, which a JS verifier rewrites as `0`/`1`, so its `contentHash` didn't verify. They are now written as integers, like LoRA weights. Styles exist since 0.2.0; no card minted so far has one.
 
 ## 0.2.0 (2026-11-09)
 
