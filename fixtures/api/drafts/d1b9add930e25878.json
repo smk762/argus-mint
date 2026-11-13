@@ -1,8 +1,7 @@
 {
-  "id": "2d006eaf9c97eac6",
-  "status": "pending",
+  "id": "d1b9add930e25878",
+  "status": "rejected",
   "awaiting": [
-    "moderator",
     "owner"
   ],
   "draft": {
@@ -23,30 +22,30 @@
       },
       "width": 1152,
       "height": 896,
-      "prompt": "waist-up portrait of a single non-binary cyborg, centered and facing the viewer, wearing steel heraldry, repairing, background: workshop, painted fantasy illustration, full bleed, detailed face",
+      "prompt": "waist-up portrait of a single female priest, centered and facing the viewer, wearing gold heraldry, praying, background: temple, painted fantasy illustration, full bleed, detailed face",
       "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
       "variables": {
-        "background": "workshop",
-        "colour": "steel",
-        "gender": "non-binary",
-        "pose": "repairing",
-        "role": "cyborg"
+        "background": "temple",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "praying",
+        "role": "priest"
       },
-      "seed": 8454
+      "seed": 8456
     },
     "attempts": [
       {
-        "seed": 8454,
+        "seed": 8456,
         "outcome": "ok",
-        "ref": "fixture-1",
+        "ref": "fixture-3",
         "detail": ""
       }
     ],
     "renderer": "darkroom",
-    "asset_id": "0x309a65fb4c95d87a9b67c21ca029d0e120baab30d9931785d1408f9886cc71e2",
-    "to": "0x5A2DD641E1Bb133F600728B8e1B5E35a15eCFAF8",
-    "name": "Steel Tinker",
-    "description": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+    "asset_id": "0xc69006856306bbeaba31ac4a8f62e322285735071ccf46f6c466a81e32bffeae",
+    "to": "0x84d8530C85fA894c35563fD3b35a9c7695Ca9e60",
+    "name": "Lantern Keeper",
+    "description": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
     "external_url": null,
     "consumer": "argus-mint",
     "frame": {
@@ -61,7 +60,7 @@
         "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
         "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
       },
-      "text": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+      "text": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
       "attempts": [
         {
           "outcome": "ok",
@@ -72,17 +71,26 @@
       "edited": false
     },
     "texts": {
-      "class": "Cyborg · Steel",
-      "stats": "No. 2"
+      "class": "Priest · Gold",
+      "stats": "No. 4"
     },
     "style": null,
     "library": null,
     "edits": [],
     "auto_check": null,
-    "art_sha256": "7d8569653a593f56d38b38d00a561503a82c3e2eb4a4228ebe467890c03f6c32",
-    "image_sha256": "4e31ff3c37216390cce49e268f609eb0554374ea8ae5b0440ab78320822aebb4",
-    "created_at": "2026-11-09T09:15:19.628629Z",
-    "reviews": []
+    "art_sha256": "4c92196bff9238637ca9ca198d8b132ee1b29c1e8964ec2ec00c5c89bbf4b7ad",
+    "image_sha256": "d269338a89484bd5883bd23e4893654d33b99426291f954650bdc9bef341769c",
+    "created_at": "2026-11-09T10:08:16.566983Z",
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "rejected",
+        "by": "moderator-1",
+        "at": "2026-11-09T10:08:16.574029Z",
+        "image_sha256": "d269338a89484bd5883bd23e4893654d33b99426291f954650bdc9bef341769c",
+        "note": "The halo reads as a second face at card size."
+      }
+    ]
   },
   "published": null
 }
