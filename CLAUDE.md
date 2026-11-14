@@ -119,7 +119,7 @@ Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.loc
 - **Forge gotcha:** `sha256(...)` / `ecrecover` are precompile *calls*, so they consume a pending `vm.prank` / `vm.expectRevert`. Compute hashes before the cheatcode.
 - Tests marked `anvil` start a local node and deploy from `contracts/out`; they skip without Foundry unless `ARGUS_MINT_REQUIRE_ANVIL=1` (CI's contracts job sets it).
 - `uv.lock` is committed; a dependency change needs `make lock` in the same commit.
-- Template origin: `argus-pkg-template` via copier. The Dockerfile and GHCR image job are back (for `argus-mint serve`), adapted: the image's context has no `.git`, so the release job passes `VERSION` as a build arg (`SETUPTOOLS_SCM_PRETEND_VERSION`). CI is standalone because the shared argus-ci workflow has no Foundry hook.
+- Template origin: `argus-pkg-template` via copier. The Dockerfile and GHCR image job are back (for `argus-mint serve`), adapted: the image's context has no `.git`, so the release job passes `VERSION` as a build arg (`SETUPTOOLS_SCM_PRETEND_VERSION`). A `cortex-released` dispatch from argus-cortex's release rebuilds the newest final release's image (no cache), so a new argus-cortex inside the `server` extra's range reaches the service without a mint release; one outside the range needs that range raised and a release. CI is standalone because the shared argus-ci workflow has no Foundry hook.
 - **Wire schema:** a change to `wire.py` (or a model it embeds: `Template`, `Frame`, `BioTemplate`, `CardDraft`) changes `schema/mint-wire.schema.json`; run `make schema` and commit it. Bump `WIRE_VERSION`'s major for breaking changes. Regenerate `fixtures/api/` when responses change shape.
 
 ## Branches
