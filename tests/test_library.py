@@ -213,6 +213,31 @@ def test_sampling_follows_the_checkpoint_family(template_doc):
     assert plain.hash() == Template.model_validate({**template_doc, "sampling": {**base, "guidance": None}}).hash()
 
 
+def test_sampling_by_model_overrides_the_family(template_doc):
+    base = {"sampler": "euler", "scheduler": "normal", "steps": 25, "cfg": 6.0}
+    dev = {"sampler": "euler", "scheduler": "simple", "steps": 20, "cfg": 1.0, "guidance": 3.5}
+    schnell = {**dev, "steps": 4}
+    doc = {**template_doc, "loras": [], "model": "sdxl/a/a.safetensors",
+           "models": ["flux/dev.safetensors", "flux/schnell.safetensors"], "sampling": base,
+           "sampling_by_family": {"flux": dev}, "sampling_by_model": {"flux/schnell.safetensors": schnell}}  # fmt: skip
+    t = Template.model_validate(doc)
+    values = {"role": "ranger", "colour": "none", "pose": "standing"}
+    assert fill(t, values, 1, "flux/schnell.safetensors").sampling.steps == 4  # its own
+    assert fill(t, values, 1, "flux/dev.safetensors").sampling.steps == 20  # its family's
+    assert fill(t, values, 1).sampling.steps == 25  # the default
+    unused = {k: v for k, v in doc.items() if k != "sampling_by_model"}
+    assert Template.model_validate({**unused, "sampling_by_model": {}}).hash() == Template.model_validate(unused).hash()
+    assert t.hash() != Template.model_validate(unused).hash()
+    with_unset = {**doc, "sampling_by_model": {"flux/schnell.safetensors": {**schnell, "guidance": None}}}
+    no_guidance = {
+        **doc,
+        "sampling_by_model": {"flux/schnell.safetensors": {k: v for k, v in schnell.items() if k != "guidance"}},
+    }
+    assert Template.model_validate(with_unset).hash() == Template.model_validate(no_guidance).hash()
+    with pytest.raises(ValueError, match="sampling_by_model names checkpoints"):
+        Template.model_validate({**doc, "sampling_by_model": {"flux/other.safetensors": schnell}})
+
+
 def test_negative_follows_the_checkpoint_family(template_doc):
     from argus_mint.darkroom import request_body
     from argus_mint.templates import family

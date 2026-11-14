@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. Versions come from git tags (`hatch-vcs`).
 
+## Unreleased
+
+### Added
+
+- **Sampling per checkpoint (wire 1.8, #6).** A template's `sampling_by_model`, keyed by a checkpoint it lists, overrides the family's sampling. Flux schnell needs it: it shares darkroom's `flux` workflow with dev but takes about 4 steps, not 20. Like the per-family fields, it is left out of the template hash while empty, so existing templates keep their hash.
+
+### Changed
+
+- **Template v3 (draft)** adds Flux schnell (4 steps), FLUX.2 Klein 9B (`flux-klein`: 4 steps, cfg 1, no negative prompt) and SD3.5 Large (`sd35`: `euler`/`sgm_uniform`, 28 steps, cfg 4, with the negative prompt). `preflight` finds no workflow problems with the 11 checkpoints on darkroom 0.1.3. The library doesn't cover the three new checkpoints yet.
+
 ## 0.2.1 (2026-11-13)
 
 ### Added

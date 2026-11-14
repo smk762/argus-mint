@@ -13,12 +13,15 @@
 #   not a garment), and the negative prompt rules out nudity. Colour "none" is now "plain".
 # Each list keeps its length and order, so a library built with the same seed picks the same
 # combinations as v2's and the two compare group for group.
+# It also offers Flux schnell, FLUX.2 Klein 9B and SD3.5 Large (#6), with their own sampling
+# (darkroom's README, "Workflows"): schnell and Klein are distilled to ~4 steps at cfg 1.
 id: example-portrait
 version: 3
 status: draft             # draft | approved | retired
 model: sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors   # darkroom checkpoint (GET /models)
 # Checkpoints a card may choose instead (reviewed with the template). The SDXL ones share the
-# sampling below; Flux has its own (sampling_by_family) and no negative prompt (negative_by_family).
+# sampling below. Other families have their own (sampling_by_family), and schnell differs from
+# Flux dev (sampling_by_model). Flux and Klein take no negative prompt (negative_by_family).
 models:
   - sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors
   - sdxl/bigLove_xl2/bigLove_xl2.safetensors
@@ -28,16 +31,26 @@ models:
   - sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors
   - sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors
   - flux/flux1-dev-fp8.safetensors
+  - flux/flux1-schnell-fp8-e4m3fn.safetensors
+  - flux-klein/flux-2-klein-9b-fp8.safetensors
+  - sd35/sd3.5_large_fp8_scaled.safetensors
 loras: []
 sampling:                                 # fixed here so a render is reproducible
   sampler: euler
   scheduler: normal
   steps: 25
   cfg: 6.0
-sampling_by_family:                       # Flux dev: distilled guidance, cfg 1
-  flux: {sampler: euler, scheduler: simple, steps: 20, cfg: 1.0, guidance: 3.5}
-negative_by_family:                       # darkroom's Flux workflows take no negative prompt
+sampling_by_family:
+  flux: {sampler: euler, scheduler: simple, steps: 20, cfg: 1.0, guidance: 3.5}   # Flux dev: distilled guidance, cfg 1
+  flux-klein: {sampler: euler, scheduler: simple, steps: 4, cfg: 1.0}             # Klein 9B (distilled): no guidance slot
+  sd35: {sampler: euler, scheduler: sgm_uniform, steps: 28, cfg: 4.0}             # SD3.5 Large: takes the negative prompt
+sampling_by_model:
+  # Schnell runs on darkroom's flux workflow, whose $guidance slot needs a value; schnell isn't
+  # guidance-distilled, so it has no effect there.
+  flux/flux1-schnell-fp8-e4m3fn.safetensors: {sampler: euler, scheduler: simple, steps: 4, cfg: 1.0, guidance: 3.5}
+negative_by_family:                       # darkroom's Flux and Klein workflows take no negative prompt
   flux: ""
+  flux-klein: ""
 width: 1152               # landscape, SDXL's nearest size to card-green's ~4:3 art window
 height: 896
 prompt: "waist-up portrait of a single {gender} {role}, centered and facing the viewer, fully clothed in a tunic bearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image"
