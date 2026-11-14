@@ -1,4 +1,9 @@
-# argus-mint
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/smk762/argus-cortex/dev/brand/packages/mint/argus-mint-lockup-dark.svg">
+    <img alt="argus-mint" src="https://raw.githubusercontent.com/smk762/argus-cortex/dev/brand/packages/mint/argus-mint-lockup-light.svg" height="52">
+  </picture>
+</h1>
 
 Provenance tokens for game assets. argus-mint renders art from reviewed templates, pins it to IPFS, builds canonical ERC-721 metadata, mints transferable cards and soulbound deeds, and anchors commit/reveal secrets and Merkle roots on-chain so anyone can check a game's records.
 
