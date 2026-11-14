@@ -147,7 +147,7 @@ argus-mint serve --host 127.0.0.1 --port 8108 --cors http://localhost:3108   # d
 
 **Checkpoints, sampling and LoRAs.** A template lists the checkpoints a card may use (`models`, reviewed with it; `model` is the default). `draft --model`, `sample --model` and `POST /drafts` with `model` choose one; anything else is refused.
 
-The template's `sampling` and `negative` apply unless `sampling_by_family` or `negative_by_family` has an entry for the checkpoint's family. The family is its top folder: `sdxl`, `flux`, `sd35`. Flux sets `guidance`, and its negative is `""`, since darkroom's Flux workflows have no slot for one.
+The template's `sampling` and `negative` apply unless `sampling_by_family` or `negative_by_family` has an entry for the checkpoint's family. The family is its top folder: `sdxl`, `flux`, `flux-klein`, `sd35`. `sampling_by_model`, keyed by a checkpoint the template lists, takes precedence over both, for a checkpoint that needs different sampling from the rest of its family (Flux schnell takes about 4 steps where dev takes 20). Flux sets `guidance`, and its negative is `""`, since darkroom's Flux workflows have no slot for one.
 
 A template can also offer `lora_options`, each with:
 - allowed `weights`

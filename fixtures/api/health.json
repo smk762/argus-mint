@@ -1,7 +1,7 @@
 {
   "service": "argus-mint",
   "version": "0.2.1.dev0+g564483156.d20261109",
-  "wire_version": "1.7",
+  "wire_version": "1.8",
   "read_only": false,
   "network": "base_sepolia",
   "chain_id": 84532,

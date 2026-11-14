@@ -85,6 +85,7 @@
           "guidance": 3.5
         }
       },
+      "sampling_by_model": {},
       "width": 1152,
       "height": 896,
       "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face",
@@ -217,6 +218,7 @@
           "guidance": 3.5
         }
       },
+      "sampling_by_model": {},
       "width": 1152,
       "height": 896,
       "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face",

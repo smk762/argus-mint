@@ -156,6 +156,9 @@ class Template(BaseModel):
     sampling: Sampling | None = None  # required by darkroom; optional for other renderers
     # Sampling for checkpoints of another family (keyed by family: "flux", "sd35"...), when it differs.
     sampling_by_family: dict[str, Sampling] = Field(default_factory=dict)
+    # Sampling for one checkpoint (keyed by its path), when it differs from its family's: e.g. Flux
+    # schnell takes ~4 steps where dev takes 20. Each key must be a checkpoint the template allows.
+    sampling_by_model: dict[str, Sampling] = Field(default_factory=dict)
     width: int = Field(gt=0, le=8192)
     height: int = Field(gt=0, le=8192)
     prompt: str = Field(min_length=1)
@@ -204,6 +207,9 @@ class Template(BaseModel):
             stray = [m for m in o.models if m not in allowed]
             if stray:
                 raise ValueError(f"LoRA option {o.name!r} pairs with checkpoints the template doesn't allow: {stray}")
+        stray = [m for m in self.sampling_by_model if m not in allowed]
+        if stray:
+            raise ValueError(f"sampling_by_model names checkpoints the template doesn't allow: {stray}")
         return self
 
     @property
@@ -223,17 +229,21 @@ class Template(BaseModel):
             ("lora_options", not self.lora_options),
             ("max_loras", not self.lora_options),
             ("sampling_by_family", not self.sampling_by_family),
+            ("sampling_by_model", not self.sampling_by_model),
             ("negative_by_family", not self.negative_by_family),
         ):
             if unused:
                 doc.pop(key, None)
-        for sampling in [doc.get("sampling"), *doc.get("sampling_by_family", {}).values()]:
+        overrides = (*doc.get("sampling_by_family", {}).values(), *doc.get("sampling_by_model", {}).values())
+        for sampling in [doc.get("sampling"), *overrides]:
             if isinstance(sampling, dict) and sampling.get("guidance") is None:
                 sampling.pop("guidance", None)
         return keccak256(canonical(doc))
 
     def sampling_for(self, model: str) -> Sampling | None:
-        """The sampling for ``model``: its family's, if the template sets one, else the default."""
+        """The sampling for ``model``: its own, else its family's, else the default."""
+        if model in self.sampling_by_model:
+            return self.sampling_by_model[model]
         return self.sampling_by_family.get(family(model), self.sampling)
 
     def negative_for(self, model: str) -> str:

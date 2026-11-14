@@ -1373,7 +1373,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.7",
+          "default": "1.8",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2566,6 +2566,13 @@
           "title": "Sampling By Family",
           "type": "object"
         },
+        "sampling_by_model": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Sampling"
+          },
+          "title": "Sampling By Model",
+          "type": "object"
+        },
         "status": {
           "enum": [
             "draft",
@@ -2850,5 +2857,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.7"
+  "title": "argus-mint wire 1.8"
 }
