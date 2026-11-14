@@ -2,20 +2,11 @@
 
 All notable changes to this project are documented here. Versions come from git tags (`hatch-vcs`).
 
-## Unreleased
+## 0.2.1 (2026-11-14)
 
 ### Added
 
 - **Sampling per checkpoint (wire 1.8, #6).** A template's `sampling_by_model`, keyed by a checkpoint it lists, overrides the family's sampling. Flux schnell needs it: it shares darkroom's `flux` workflow with dev but takes about 4 steps, not 20. Like the per-family fields, it is left out of the template hash while empty, so existing templates keep their hash.
-
-### Changed
-
-- **Template v3 (draft)** adds Flux schnell (4 steps), FLUX.2 Klein 9B (`flux-klein`: 4 steps, cfg 1, no negative prompt) and SD3.5 Large (`sd35`: `euler`/`sgm_uniform`, 28 steps, cfg 4, with the negative prompt). `preflight` finds no workflow problems with the 11 checkpoints on darkroom 0.1.3. The library doesn't cover the three new checkpoints yet.
-
-## 0.2.1 (2026-11-13)
-
-### Added
-
 - **Templates are checked against darkroom's workflows (wire 1.7, #10).** `darkroom.check_template` reads darkroom's `GET /models` and reports anything that would make a render fail with a 400:
   - a checkpoint, LoRA, sampler or scheduler darkroom doesn't have
   - a checkpoint with no workflow for a LoRA count the template allows
@@ -38,10 +29,14 @@ All notable changes to this project are documented here. Versions come from git 
   - the prompt asks for no lettering, and colour "none" becomes "plain".
 
   A full library (48 groups × 8 checkpoints, seed 8453) got 384 of 384 images, against v2's 371 (13 lost to the safety check, nearly all for nudity), with 11 safety retries against v2's 46. Giants, cyborgs and Flux's stray handwriting improved. Centaurs still come out as a rider or a figure beside a horse.
-- The fixture is re-recorded at wire 1.7 (it was 1.3).
+- **Template v3** also adds Flux schnell (4 steps), FLUX.2 Klein 9B (`flux-klein`: 4 steps, cfg 1, no negative prompt) and SD3.5 Large (`sd35`: `euler`/`sgm_uniform`, 28 steps, cfg 4, with the negative prompt). `preflight` finds no workflow problems with the 11 checkpoints on darkroom 0.1.3. The library doesn't cover the three new checkpoints yet.
+- The fixture is re-recorded at wire 1.8 (it was 1.3).
 
 ### Fixed
 
+- **`check_template` checks a checkpoint darkroom lists without a family** against its path's family's workflows (as darkroom reads it). Before, only family-agnostic workflows matched, so a Flux workflow's missing slots went unreported.
+- **`DarkroomClient.models()` waits at most 30 s**, not the 900 s a generation may take, so a stalled darkroom can't hold a template check, an approval or `preflight` for 15 minutes.
+- `check_template` no longer passes every LoRA when darkroom lists no LoRA files (only a reply without a `loras` key goes unchecked), and a family-agnostic workflow listed before the family's own no longer hides that workflow's missing slots. A malformed `GET /models` reply raises `DarkroomError` instead of a 500.
 - **Whole numbers in a card's style hash the same in JavaScript.** A tint `strength` or background `opacity` of exactly 0 or 1 was written as `0.0`/`1.0` in provenance, which a JS verifier rewrites as `0`/`1`, so its `contentHash` didn't verify. They are now written as integers, like LoRA weights. Styles exist since 0.2.0; no card minted so far has one.
 
 ### Documentation
