@@ -1,0 +1,96 @@
+{
+  "id": "d1b9add930e25878",
+  "status": "rejected",
+  "awaiting": [
+    "owner"
+  ],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 2,
+      "template_hash": "0x5c36dcb87248112c3c6a1c876cd76718f72063a155cc762147d871da2b8e08e7",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1,
+        "guidance": null
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single female priest, centered and facing the viewer, wearing gold heraldry, praying, background: temple, painted fantasy illustration, full bleed, detailed face",
+      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "temple",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "praying",
+        "role": "priest"
+      },
+      "seed": 8456
+    },
+    "attempts": [
+      {
+        "seed": 8456,
+        "outcome": "ok",
+        "ref": "fixture-3",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0xc69006856306bbeaba31ac4a8f62e322285735071ccf46f6c466a81e32bffeae",
+    "to": "0x84d8530C85fA894c35563fD3b35a9c7695Ca9e60",
+    "name": "Lantern Keeper",
+    "description": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} keeps a lantern lit for travellers who have not yet set out, just in case they lose their way."
+        }
+      ],
+      "edited": false
+    },
+    "texts": {
+      "class": "Priest · Gold",
+      "stats": "No. 4"
+    },
+    "style": null,
+    "library": null,
+    "edits": [],
+    "auto_check": null,
+    "art_sha256": "4c92196bff9238637ca9ca198d8b132ee1b29c1e8964ec2ec00c5c89bbf4b7ad",
+    "image_sha256": "d269338a89484bd5883bd23e4893654d33b99426291f954650bdc9bef341769c",
+    "created_at": "2026-11-09T10:08:16.566983Z",
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "rejected",
+        "by": "moderator-1",
+        "at": "2026-11-09T10:08:16.574029Z",
+        "image_sha256": "d269338a89484bd5883bd23e4893654d33b99426291f954650bdc9bef341769c",
+        "note": "The halo reads as a second face at card size."
+      }
+    ]
+  },
+  "published": null
+}

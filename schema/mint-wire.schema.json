@@ -288,6 +288,11 @@
           "title": "Auto Moderate",
           "type": "boolean"
         },
+        "check_templates": {
+          "default": false,
+          "title": "Check Templates",
+          "type": "boolean"
+        },
         "create_drafts": {
           "title": "Create Drafts",
           "type": "boolean"
@@ -1368,7 +1373,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.5",
+          "default": "1.8",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2311,11 +2316,15 @@
           "type": "string"
         },
         "opacity": {
-          "default": 0.6,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Opacity",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Opacity"
         },
         "padding": {
           "default": 4,
@@ -2557,6 +2566,13 @@
           "title": "Sampling By Family",
           "type": "object"
         },
+        "sampling_by_model": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Sampling"
+          },
+          "title": "Sampling By Model",
+          "type": "object"
+        },
         "status": {
           "enum": [
             "draft",
@@ -2599,6 +2615,33 @@
         "variables"
       ],
       "title": "Template",
+      "type": "object"
+    },
+    "TemplateCheck": {
+      "additionalProperties": false,
+      "description": "GET /templates/{id}/{version}/check: what would make darkroom refuse to render the template.\n\nChecked against darkroom's model list: checkpoints, LoRAs, sampler and scheduler exist, and a\nworkflow renders each checkpoint with every LoRA count the template allows, taking what the\ntemplate sends. Approving a template is refused while ``problems`` isn't empty.",
+      "properties": {
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "template": {
+          "$ref": "#/$defs/Ref"
+        }
+      },
+      "required": [
+        "template",
+        "ok",
+        "problems"
+      ],
+      "title": "TemplateCheck",
       "type": "object"
     },
     "TemplateInfo": {
@@ -2796,11 +2839,15 @@
           "type": "string"
         },
         "strength": {
-          "default": 0.6,
-          "maximum": 1.0,
-          "minimum": 0.0,
-          "title": "Strength",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Strength"
         }
       },
       "required": [
@@ -2810,5 +2857,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.5"
+  "title": "argus-mint wire 1.8"
 }

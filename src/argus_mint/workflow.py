@@ -146,7 +146,7 @@ def create_draft(
         assert renderer is not None
         rendered = render(renderer, template, values, seed, model, loras)
         art, req = rendered.image, rendered.request
-        attempts = _render_attempts(rendered.attempts)
+        attempts = [a.to_json() for a in rendered.attempts]
     b = write_bio(writer, guard, bio, values, template, name) if bio and writer and guard else None
     card_image = compose(frame, art, card_texts(frame, name, b.text if b else None, texts), style) if frame else art
     draft = CardDraft(
@@ -265,9 +265,9 @@ def sample_card(
     try:
         r = render_for_review(renderer, template, values, seed, model, loras)
     except RenderError as e:
-        item |= {"error": str(e), "attempts": _render_attempts(e.attempts)}
+        item |= {"error": str(e), "attempts": [a.to_json() for a in e.attempts]}
         return Sample(item, None, None)
-    item |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": _render_attempts(r.attempts)}
+    item |= {"prompt": r.request.prompt, "seed": r.seed, "attempts": [a.to_json() for a in r.attempts]}
     bio_text = None
     if bio is not None and writer is not None and guard is not None:
         try:
@@ -279,10 +279,6 @@ def sample_card(
             item |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
     framed = compose(frame, r.image, card_texts(frame, name, bio_text, texts), _plain_to_none(style)) if frame else None
     return Sample(item, r.image, framed)
-
-
-def _render_attempts(attempts: Any) -> list[dict[str, Any]]:
-    return [{"seed": a.seed, "outcome": str(a.outcome), "ref": a.ref, "detail": a.detail} for a in attempts]
 
 
 def edit_text(

@@ -2,6 +2,53 @@
 
 All notable changes to this project are documented here. Versions come from git tags (`hatch-vcs`).
 
+## Unreleased
+
+### Added
+
+- **Sampling per checkpoint (wire 1.8, #6).** A template's `sampling_by_model`, keyed by a checkpoint it lists, overrides the family's sampling. Flux schnell needs it: it shares darkroom's `flux` workflow with dev but takes about 4 steps, not 20. Like the per-family fields, it is left out of the template hash while empty, so existing templates keep their hash.
+
+### Changed
+
+- **Template v3 (draft)** adds Flux schnell (4 steps), FLUX.2 Klein 9B (`flux-klein`: 4 steps, cfg 1, no negative prompt) and SD3.5 Large (`sd35`: `euler`/`sgm_uniform`, 28 steps, cfg 4, with the negative prompt). `preflight` finds no workflow problems with the 11 checkpoints on darkroom 0.1.3. The library doesn't cover the three new checkpoints yet.
+
+## 0.2.1 (2026-11-13)
+
+### Added
+
+- **Templates are checked against darkroom's workflows (wire 1.7, #10).** `darkroom.check_template` reads darkroom's `GET /models` and reports anything that would make a render fail with a 400:
+  - a checkpoint, LoRA, sampler or scheduler darkroom doesn't have
+  - a checkpoint with no workflow for a LoRA count the template allows
+  - a workflow given a negative prompt, `guidance` or `clip_skip` it has no slot for, or missing `guidance` it needs
+
+  It runs in three places. `argus-mint preflight` runs it before the text check. The server serves it at `GET /templates/{id}/{version}/check`, with the `check_templates` capability. Approving a template through the API is refused (409) while it reports problems.
+- **Darkroom's workflow is recorded with each attempt.** Each attempt keeps the workflow's name and sha256 (`attempts[].workflow`) in drafts, library entries and `publish` output.
+- **Provenance records the render's choices (wire 1.6).** The metadata's `provenance`, which the voucher's `contentHash` covers, gains `variables`, `model` (the checkpoint) and `loras` (name and weight; a whole weight is written as an integer, so every JSON library hashes the same bytes). With the template hash and seed they rebuild the exact render request, so a card's art can be reproduced and checked from public data alone (hard rule 7). The variables come from the template's fixed lists, so no free text is added (hard rule 1). They are left out when unset: cards minted before this keep their `contentHash`, but don't say which variables, checkpoint or LoRAs made them. `Provenance.for_render` builds the block for both the CLI and the server.
+
+- **The portrait library in the API fixture** (#14), for argus-assay's and argus-studio's demo mode. `fixtures/api/library.json` is `GET /library` for six whole groups of the pre-rendered library (every checkpoint each, ids and group numbers as in the full library), with a 640 px JPEG per entry in `fixtures/api/library/`. One recorded draft is made from a library entry.
+- `scripts/api_fixture.py` takes its art and library subset from a built library (`--library`, `--groups`); `ART.png` arguments are optional. The fixture's copy of template v2 also offers LoRA options, for the picker.
+- `tests/test_api_fixture.py` fails when the fixture is stale: wire version, response shapes, missing images, groups missing a checkpoint.
+
+### Changed
+
+- **Template v2** drops `sdxl/makeArtNotGoon_v8` (weaker output) and adds Flux dev (`flux/flux1-dev-fp8`), with its own sampling (guidance 3.5, 20 steps) and no negative prompt. It lists seven SDXL checkpoints and Flux dev.
+- **Template v3 (draft)** rewords v2's prompt for the same checkpoints and variables:
+  - the subject is "fully clothed in a tunic", and the negative prompt starts with nudity terms;
+  - the risky roles are described (a giant "dwarfing the room", a cyborg "with metal limbs and glowing implants", a centaur "with a horse's body below the waist");
+  - the prompt asks for no lettering, and colour "none" becomes "plain".
+
+  A full library (48 groups × 8 checkpoints, seed 8453) got 384 of 384 images, against v2's 371 (13 lost to the safety check, nearly all for nudity), with 11 safety retries against v2's 46. Giants, cyborgs and Flux's stray handwriting improved. Centaurs still come out as a rider or a figure beside a horse.
+- The fixture is re-recorded at wire 1.7 (it was 1.3).
+
+### Fixed
+
+- **Whole numbers in a card's style hash the same in JavaScript.** A tint `strength` or background `opacity` of exactly 0 or 1 was written as `0.0`/`1.0` in provenance, which a JS verifier rewrites as `0`/`1`, so its `contentHash` didn't verify. They are now written as integers, like LoRA weights. Styles exist since 0.2.0; no card minted so far has one.
+
+### Documentation
+
+- **README catches up with the code (#23).** It now lists the sample image routes (`GET /samples/{id}/{n}/art|framed`), how an owner edit is signed (`POST /drafts/{id}/challenge` with `action: "edit"`, then `/edit` with the same fields), and that a rejection closes only that image. It also covers every `serve` setting, plus `argus-mint frames`, `library list`, `schema --check` and the `serve` and `preflight` options. `argus-mint serve --help` lists every setting too.
+- CLAUDE.md imports the Argus suite map (argus-cortex `SUITE.md`) and documents the `dev`/`main` branch model; a suite check runs on `dev`, `main` and tags.
+
 ## 0.2.0 (2026-11-09)
 
 ### Changed (breaking)

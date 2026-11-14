@@ -13,17 +13,31 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 
 from argus_mint._codec import Bytes32, canonical, hex0x, keccak256
+
+if TYPE_CHECKING:
+    from argus_mint.templates import RenderRequest
 
 __all__ = [
     "Attribute",
     "BioRef",
     "CardStyle",
     "FrameRef",
+    "LoraUse",
     "SlotBackground",
     "SlotStyle",
     "Tint",
@@ -85,6 +99,15 @@ class FrameRef(BaseModel):
 _HEX = r"^#[0-9a-fA-F]{6}$"
 
 
+def _whole_as_int(x: float) -> int | float:
+    """A whole float as an int, for JSON that's hashed.
+
+    Provenance is hashed as canonical JSON, and JSON libraries disagree on a whole float: Python
+    writes ``1.0``, JavaScript ``1``. Written as an int, every verifier hashes the same bytes.
+    """
+    return int(x) if x.is_integer() else x
+
+
 class Tint(BaseModel):
     """Recolour the frame overlay: every pixel moves toward ``colour`` at its own brightness."""
 
@@ -92,6 +115,10 @@ class Tint(BaseModel):
 
     colour: str = Field(pattern=_HEX)
     strength: float = Field(default=0.6, ge=0.0, le=1.0)
+
+    @field_serializer("strength", when_used="json")
+    def _strength_json(self, x: float) -> int | float:
+        return _whole_as_int(x)
 
 
 class SlotBackground(BaseModel):
@@ -103,6 +130,10 @@ class SlotBackground(BaseModel):
     opacity: float = Field(default=0.6, ge=0.0, le=1.0)
     radius: int = Field(default=8, ge=0, le=200)
     padding: int = Field(default=4, ge=0, le=100)
+
+    @field_serializer("opacity", when_used="json")
+    def _opacity_json(self, x: float) -> int | float:
+        return _whole_as_int(x)
 
 
 class SlotStyle(BaseModel):
@@ -128,6 +159,19 @@ class CardStyle(BaseModel):
         return self.tint is None and not self.slots
 
 
+class LoraUse(BaseModel):
+    """A LoRA the render used, with its weight (its trigger words come from the template)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1)
+    weight: float
+
+    @field_serializer("weight", when_used="json")
+    def _weight_json(self, x: float) -> int | float:
+        return _whole_as_int(x)
+
+
 class BioRef(BaseModel):
     """The reviewed bio template (and model) that wrote the card's bio (see :mod:`argus_mint.bios`)."""
 
@@ -145,8 +189,14 @@ class Provenance(BaseModel):
     ``frame`` and ``art`` are set only for a framed card: the frame, and ``ipfs://`` of the
     unframed render. ``bio`` names the bio template and model when a bio was written (the
     text itself is the card's ``description`` and is drawn on the image). ``style`` is the
-    owner's styling of the frame, so the card can be redrawn exactly. Unset fields are left out of the JSON, so unframed cards serialize (and
-    hash) exactly as before frames existed.
+    owner's styling of the frame, so the card can be redrawn exactly.
+
+    ``variables``, ``model`` and ``loras`` are the render's choices. With the template (pinned
+    by its hash) and ``seed`` they fix the render request, so anyone can rebuild it (hard rule 7).
+    The variables are values from the template's fixed lists, never free text (hard rule 1).
+
+    Unset fields are left out of the JSON, so a card made before a field existed serializes (and
+    hashes) exactly as it did.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -162,6 +212,23 @@ class Provenance(BaseModel):
     art: str | None = None
     bio: BioRef | None = None
     style: CardStyle | None = None  # the owner's styling of the frame, when they chose any
+    variables: dict[str, str] | None = None  # the template variables' values
+    model: str | None = None  # the checkpoint
+    loras: tuple[LoraUse, ...] | None = None  # every LoRA applied (the template's own, then chosen ones); None: none
+
+    @classmethod
+    def for_render(cls, req: RenderRequest, **fields: Any) -> Provenance:
+        """The provenance of a render of ``req``: its template, seed and choices, plus ``fields``."""
+        return cls(
+            template=req.template_id,
+            template_version=req.template_version,
+            template_hash=req.template_hash,
+            seed=req.seed,
+            variables=dict(sorted(req.variables.items())),
+            model=req.model,
+            loras=tuple(LoraUse(name=x.name, weight=x.weight) for x in req.loras) or None,
+            **fields,
+        )
 
     @field_validator("art")
     @classmethod

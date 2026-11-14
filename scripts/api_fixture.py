@@ -7,14 +7,18 @@ a UI reads, plus the images, under fixtures/api/:
     health.json templates.json frames.json bios.json drafts.json
     drafts/<id>.json drafts/<id>/image.png drafts/<id>/art.png frames/<id>/<version>/overlay.png
     samples.json samples/<id>.json samples/<id>/<n>-art.png samples/<id>/<n>-framed.png
+    library.json library/<id>.jpg
 
-    uv run python scripts/api_fixture.py ART.png [ART.png ...]
+    uv run python scripts/api_fixture.py [--library DIR] [--groups N] [ART.png ...]
 
-Art is scaled to 1152x896 first, the shape template v2 renders.
+The library subset is whole groups (every checkpoint) of a built library (``argus-mint library
+build``; default ./library), ids and group numbers kept. The stand-in renderer returns the ART
+files, scaled to 1152x896 (the shape template v2 renders), or else the subset's own images.
 """
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import shutil
@@ -29,6 +33,7 @@ from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from argus_mint.library import MANIFEST, Library
 from argus_mint.pin import LocalPinner
 from argus_mint.render import GenResult
 from argus_mint.server import Settings, create_app
@@ -38,6 +43,8 @@ OUT = ROOT / "fixtures" / "api"
 TOKEN = "fixture-token"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
 CARD = "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
+THUMB = 640  # the one JPEG per library entry; assay's mock serves it for every size
+FLUX = "flux/flux1-dev-fp8.safetensors"
 SIGNER = Account.from_key("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")  # anvil #1
 
 BIOS = [
@@ -61,7 +68,8 @@ CARDS = [  # name, variables, display text, what happens to it
 README = """# argus-mint API fixture
 
 Recorded responses of `argus-mint serve` for argus-studio's and argus-assay's demo mode, so
-they run without a backend. Regenerate with `uv run python scripts/api_fixture.py ART.png ...`.
+they run without a backend. Regenerate with `uv run python scripts/api_fixture.py`, after
+`argus-mint library build`.
 
 - One draft per state: pending, approved, rejected, published (the published one has its
   `publish.json` result: pins, metadata, signed voucher).
@@ -72,6 +80,12 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
 - `drafts/<id>/layout.json` is where each line of the card's text sits (`POST /frames/…/layout`), and
   `frames/<id>/<v>/fonts/` holds the fonts the frame names (SIL OFL), for the style editor's preview.
+- `library.json` is `GET /library` for whole groups of the pre-rendered library (one entry per
+  checkpoint, ids and group numbers as in the full library); `library/<id>.jpg` is each entry's
+  640 px thumbnail. One pending draft was made from a library entry (`draft.library`).
+- Template v2 offers seven SDXL checkpoints and Flux dev (its own sampling, no negative prompt);
+  for the LoRA picker the fixture's copy also offers three LoRA options, as checked against
+  argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.
 """
@@ -98,26 +112,73 @@ def preview(png: bytes) -> bytes:
     return buf.getvalue()
 
 
-def approved(src: Path, dst: Path) -> None:
+def approved(src: Path, dst: Path, extra: dict | None = None) -> None:
     """Copy a reviewed file, marked approved for the fixture (the real one may still be a draft)."""
     doc = yaml.safe_load(src.read_text())
-    doc |= {"status": "approved", "approved_by": "fixture", "approved_at": "2026-11-09"}
+    doc |= {"status": "approved", "approved_by": "fixture", "approved_at": "2026-11-09", **(extra or {})}
     dst.write_text(yaml.safe_dump(doc, sort_keys=False))
 
 
-def main(arts: list[Path]) -> None:
-    images = [landscape(p) for p in arts]
+def pickers(template: Path) -> dict:
+    """What the fixture's template adds for the LoRA picker (and Flux, if the template lacks it)."""
+    doc = yaml.safe_load(template.read_text())
+    sdxl = [m for m in doc["models"] if m.startswith("sdxl/")]
+    extra = {
+        "lora_options": [
+            {"name": "sdxl/sfw/aesthetic/dnd_cover_xl/dnd_cover.safetensors", "weights": [0.8, 0.5], "models": sdxl},
+            {"name": "sdxl/sfw/detail/extremely_detailed_xl/extremely_detailed.safetensors", "weights": [0.6],
+             "models": sdxl},
+            {"name": "flux1-dev/detailed style v1.5.safetensors", "weights": [0.8], "models": [FLUX]},
+        ],
+        "max_loras": 2,
+    }  # fmt: skip
+    if FLUX not in doc["models"]:
+        extra |= {
+            "models": [*doc["models"], FLUX],
+            "sampling_by_family": {
+                "flux": {"sampler": "euler", "scheduler": "simple", "steps": 20, "cfg": 1.0, "guidance": 3.5}
+            },
+            "negative_by_family": {"flux": ""},
+        }
+    return extra
+
+
+def library_subset(src: Path, dst: Path, groups: int) -> Library:
+    """``groups`` whole groups of the library at ``src``, evenly spread, copied to ``dst``."""
+    lib = Library(src)
+    models = lib.manifest.models
+    by_group: dict[int, list] = {}
+    for e in lib.entries:
+        by_group.setdefault(e.group, []).append(e)
+    whole = sorted(g for g, es in by_group.items() if {e.model for e in es} == set(models))
+    if len(whole) < groups:
+        sys.exit(f"{src} has {len(whole)} whole groups (an image on every checkpoint), not {groups}")
+    keep = [whole[round(i * (len(whole) - 1) / max(groups - 1, 1))] for i in range(groups)]
+    entries = sorted((e for g in keep for e in by_group[g]), key=lambda e: (e.group, models.index(e.model)))
+    (dst / "images").mkdir(parents=True)
+    for e in entries:
+        shutil.copy(src / e.file, dst / e.file)
+    manifest = lib.manifest.model_copy(update={"entries": entries, "count": groups, "failed": []})
+    (dst / MANIFEST).write_text(manifest.model_dump_json(indent=1) + "\n")
+    return Library(dst)
+
+
+def main(arts: list[Path], library_dir: Path, groups: int) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
+        lib = library_subset(library_dir, work / "library", groups)
+        default = lib.manifest.models[0]
+        images = [landscape(p) for p in arts] or [lib.image(e.id) for e in lib.entries if e.model == default]
         for d in ("templates", "frames", "bios"):
             (work / d).mkdir()
-        approved(ROOT / "templates" / "example-portrait-v2.yaml", work / "templates" / "t.yaml")
+        v2 = ROOT / "templates" / "example-portrait-v2.yaml"
+        approved(v2, work / "templates" / "t.yaml", pickers(v2))
         approved(ROOT / "frames" / "card-green-v1.yaml", work / "frames" / "card-green-v1.yaml")
         shutil.copy(ROOT / "frames" / "card-green-v1.png", work / "frames")
         # drafts awaiting review, for the catalogue pages: the placeholder frame, and a v3 of the template
         shutil.copy(ROOT / "frames" / "example-plain-v1.yaml", work / "frames")
         shutil.copy(ROOT / "frames" / "example-plain-v1.png", work / "frames")
-        v3 = yaml.safe_load((ROOT / "templates" / "example-portrait-v2.yaml").read_text())
+        v3 = yaml.safe_load(v2.read_text())
         v3 |= {"version": 3, "status": "draft", "negative": v3["negative"] + ", blurry"}
         (work / "templates" / "t3.yaml").write_text(yaml.safe_dump(v3, sort_keys=False))
         shutil.copytree(ROOT / "frames" / "fonts", work / "frames" / "fonts")
@@ -179,6 +240,21 @@ def main(arts: list[Path]) -> None:
             if fate == "published":
                 c.post(f"/drafts/{draft_id}/publish", headers=AUTH, json={"deadline": 1900000000}).raise_for_status()
 
+        # A card from the library, on another checkpoint if it has one: no render; its variables and
+        # seed come with it.
+        pick = next((e for e in reversed(lib.entries) if e.model != default), lib.entries[-1])
+        c.post(
+            "/drafts",
+            headers=AUTH,
+            json={
+                "template": {"id": "example-portrait", "version": 2}, "library": pick.id, "asset": "fixture-library",
+                "to": owner.address, "name": "Library Pick", "frame": {"id": "card-green", "version": 1},
+                "bio": {"id": "example-bio", "version": 1},
+                "texts": {"class": f"{pick.variables['role'].title()} · {pick.variables['colour'].title()}",
+                          "stats": "No. 5"},
+            },
+        ).raise_for_status()  # fmt: skip
+
         state["n"] = 0
         sample = c.post(
             "/samples",
@@ -231,6 +307,12 @@ def main(arts: list[Path]) -> None:
                     if item[which]:
                         png = preview(c.get(f"/samples/{job['id']}/{item['n']}/{which}").content)
                         (OUT / "samples" / job["id"] / f"{item['n']}-{which}.png").write_bytes(png)
+        listing = dump("library.json", "/library")
+        (OUT / "library").mkdir()
+        for item in listing["items"]:  # type: ignore[index]
+            thumb = c.get(f"/library/{item['id']}/image", params={"thumb": THUMB})
+            thumb.raise_for_status()
+            (OUT / "library" / f"{item['id']}.jpg").write_bytes(thumb.content)
         for f in frames:  # type: ignore[union-attr]
             fid, ver = f["frame"]["id"], f["frame"]["version"]
             (OUT / "frames" / fid / str(ver)).mkdir(parents=True)
@@ -244,6 +326,11 @@ def main(arts: list[Path]) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.exit(__doc__)
-    main([Path(a) for a in sys.argv[1:]])
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("art", nargs="*", type=Path, help="art the stand-in renderer returns (default: library images)")
+    ap.add_argument("--library", type=Path, default=ROOT / "library", help="a built library (default ./library)")
+    ap.add_argument("--groups", type=int, default=6, help="whole groups to keep (default 6)")
+    a = ap.parse_args()
+    if a.groups < 1:
+        ap.error("--groups must be at least 1")
+    main(a.art, a.library, a.groups)

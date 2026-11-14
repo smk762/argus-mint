@@ -65,7 +65,7 @@ def setup(tmp_path, template_doc):
         )  # fmt: skip
     )
 
-    def make(**over):
+    def make(darkroom=None, **over):
         cfg = Settings(
             drafts_dir=tmp_path / "drafts", samples_dir=tmp_path / "samples", library_dir=tmp_path / "library", templates_dir=tmp_path / "templates", frames_dir=fdir,
             bios_dir=tmp_path / "bios", darkroom_url="http://darkroom", writer_url="http://writer",
@@ -73,7 +73,7 @@ def setup(tmp_path, template_doc):
             siwe_domain="assay.example", **over,
         )  # fmt: skip
         app = create_app(
-            cfg, darkroom=FakeDarkroom(), writer=FakeWriter(), pinner=LocalPinner(), signer=SIGNER,
+            cfg, darkroom=darkroom or FakeDarkroom(), writer=FakeWriter(), pinner=LocalPinner(), signer=SIGNER,
             probe_fn=lambda url: True,
         )  # fmt: skip
         return TestClient(app)
@@ -104,8 +104,8 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.5" and h["chain_id"] == 84532 and h["card"] == CARD
-    assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library"))
+    assert h["wire_version"] == "1.8" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library", "check_templates"))
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
     assert frames[0]["width"] == 300 and set(frames[0]["frame"]["texts"]) == {"name", "bio"}
@@ -198,6 +198,7 @@ def test_cross_site_writes_and_read_only(setup, owner):
     assert ro.get("/health").json()["capabilities"] == {
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
         "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False, "library": False,
+        "check_templates": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403
 
@@ -282,6 +283,37 @@ def test_catalogue_decisions_edit_the_file(setup, tmp_path):
         == "retired"
     )
     assert c.post("/bios/nope/1/review", json={"decision": "approve", "by": "m"}, headers=AUTH).status_code == 404
+
+
+class CheckingDarkroom(FakeDarkroom):
+    """A darkroom that can be asked whether it renders a template (as DarkroomClient can)."""
+
+    def __init__(self, problems):
+        super().__init__()
+        self.problems = problems
+
+    def check_template(self, t):
+        return list(self.problems)
+
+
+def test_templates_are_checked_against_darkroom_before_approval(setup, tmp_path):
+    assert setup().get("/templates/test-portrait/1/check").status_code == 503  # no check to ask for
+    dark = CheckingDarkroom(["flux/f: takes no negative prompt"])
+    c = setup(darkroom=dark)
+    assert c.get("/health").json()["capabilities"]["check_templates"] is True
+    r = c.get("/templates/test-portrait/1/check").json()
+    assert r == {"template": {"id": "test-portrait", "version": 1}, "ok": False, "problems": dark.problems}
+    assert c.get("/templates/nope/1/check").status_code == 404
+    t = tmp_path / "templates" / "t.yaml"
+    t.write_text(
+        t.read_text().replace("status: approved", "status: draft").replace("approved_by: reviewer\n", "")
+        .replace("approved_at: '2026-11-08'\n", "")
+    )  # fmt: skip
+    url = "/templates/test-portrait/1/review"
+    r = c.post(url, json={"decision": "approve", "by": "mod"}, headers=AUTH)
+    assert r.status_code == 409 and "takes no negative prompt" in r.text and "status: draft" in t.read_text()
+    dark.problems = []
+    assert c.post(url, json={"decision": "approve", "by": "mod"}, headers=AUTH).json()["status"] == "approved"
 
 
 def _edit_as_owner(c, draft_id, wallet, edit):

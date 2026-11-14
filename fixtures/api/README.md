@@ -1,7 +1,8 @@
 # argus-mint API fixture
 
 Recorded responses of `argus-mint serve` for argus-studio's and argus-assay's demo mode, so
-they run without a backend. Regenerate with `uv run python scripts/api_fixture.py ART.png ...`.
+they run without a backend. Regenerate with `uv run python scripts/api_fixture.py`, after
+`argus-mint library build`.
 
 - One draft per state: pending, approved, rejected, published (the published one has its
   `publish.json` result: pins, metadata, signed voucher).
@@ -12,5 +13,11 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
 - `drafts/<id>/layout.json` is where each line of the card's text sits (`POST /frames/…/layout`), and
   `frames/<id>/<v>/fonts/` holds the fonts the frame names (SIL OFL), for the style editor's preview.
+- `library.json` is `GET /library` for whole groups of the pre-rendered library (one entry per
+  checkpoint, ids and group numbers as in the full library); `library/<id>.jpg` is each entry's
+  640 px thumbnail. One pending draft was made from a library entry (`draft.library`).
+- Template v2 offers seven SDXL checkpoints and Flux dev (its own sampling, no negative prompt);
+  for the LoRA picker the fixture's copy also offers three LoRA options, as checked against
+  argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.

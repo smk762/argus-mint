@@ -47,6 +47,7 @@ __all__ = [
     "CatalogueDecision",
     "CatalogueEntry",
     "FramePreviewRequest",
+    "TemplateCheck",
     "SampleItem",
     "SampleJob",
     "SampleJobList",
@@ -54,8 +55,9 @@ __all__ = [
 ]
 
 # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
-# 1.5 LoRA choices, sampling per checkpoint family
-WIRE_VERSION = "1.5"
+# 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
+# 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint
+WIRE_VERSION = "1.8"
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -76,6 +78,7 @@ class Capabilities(_Wire):
     library: bool = False  # pre-rendered portraits are available (GET /library)
     edit_text: bool = False  # owner edits of text and style: not read-only, and owner sign-in is set up
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
+    check_templates: bool = False  # darkroom can be asked whether it renders a template (GET .../check)
 
 
 class Health(_Wire):
@@ -307,6 +310,19 @@ class CatalogueDecision(_Wire):
     by: str = Field(min_length=1, max_length=128)
 
 
+class TemplateCheck(_Wire):
+    """GET /templates/{id}/{version}/check: what would make darkroom refuse to render the template.
+
+    Checked against darkroom's model list: checkpoints, LoRAs, sampler and scheduler exist, and a
+    workflow renders each checkpoint with every LoRA count the template allows, taking what the
+    template sends. Approving a template is refused while ``problems`` isn't empty.
+    """
+
+    template: Ref
+    ok: bool
+    problems: list[str]
+
+
 class CatalogueEntry(_Wire):
     kind: Literal["template", "frame", "bio"]
     id: str
@@ -382,6 +398,7 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     FramePreviewRequest,
     CatalogueDecision,
     CatalogueEntry,
+    TemplateCheck,
     LayoutRequest,
     FrameLayout,
     LibraryListing,
