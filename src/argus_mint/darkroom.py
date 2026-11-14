@@ -35,6 +35,8 @@ __all__ = ["DarkroomClient", "DarkroomError", "check_template", "final_prompt", 
 
 log = structlog.get_logger(__name__)
 
+_LIST_TIMEOUT = 30.0  # seconds, for GET /models
+
 
 class DarkroomError(Exception):
     """darkroom could not be asked (bad request, unreachable, wrong answer)."""
@@ -141,6 +143,7 @@ def check_template(t: Template, models: dict[str, Any]) -> list[str]:
             continue
         if c.get("family") is not None and c["family"] != family(model):
             problems.append(f"{model}: darkroom puts it in family {c['family']!r}, the template in {family(model)!r}")
+        fam = c.get("family") or family(model)  # darkroom reads the family from the path when it doesn't say
         s = t.sampling_for(model)
         if s is None:
             problems.append(f"{model}: the template has no sampling for it (darkroom requires one)")
@@ -160,9 +163,7 @@ def check_template(t: Template, models: dict[str, Any]) -> list[str]:
                 f"{model}: no darkroom workflow renders it with {missing} LoRA(s) (it has {sorted(offered)})"
             )
         for n in (n for n in wanted if n in offered):
-            wf = next(
-                (w for w in workflows if w.get("family") in (None, c.get("family")) and w.get("loras") == n), None
-            )
+            wf = next((w for w in workflows if w.get("family") in (None, fam) and w.get("loras") == n), None)
             if wf is None:
                 continue
             slots, at = set(wf.get("slots") or []), f"{model} with {n} LoRA(s) (workflow {wf.get('name')})"
@@ -221,7 +222,8 @@ class DarkroomClient:
     def models(self) -> dict[str, Any]:
         """darkroom's ``GET /models``: checkpoints (with family and LoRA counts), LoRAs, workflows."""
         try:
-            resp = self.client.get(f"{self.base_url}/models")
+            # a listing, not a render: don't wait as long as a generation may take
+            resp = self.client.get(f"{self.base_url}/models", timeout=_LIST_TIMEOUT)
             resp.raise_for_status()
             models = resp.json()
         except (httpx.HTTPError, ValueError) as e:

@@ -166,6 +166,11 @@ def test_check_template_against_darkroom_models(tdoc):
         "flux+lora1" in p and "takes no guidance" in p
         for p in check_template(t, _models((sdxl, [0, 1]), (flux, [0, 1]), workflows=generic_first))
     )
+    # a checkpoint listed without a family still gets its path's family's workflow checked
+    unlabelled = _models((sdxl, [0, 1]), (flux, [0, 1]), workflows=[workflows[0], _wf("flux+lora1", "flux", 1)])
+    for c in unlabelled["checkpoints"]:
+        del c["family"]
+    assert any("flux+lora1" in p and "takes no guidance" in p for p in check_template(t, unlabelled))
 
 
 def test_safety_outcomes_retry_with_new_seeds(tdoc):
