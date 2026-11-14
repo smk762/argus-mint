@@ -113,7 +113,7 @@ Foundry lives in `~/.foundry/bin` (the Makefile finds it there); Node in `~/.loc
 
 ## Conventions & gotchas
 
-- **Versioning is git-tag-derived** (`hatch-vcs`); `_version.py` is generated. Each milestone ends with a pre-release tag (`v0.0.1a1`, `v0.1.0a1`, …) and a CHANGELOG heading.
+- **Versioning is git-tag-derived** (`hatch-vcs`); `_version.py` is generated. Each milestone ends with a pre-release tag (`v0.0.1a1`, `v0.1.0a1`, …) and a CHANGELOG heading. Headings are Keep a Changelog style (`## [Unreleased]`, `## [0.2.1] - 2026-11-14`): the release workflow takes the tag's section as the GitHub Release notes and fails before publishing anything if the tag has no section (pre-releases included). The Release is created last, once PyPI has the version, with the wheel and sdist attached.
 - **ABIs are committed and checked in CI** — after a contract change run `make abi` and commit the result in the same commit.
 - **Fixtures:** `tests/fixtures/merkle.json` comes from the reference JS library (`@openzeppelin/merkle-tree`) and must never be regenerated to make a failing test pass. `vouchers.json` and `proofs.json` are Python-built (`scripts/py_fixtures.py`) for the forge tests; `tests/test_fixtures.py` fails if they're stale.
 - **Forge gotcha:** `sha256(...)` / `ecrecover` are precompile *calls*, so they consume a pending `vm.prank` / `vm.expectRevert`. Compute hashes before the cheatcode.

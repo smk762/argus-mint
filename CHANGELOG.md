@@ -2,7 +2,9 @@
 
 All notable changes to this project are documented here. Versions come from git tags (`hatch-vcs`).
 
-## 0.2.1 (2026-11-14)
+## [Unreleased]
+
+## [0.2.1] - 2026-11-14
 
 ### Added
 
@@ -44,7 +46,7 @@ All notable changes to this project are documented here. Versions come from git 
 - **README catches up with the code (#23).** It now lists the sample image routes (`GET /samples/{id}/{n}/art|framed`), how an owner edit is signed (`POST /drafts/{id}/challenge` with `action: "edit"`, then `/edit` with the same fields), and that a rejection closes only that image. It also covers every `serve` setting, plus `argus-mint frames`, `library list`, `schema --check` and the `serve` and `preflight` options. `argus-mint serve --help` lists every setting too.
 - CLAUDE.md imports the Argus suite map (argus-cortex `SUITE.md`) and documents the `dev`/`main` branch model; a suite check runs on `dev`, `main` and tags.
 
-## 0.2.0 (2026-11-09)
+## [0.2.0] - 2026-11-09
 
 ### Changed (breaking)
 
@@ -86,7 +88,7 @@ All notable changes to this project are documented here. Versions come from git 
   - **The word filter:** `moderation.WordFilter` is better-profanity (new in the `server` extra) plus `ARGUS_MINT_BLOCKLIST`.
 - `templates/example-portrait-v2.yaml` (draft): clean full-bleed portraits for framing, without the card frames, lettering and badges v1's "card art" produced.
 
-## 0.1.0 (2026-11-08)
+## [0.1.0] - 2026-11-08
 
 First public release, covering milestones M0–M5. Pre-alpha: the Python API may still change, and the contracts have not had an external review. The Base mainnet deployment is a demo, not a production deployment.
 
