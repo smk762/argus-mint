@@ -1,15 +1,15 @@
 {
   "items": [
     {
-      "id": "48590f515d9a22dd",
+      "id": "ef442136c13a4c2e",
       "status": "done",
-      "created_at": "2026-11-09T10:08:17.207675Z",
-      "finished_at": "2026-11-09T10:08:18.104804Z",
+      "created_at": "2026-11-15T02:45:40.047165Z",
+      "finished_at": "2026-11-15T02:45:40.940707Z",
       "error": null,
       "request": {
         "template": {
           "id": "example-portrait",
-          "version": 3
+          "version": 4
         },
         "frame": {
           "id": "card-green",
@@ -39,9 +39,9 @@
             "colour": "silver",
             "gender": "male",
             "pose": "drinking",
-            "role": "giant"
+            "role": "huge broad-shouldered giant dwarfing the room"
           },
-          "prompt": "waist-up portrait of a single male giant, centered and facing the viewer, wearing silver heraldry, drinking, background: garden, painted fantasy illustration, full bleed, detailed face",
+          "prompt": "waist-up portrait of a single male huge broad-shouldered giant dwarfing the room, centered and facing the viewer, fully clothed in a tunic bearing silver heraldry, drinking, background: garden, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
           "seed": 4,
           "attempts": [
             {
@@ -73,7 +73,7 @@
             "pose": "weaving",
             "role": "dragon"
           },
-          "prompt": "waist-up portrait of a single non-binary dragon, centered and facing the viewer, wearing obsidian heraldry, weaving, background: none, painted fantasy illustration, full bleed, detailed face",
+          "prompt": "waist-up portrait of a single non-binary dragon, centered and facing the viewer, fully clothed in a tunic bearing obsidian heraldry, weaving, background: none, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
           "seed": 5,
           "attempts": [
             {

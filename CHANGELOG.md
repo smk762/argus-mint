@@ -4,6 +4,11 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+### Changed
+
+- **The portrait library covers template v3's 11 checkpoints (#6).** A v3 library (48 groups, seed 8453) now has 48 of 48 images on each checkpoint, including Flux schnell, FLUX.2 Klein 9B and SD3.5 Large: 528 images, none lost to the safety check.
+- **The API fixture is re-recorded from the v3 library.** Its approved template is v3 (v4 awaits catalogue review), and its library subset has six whole groups on all 11 checkpoints. `scripts/api_fixture.py` now takes the template from the library's manifest instead of assuming v2, and draws the drafts' stand-in art from the template's default checkpoint. Record it with `--library library-v3`.
+
 ## [0.2.1] - 2026-11-14
 
 ### Added

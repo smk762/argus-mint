@@ -1,0 +1,92 @@
+{
+  "id": "8e778eaf9b854bfb",
+  "status": "pending",
+  "awaiting": [
+    "moderator",
+    "owner"
+  ],
+  "draft": {
+    "format": 1,
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 3,
+      "template_hash": "0x9d2f4915b9d7d861d6d199690396e79a335a9709d67d61909e77f41afde575f1",
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "sgm_uniform",
+        "steps": 28,
+        "cfg": 4.0,
+        "clip_skip": 1,
+        "guidance": null
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single non-binary knight, centered and facing the viewer, fully clothed in a tunic bearing gold heraldry, standing, background: academy, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "negative": "nude, nudity, bare chest, topless, cleavage, text, letters, words, handwriting, script, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047
+    },
+    "attempts": [
+      {
+        "seed": 8453047,
+        "outcome": "ok",
+        "ref": "289bad7111c545ab811bd643bf02d0f8",
+        "detail": "",
+        "workflow": {
+          "name": "sd35",
+          "sha256": "7ff5e3a751758ccfb8eb3c0d08c60ee1b19b8c73331f74467e3db0ec75a9f3fc"
+        }
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x4e7c4b1ae555535666b339bbef3ecfd778991593efc8590c56c77501872e8ea5",
+    "to": "0xe970ed65E11F98BBbE653fCdc31bb2beC09abDa9",
+    "name": "Library Pick",
+    "description": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen."
+        }
+      ],
+      "edited": false
+    },
+    "texts": {
+      "class": "Knight · Gold",
+      "stats": "No. 5"
+    },
+    "style": null,
+    "library": "047-sd3-5-large-fp8-scaled",
+    "edits": [],
+    "auto_check": null,
+    "art_sha256": "6b6d7daa683ce4aa262ef2f42c5bf57cadaa070f3f18358046d4d73b425272db",
+    "image_sha256": "889de87d15ba54b119b68c7514e0dffac6fa640aee9573c90219dccb71ca361c",
+    "created_at": "2026-11-15T02:45:39.877132Z",
+    "reviews": []
+  },
+  "published": null
+}

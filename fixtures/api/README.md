@@ -6,9 +6,9 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 
 - One draft per state: pending, approved, rejected, published (the published one has its
   `publish.json` result: pins, metadata, signed voucher).
-- The template (v2), card-green frame and bio template are the repo's examples, marked approved
-  for the fixture. Two drafts await catalogue review: template v3 (v2 with one more negative
-  term) and the placeholder example-plain frame. One sample job renders v3 in the frame.
+- The template (v3), card-green frame and bio template are the repo's examples, marked approved
+  for the fixture. Two drafts await catalogue review: template v4 (v3 with one more negative
+  term) and the placeholder example-plain frame. One sample job renders v4 in the frame.
 - Backends were stand-ins: art from files, canned bios, local (non-IPFS) CIDs, a throwaway owner
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
 - `drafts/<id>/layout.json` is where each line of the card's text sits (`POST /frames/…/layout`), and
@@ -16,8 +16,9 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 - `library.json` is `GET /library` for whole groups of the pre-rendered library (one entry per
   checkpoint, ids and group numbers as in the full library); `library/<id>.jpg` is each entry's
   640 px thumbnail. One pending draft was made from a library entry (`draft.library`).
-- Template v2 offers seven SDXL checkpoints and Flux dev (its own sampling, no negative prompt);
-  for the LoRA picker the fixture's copy also offers three LoRA options, as checked against
-  argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
+- Template v3 offers 11 checkpoints in four families: seven SDXL, Flux dev and schnell
+  (`flux`), FLUX.2 Klein 9B (`flux-klein`) and SD3.5 Large (`sd35`), each family with its own
+  sampling; for the LoRA picker the fixture's copy also offers three LoRA options, as checked
+  against argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.

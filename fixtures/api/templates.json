@@ -1,11 +1,11 @@
 [
   {
-    "hash": "0x5c36dcb87248112c3c6a1c876cd76718f72063a155cc762147d871da2b8e08e7",
+    "hash": "0x9d2f4915b9d7d861d6d199690396e79a335a9709d67d61909e77f41afde575f1",
     "file": "t.yaml",
     "combinations": 156816,
     "template": {
       "id": "example-portrait",
-      "version": 2,
+      "version": 3,
       "status": "approved",
       "approved_by": "fixture",
       "approved_at": "2026-11-09",
@@ -18,7 +18,10 @@
         "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
         "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
         "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
-        "flux/flux1-dev-fp8.safetensors"
+        "flux/flux1-dev-fp8.safetensors",
+        "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+        "flux-klein/flux-2-klein-9b-fp8.safetensors",
+        "sd35/sd3.5_large_fp8_scaled.safetensors"
       ],
       "loras": [],
       "lora_options": [
@@ -83,15 +86,41 @@
           "cfg": 1.0,
           "clip_skip": 1,
           "guidance": 3.5
+        },
+        "flux-klein": {
+          "sampler": "euler",
+          "scheduler": "simple",
+          "steps": 4,
+          "cfg": 1.0,
+          "clip_skip": 1,
+          "guidance": null
+        },
+        "sd35": {
+          "sampler": "euler",
+          "scheduler": "sgm_uniform",
+          "steps": 28,
+          "cfg": 4.0,
+          "clip_skip": 1,
+          "guidance": null
         }
       },
-      "sampling_by_model": {},
+      "sampling_by_model": {
+        "flux/flux1-schnell-fp8-e4m3fn.safetensors": {
+          "sampler": "euler",
+          "scheduler": "simple",
+          "steps": 4,
+          "cfg": 1.0,
+          "clip_skip": 1,
+          "guidance": 3.5
+        }
+      },
       "width": 1152,
       "height": 896,
-      "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face",
-      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, fully clothed in a tunic bearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "negative": "nude, nudity, bare chest, topless, cleavage, text, letters, words, handwriting, script, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
       "negative_by_family": {
-        "flux": ""
+        "flux": "",
+        "flux-klein": ""
       },
       "variables": {
         "role": [
@@ -101,13 +130,13 @@
           "elf",
           "dark elf",
           "wraith",
-          "centaur",
-          "cyborg",
+          "centaur with a horse's body below the waist",
+          "cyborg with metal limbs and glowing implants",
           "dwarf",
           "human",
           "orc",
           "goblin",
-          "giant",
+          "huge broad-shouldered giant dwarfing the room",
           "dragon",
           "wizard",
           "priest"
@@ -128,7 +157,7 @@
           "iron",
           "steel",
           "obsidian",
-          "none"
+          "plain"
         ],
         "pose": [
           "standing",
@@ -177,12 +206,12 @@
     }
   },
   {
-    "hash": "0xeaecfccaa1aa9632720faaf393f1e7d2d9fbc6d2b589beaad2324f510595c5bd",
-    "file": "t3.yaml",
+    "hash": "0x9330c66a945dcdcf6047412f7e8a5bf29fbc079d3cac26a40612123c11589199",
+    "file": "t-next.yaml",
     "combinations": 156816,
     "template": {
       "id": "example-portrait",
-      "version": 3,
+      "version": 4,
       "status": "draft",
       "approved_by": null,
       "approved_at": null,
@@ -195,7 +224,10 @@
         "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
         "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
         "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
-        "flux/flux1-dev-fp8.safetensors"
+        "flux/flux1-dev-fp8.safetensors",
+        "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+        "flux-klein/flux-2-klein-9b-fp8.safetensors",
+        "sd35/sd3.5_large_fp8_scaled.safetensors"
       ],
       "loras": [],
       "lora_options": [],
@@ -216,15 +248,41 @@
           "cfg": 1.0,
           "clip_skip": 1,
           "guidance": 3.5
+        },
+        "flux-klein": {
+          "sampler": "euler",
+          "scheduler": "simple",
+          "steps": 4,
+          "cfg": 1.0,
+          "clip_skip": 1,
+          "guidance": null
+        },
+        "sd35": {
+          "sampler": "euler",
+          "scheduler": "sgm_uniform",
+          "steps": 28,
+          "cfg": 4.0,
+          "clip_skip": 1,
+          "guidance": null
         }
       },
-      "sampling_by_model": {},
+      "sampling_by_model": {
+        "flux/flux1-schnell-fp8-e4m3fn.safetensors": {
+          "sampler": "euler",
+          "scheduler": "simple",
+          "steps": 4,
+          "cfg": 1.0,
+          "clip_skip": 1,
+          "guidance": 3.5
+        }
+      },
       "width": 1152,
       "height": 896,
-      "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, wearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face",
-      "negative": "text, letters, words, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore, blurry",
+      "prompt": "waist-up portrait of a single {gender} {role}, centered and facing the viewer, fully clothed in a tunic bearing {colour} heraldry, {pose}, background: {background}, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "negative": "nude, nudity, bare chest, topless, cleavage, text, letters, words, handwriting, script, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore, blurry",
       "negative_by_family": {
-        "flux": ""
+        "flux": "",
+        "flux-klein": ""
       },
       "variables": {
         "role": [
@@ -234,13 +292,13 @@
           "elf",
           "dark elf",
           "wraith",
-          "centaur",
-          "cyborg",
+          "centaur with a horse's body below the waist",
+          "cyborg with metal limbs and glowing implants",
           "dwarf",
           "human",
           "orc",
           "goblin",
-          "giant",
+          "huge broad-shouldered giant dwarfing the room",
           "dragon",
           "wizard",
           "priest"
@@ -261,7 +319,7 @@
           "iron",
           "steel",
           "obsidian",
-          "none"
+          "plain"
         ],
         "pose": [
           "standing",
