@@ -1,0 +1,98 @@
+{
+  "id": "ef442136c13a4c2e",
+  "status": "done",
+  "created_at": "2026-11-15T02:45:40.047165Z",
+  "finished_at": "2026-11-15T02:45:40.940707Z",
+  "error": null,
+  "request": {
+    "template": {
+      "id": "example-portrait",
+      "version": 4
+    },
+    "frame": {
+      "id": "card-green",
+      "version": 1
+    },
+    "bio": {
+      "id": "example-bio",
+      "version": 1
+    },
+    "model": null,
+    "loras": [],
+    "count": 2,
+    "variables": {},
+    "seed": 3,
+    "name": "Sample",
+    "texts": {
+      "class": "Sample class",
+      "stats": "No. 0"
+    },
+    "style": null
+  },
+  "items": [
+    {
+      "n": 1,
+      "variables": {
+        "background": "garden",
+        "colour": "silver",
+        "gender": "male",
+        "pose": "drinking",
+        "role": "huge broad-shouldered giant dwarfing the room"
+      },
+      "prompt": "waist-up portrait of a single male huge broad-shouldered giant dwarfing the room, centered and facing the viewer, fully clothed in a tunic bearing silver heraldry, drinking, background: garden, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "seed": 4,
+      "attempts": [
+        {
+          "seed": 4,
+          "outcome": "ok",
+          "ref": "fixture-0",
+          "detail": ""
+        }
+      ],
+      "bio": "Sample once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised.",
+      "bio_attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} once argued with a thunderstorm for an entire afternoon, and the storm, exhausted, apologised."
+        }
+      ],
+      "error": null,
+      "bio_error": null,
+      "art": true,
+      "framed": true
+    },
+    {
+      "n": 2,
+      "variables": {
+        "background": "none",
+        "colour": "obsidian",
+        "gender": "non-binary",
+        "pose": "weaving",
+        "role": "dragon"
+      },
+      "prompt": "waist-up portrait of a single non-binary dragon, centered and facing the viewer, fully clothed in a tunic bearing obsidian heraldry, weaving, background: none, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "seed": 5,
+      "attempts": [
+        {
+          "seed": 5,
+          "outcome": "ok",
+          "ref": "fixture-0",
+          "detail": ""
+        }
+      ],
+      "bio": "Sample keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+      "bio_attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} keeps a lantern lit for travellers who have not yet set out, just in case they lose their way."
+        }
+      ],
+      "error": null,
+      "bio_error": null,
+      "art": true,
+      "framed": true
+    }
+  ]
+}

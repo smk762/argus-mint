@@ -1,9 +1,10 @@
 {
   "template": {
     "id": "example-portrait",
-    "version": 2
+    "version": 3
   },
   "models": [
+    "flux/flux1-dev-fp8.safetensors",
     "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
     "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
     "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
@@ -11,23 +12,39 @@
     "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
     "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
     "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
-    "flux/flux1-dev-fp8.safetensors"
+    "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+    "flux-klein/flux-2-klein-9b-fp8.safetensors",
+    "sd35/sd3.5_large_fp8_scaled.safetensors"
   ],
   "count": 6,
   "items": [
+    {
+      "id": "000-flux1-dev-fp8",
+      "group": 0,
+      "model": "flux/flux1-dev-fp8.safetensors",
+      "variables": {
+        "background": "dungeon",
+        "colour": "plain",
+        "gender": "male",
+        "pose": "reading",
+        "role": "huge broad-shouldered giant dwarfing the room"
+      },
+      "seed": 8453000,
+      "sha256": "81b833f79e021a04cb99d4804e3b907d2580d679708f9f6b6a42e9e82c5bb345"
+    },
     {
       "id": "000-aureanuancexl-v2",
       "group": 0,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "d675bf3e26207d04cfde1edd6aa2077775ff3e2e3a1a15efc9ae249cd4336420"
+      "sha256": "9fec142fce99f181d84ace6b513d30647e123e131407c0a2d6181750e1a4c56b"
     },
     {
       "id": "000-biglove-xl2",
@@ -35,13 +52,13 @@
       "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "76314053a0c7f0c96fe0721d0547ff12d1f35611391ce5d95039a9e889b4914a"
+      "sha256": "0c0e995776ce48478359882844709e1e7201692152f372815af999e61059dcba"
     },
     {
       "id": "000-cyberrealisticxl-desirev20",
@@ -49,13 +66,13 @@
       "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "1e59c25aa669dbfcbc3398c432f4feeb52df8229bf7bc8c410228b05d24227af"
+      "sha256": "6338575ef5c6ff5d5eebc5f9b4b7465d23f9ae3c3e9b6e37b491c3618ba3d840"
     },
     {
       "id": "000-epicrealismxl-purefix",
@@ -63,13 +80,13 @@
       "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "340940952481890b3c76b88f5af7cc0c3296171c50397b06472062b66c1dcfca"
+      "sha256": "29010291edd6f8652ee73ed3b1aed072d9735633ab2110b3ac89cfd3b2ab34e8"
     },
     {
       "id": "000-eventhorizon-xlv60",
@@ -77,13 +94,13 @@
       "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "844f1886ca8e060c9d2b522da5da28725449d92b37467e697dfca80d8fb26eeb"
+      "sha256": "809a19f0fa915bd6436ea140df766d73f574a5bccd163f5146c130f7aa8b73e0"
     },
     {
       "id": "000-juggernautxl-ragnarokby",
@@ -91,13 +108,13 @@
       "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "0583f71c559d434c7e438cfb6bb3642f45082de10bd3096a607bc5790ff187f7"
+      "sha256": "1dcde6810d482439d20cf28d237e05bd41aa2262d8f2f0ed5b70a50da2717635"
     },
     {
       "id": "000-realityboundxl-soulgripv10",
@@ -105,237 +122,209 @@
       "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "2ca6ad892ae9a04daae794ef76219eb92a089bace9a5d7e0a7dd91ef12aab31f"
+      "sha256": "77cbbaf494d0efd035ce91e7ed722b228db959a733270e6c515822897afa609d"
     },
     {
-      "id": "000-flux1-dev-fp8",
+      "id": "000-flux1-schnell-fp8-e4m3fn",
       "group": 0,
-      "model": "flux/flux1-dev-fp8.safetensors",
+      "model": "flux/flux1-schnell-fp8-e4m3fn.safetensors",
       "variables": {
         "background": "dungeon",
-        "colour": "none",
+        "colour": "plain",
         "gender": "male",
         "pose": "reading",
-        "role": "giant"
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
       "seed": 8453000,
-      "sha256": "8076dc2c8ffbb267d281ac90e48a4c7a43628f63dacd05bc9b479c97e86d1e1f"
+      "sha256": "13f725da5e82ee541f5bfbff6d4cb475e374250daaf5d3c7d7362ae91aa31d6c"
     },
     {
-      "id": "010-aureanuancexl-v2",
-      "group": 10,
-      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "id": "000-flux-2-klein-9b-fp8",
+      "group": 0,
+      "model": "flux-klein/flux-2-klein-9b-fp8.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
+        "background": "dungeon",
+        "colour": "plain",
+        "gender": "male",
+        "pose": "reading",
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
-      "seed": 8453010,
-      "sha256": "7d8569653a593f56d38b38d00a561503a82c3e2eb4a4228ebe467890c03f6c32"
+      "seed": 8453000,
+      "sha256": "596d2ff16847b0153e7201d833ade053e9086925f0bed75ea0c2c83bfe5928fb"
     },
     {
-      "id": "010-biglove-xl2",
-      "group": 10,
-      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "id": "000-sd3-5-large-fp8-scaled",
+      "group": 0,
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
+        "background": "dungeon",
+        "colour": "plain",
+        "gender": "male",
+        "pose": "reading",
+        "role": "huge broad-shouldered giant dwarfing the room"
       },
-      "seed": 8453010,
-      "sha256": "227b2765988ee3903a4583c6dcc8f2f780aea9cf79e83aecb1c621f3edbf081b"
+      "seed": 8453000,
+      "sha256": "d5a7536624a7d0bb67626560b35ccaa38870296d2a98446e1b3f211ed30ec303"
     },
     {
-      "id": "010-cyberrealisticxl-desirev20",
-      "group": 10,
-      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
-      "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
-      },
-      "seed": 8453010,
-      "sha256": "bd528979853c593930671871fe16c6709faa18e89310455241f23de0f566bde7"
-    },
-    {
-      "id": "010-epicrealismxl-purefix",
-      "group": 10,
-      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
-      "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
-      },
-      "seed": 8453010,
-      "sha256": "90a6eb8aee91b352a0db17411e5eb75487014b1b8feb27aaef279fa1b3d507a0"
-    },
-    {
-      "id": "010-eventhorizon-xlv60",
-      "group": 10,
-      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
-      "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
-      },
-      "seed": 8453010,
-      "sha256": "5b17256d99fd67b473082b6063033f9e0a5861dfab1ee0b81943c4ff6243afea"
-    },
-    {
-      "id": "010-juggernautxl-ragnarokby",
-      "group": 10,
-      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
-      "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
-      },
-      "seed": 8453010,
-      "sha256": "949f09ccf49e84ec1ff7eef30a4445597d71de5ddfb4ead4c044d5b0a2d1e055"
-    },
-    {
-      "id": "010-realityboundxl-soulgripv10",
-      "group": 10,
-      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
-      "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
-      },
-      "seed": 8453010,
-      "sha256": "fe9267c8b3e10231da39b6044674f9d70206aa6754959e1d8168033d0a443cfa"
-    },
-    {
-      "id": "010-flux1-dev-fp8",
-      "group": 10,
+      "id": "009-flux1-dev-fp8",
+      "group": 9,
       "model": "flux/flux1-dev-fp8.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
-        "gender": "non-binary",
-        "pose": "drinking",
-        "role": "wizard"
+        "background": "garden",
+        "colour": "bronze",
+        "gender": "male",
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453010,
-      "sha256": "5b7a3155e3c599cccd41676879f0a086ec0f7aa00b3828cb5f7828d71b4fc983"
+      "seed": 8453009,
+      "sha256": "8f124962939647083d1ac7ccfcedcd044836e28b286bc84c34c60901c0bc55bb"
     },
     {
-      "id": "019-aureanuancexl-v2",
-      "group": 19,
+      "id": "009-aureanuancexl-v2",
+      "group": 9,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "f6e7f4647644d9390d9ea0ee75f75855770dd25278880a12e315589c6dbce8b1"
+      "seed": 8453009,
+      "sha256": "c7da2f1f92a39ab46e48c53c827d4a92effec5c906add952cc797cf62ae58469"
     },
     {
-      "id": "019-biglove-xl2",
-      "group": 19,
+      "id": "009-biglove-xl2",
+      "group": 9,
       "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "1777c812d3e5da54f6c3ddf36d52c03c76dd266fc7ab05883551947097a37962"
+      "seed": 8453009,
+      "sha256": "c7910ce015b99445c8e30d39e13f784e8ba1e94f30710e79be0ce34a3b8ebfba"
     },
     {
-      "id": "019-cyberrealisticxl-desirev20",
-      "group": 19,
+      "id": "009-cyberrealisticxl-desirev20",
+      "group": 9,
       "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "60a05ff42a268d12ad2410d38580c5c36af683818880457033f25d0dbea14a0e"
+      "seed": 8453009,
+      "sha256": "556540bd994b77a0b557496c31a1e8cd2cebd7ec0cb185adf2d271112a3df5ff"
     },
     {
-      "id": "019-epicrealismxl-purefix",
-      "group": 19,
+      "id": "009-epicrealismxl-purefix",
+      "group": 9,
       "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "38b6c093d147ce36bdaebcf558e3c88e668b21d3393f483d7db07ab7da24df6b"
+      "seed": 8453009,
+      "sha256": "6ca32433ddcd2c880f8a3fa7edc16b04d46071ec6b1dc6220d7e6647e8499196"
     },
     {
-      "id": "019-eventhorizon-xlv60",
-      "group": 19,
+      "id": "009-eventhorizon-xlv60",
+      "group": 9,
       "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "3e03ef94452846a8e1bdde8e370903f7bb21662151a99207fca1bfa68c9198a7"
+      "seed": 8453009,
+      "sha256": "2e3e80c2b611b44d0f6b969a98f5f2ded3c5755d37dea8f1ae7b466364c1365f"
     },
     {
-      "id": "019-juggernautxl-ragnarokby",
-      "group": 19,
+      "id": "009-juggernautxl-ragnarokby",
+      "group": 9,
       "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "c3b8b84b1bde1acf04449e3fcc1ec09107d2406c9d5ff550f1ad4325a7a79a24"
+      "seed": 8453009,
+      "sha256": "ab0a87a1f3a6a824b502f5d532035f93d87247f54825af56eb0cd196057f1ad7"
     },
     {
-      "id": "019-realityboundxl-soulgripv10",
-      "group": 19,
+      "id": "009-realityboundxl-soulgripv10",
+      "group": 9,
       "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "copper",
+        "background": "garden",
+        "colour": "bronze",
         "gender": "male",
-        "pose": "writing",
-        "role": "wizard"
+        "pose": "cooking",
+        "role": "wraith"
       },
-      "seed": 8453019,
-      "sha256": "a78dfeb633b00fe4f0ef0ed3d378e6489a9cd9d98e68bc5a2cbcecd6ece2c56b"
+      "seed": 8453009,
+      "sha256": "6ac88eb39baa7fb084ecbbd6a36e65673fb4bbda178eee68dafec3782f31ff1a"
+    },
+    {
+      "id": "009-flux1-schnell-fp8-e4m3fn",
+      "group": 9,
+      "model": "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+      "variables": {
+        "background": "garden",
+        "colour": "bronze",
+        "gender": "male",
+        "pose": "cooking",
+        "role": "wraith"
+      },
+      "seed": 8453009,
+      "sha256": "3fe47ceee79dfcaafabcd193b3fdd222f7a23388df126c2736522be3403be737"
+    },
+    {
+      "id": "009-flux-2-klein-9b-fp8",
+      "group": 9,
+      "model": "flux-klein/flux-2-klein-9b-fp8.safetensors",
+      "variables": {
+        "background": "garden",
+        "colour": "bronze",
+        "gender": "male",
+        "pose": "cooking",
+        "role": "wraith"
+      },
+      "seed": 8453009,
+      "sha256": "99023189a804227d4013ab3de62fe0a55d4ab0109239036e58ccddd61ff0c7dc"
+    },
+    {
+      "id": "009-sd3-5-large-fp8-scaled",
+      "group": 9,
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
+      "variables": {
+        "background": "garden",
+        "colour": "bronze",
+        "gender": "male",
+        "pose": "cooking",
+        "role": "wraith"
+      },
+      "seed": 8453009,
+      "sha256": "63a540c73e811344b7b8073b1d6bfced444858daa17aade96a88ae3594248bc6"
     },
     {
       "id": "019-flux1-dev-fp8",
@@ -349,105 +338,147 @@
         "role": "wizard"
       },
       "seed": 8453019,
-      "sha256": "d59b6b1d76ecf4c4a1d271405f32621b5104107374632431cb0ab739f6e8b016"
+      "sha256": "b530a19782ff256484c5bbfe3ef4b2693e6ba415ea6e09cf1d565dfeedc90b01"
     },
     {
-      "id": "028-aureanuancexl-v2",
-      "group": 28,
+      "id": "019-aureanuancexl-v2",
+      "group": 19,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "4c92196bff9238637ca9ca198d8b132ee1b29c1e8964ec2ec00c5c89bbf4b7ad"
+      "seed": 8453019,
+      "sha256": "0a103ed55b3bd60f17dba5d867666628d82525350c3f849d08c389ee4e40908f"
     },
     {
-      "id": "028-biglove-xl2",
-      "group": 28,
+      "id": "019-biglove-xl2",
+      "group": 19,
       "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "669a15a57cf31782b65fc80a45e198d018b3a74a6e859f8bdeac648044ffee2b"
+      "seed": 8453019,
+      "sha256": "bc19c92da4415c597c768040504907a2e188c5ffcf8b45baf3ecfb4cf2acb502"
     },
     {
-      "id": "028-cyberrealisticxl-desirev20",
-      "group": 28,
+      "id": "019-cyberrealisticxl-desirev20",
+      "group": 19,
       "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "432fc8db37af3a45db6832ed265960ed069732f9efb889adda028312f84f8d1f"
+      "seed": 8453019,
+      "sha256": "8a98f7439c53c39a830e33b25ffbee27c9fc2f57a77373a03aa33e6962742030"
     },
     {
-      "id": "028-epicrealismxl-purefix",
-      "group": 28,
+      "id": "019-epicrealismxl-purefix",
+      "group": 19,
       "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "036a346a0ad6d00e481c1cd5f3f90b987082c7269ed984091600a4e8da165beb"
+      "seed": 8453019,
+      "sha256": "e502f62483eb6fb38ba8dc6d3cb47abd43d9b445b7074e1f0c16c71ccecd5a7d"
     },
     {
-      "id": "028-eventhorizon-xlv60",
-      "group": 28,
+      "id": "019-eventhorizon-xlv60",
+      "group": 19,
       "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "e9651a32695b78208deeb7092fd5f741f71b8c09dbdc06555300358f8c1ce185"
+      "seed": 8453019,
+      "sha256": "f098495297c9dd9b202aa8fe5e3f48323eac16738064ac577fe4b390ca583d2a"
     },
     {
-      "id": "028-juggernautxl-ragnarokby",
-      "group": 28,
+      "id": "019-juggernautxl-ragnarokby",
+      "group": 19,
       "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "44d738ee137dcd0bb0687d16959d2e8c35f76eafa66c12fb298fde45915499a2"
+      "seed": 8453019,
+      "sha256": "ef10acc7cacfa9905e5f4d41520beeca36c86afae8eb2c0c550dd644e1d2f3ec"
     },
     {
-      "id": "028-realityboundxl-soulgripv10",
-      "group": 28,
+      "id": "019-realityboundxl-soulgripv10",
+      "group": 19,
       "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
       "variables": {
-        "background": "cave",
-        "colour": "bronze",
-        "gender": "female",
-        "pose": "gardening",
-        "role": "knight"
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
       },
-      "seed": 8453028,
-      "sha256": "6c4beb6da761844cc33b1523444dc8326a69d2d8175d6cc330b91e3ce164027f"
+      "seed": 8453019,
+      "sha256": "9799f08d858ed03a613bd4f0603cfd7d2c7d0313d3245533f158dcc9ec016ee5"
+    },
+    {
+      "id": "019-flux1-schnell-fp8-e4m3fn",
+      "group": 19,
+      "model": "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "15e89d507d650cccc2c9825c983ac5ca4bb260e37809e22e99e22ae44c9e81e2"
+    },
+    {
+      "id": "019-flux-2-klein-9b-fp8",
+      "group": 19,
+      "model": "flux-klein/flux-2-klein-9b-fp8.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "06b9537b093eb9f1618a5009f4389480dc20efc427b0474b5191a69d79b6a0cb"
+    },
+    {
+      "id": "019-sd3-5-large-fp8-scaled",
+      "group": 19,
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "copper",
+        "gender": "male",
+        "pose": "writing",
+        "role": "wizard"
+      },
+      "seed": 8453019,
+      "sha256": "55095fdcefade334a225ba08c17edd61ccc61bf78991aa0210aeec54635ebfe7"
     },
     {
       "id": "028-flux1-dev-fp8",
@@ -461,217 +492,301 @@
         "role": "knight"
       },
       "seed": 8453028,
-      "sha256": "044b619b212eeb64b8afd2ff8949f5ac657bbbd6f08f8006ad4ce19d045298ca"
+      "sha256": "ab7adaf54f1b23368d53c47d34b5632ca268f6fac8b12eb4ddb4a526787c2b93"
     },
     {
-      "id": "037-aureanuancexl-v2",
-      "group": 37,
+      "id": "028-aureanuancexl-v2",
+      "group": 28,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "2ec78738f7591fa187f7483633fef080a878f2dd82eceada90e0df16b5c58bf7"
+      "seed": 8453028,
+      "sha256": "f0156b629a90d69b275eca79d504106ba8c2cad674f8901e7c635e139244803e"
     },
     {
-      "id": "037-biglove-xl2",
-      "group": 37,
+      "id": "028-biglove-xl2",
+      "group": 28,
       "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "f1077589ad88d9fd18607891c7d85217834b040cbeb323927c98c6b3e1a614a1"
+      "seed": 8453028,
+      "sha256": "ca2d5b6e794fb97e72c1ee576b54a84e986ef084e117eedb02814bc6e8999545"
     },
     {
-      "id": "037-cyberrealisticxl-desirev20",
-      "group": 37,
+      "id": "028-cyberrealisticxl-desirev20",
+      "group": 28,
       "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "5cecc5e5efa0dc78ab2b839b484525bf6d2f4b6c944470720f86d522b6573f5a"
+      "seed": 8453028,
+      "sha256": "a230f4e6b504797f3f82728231895e2ec5b8159eaa43d6b2de8f0e7f70e0cd42"
     },
     {
-      "id": "037-epicrealismxl-purefix",
-      "group": 37,
+      "id": "028-epicrealismxl-purefix",
+      "group": 28,
       "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "da5feb28bbd57c00a6be6a2d3f45f896b75fb2e77cb9073934cafc164e1f0d01"
+      "seed": 8453028,
+      "sha256": "9e1508e26d32a4d58e7ba147ce2ad2dd98e454dc515fea545248a4efd6d43766"
     },
     {
-      "id": "037-eventhorizon-xlv60",
-      "group": 37,
+      "id": "028-eventhorizon-xlv60",
+      "group": 28,
       "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "8455e092c7a7dcec25aebf261385d3eceab01c668f646ae1e1b197b5c9b0a1e3"
+      "seed": 8453028,
+      "sha256": "65eb4adcfb4f230695edf6c665ab31e525233ae159876f42644b3535385fdcaf"
     },
     {
-      "id": "037-juggernautxl-ragnarokby",
-      "group": 37,
+      "id": "028-juggernautxl-ragnarokby",
+      "group": 28,
       "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "614f94bfefc438f10c60425dd65628de9f5c3aec5f9ffe2c7740a26e84b5f250"
+      "seed": 8453028,
+      "sha256": "3c88841dc6a500362a9c5647e0e8d43424e26125ace03ed0915f9ebeda19db80"
     },
     {
-      "id": "037-realityboundxl-soulgripv10",
-      "group": 37,
+      "id": "028-realityboundxl-soulgripv10",
+      "group": 28,
       "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
+        "background": "cave",
+        "colour": "bronze",
         "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "pose": "gardening",
+        "role": "knight"
       },
-      "seed": 8453037,
-      "sha256": "07a9ce8435012d85a4164706f34773409c2b60c41e2151156a63b37fd5dfab4b"
+      "seed": 8453028,
+      "sha256": "d9fde10ec8361cd2f50bf8f4eb56f1e084bcff913b9eb9ac93a245b45dd97a0a"
     },
     {
-      "id": "037-flux1-dev-fp8",
-      "group": 37,
+      "id": "028-flux1-schnell-fp8-e4m3fn",
+      "group": 28,
+      "model": "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "aa4605eb3fe0f65e60c584d432fdef17d29e3ba275f5fa425cc8c81721c2dffb"
+    },
+    {
+      "id": "028-flux-2-klein-9b-fp8",
+      "group": 28,
+      "model": "flux-klein/flux-2-klein-9b-fp8.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "5e6dd800afd7815039775e2929f95726356640f52e3486e99b89e88b7252d8b6"
+    },
+    {
+      "id": "028-sd3-5-large-fp8-scaled",
+      "group": 28,
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
+      "variables": {
+        "background": "cave",
+        "colour": "bronze",
+        "gender": "female",
+        "pose": "gardening",
+        "role": "knight"
+      },
+      "seed": 8453028,
+      "sha256": "f2bc6e258fb9c8b8c24ce66c5c4249f8f53d5175fe6d3066886ed6cd1ae5ef47"
+    },
+    {
+      "id": "038-flux1-dev-fp8",
+      "group": 38,
       "model": "flux/flux1-dev-fp8.safetensors",
       "variables": {
-        "background": "forest",
-        "colour": "gold",
-        "gender": "female",
-        "pose": "knitting",
-        "role": "ranger"
+        "background": "library",
+        "colour": "steel",
+        "gender": "non-binary",
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453037,
-      "sha256": "ce4d64f46b0dc38e6c48532c87746924e08bedac15918ea904bdf3ffa5cbb497"
+      "seed": 8453038,
+      "sha256": "bd2f9d24424787cc33ec3f4bc792124ec1313a4f205837240f689527f6d8dfa4"
     },
     {
-      "id": "047-aureanuancexl-v2",
-      "group": 47,
+      "id": "038-aureanuancexl-v2",
+      "group": 38,
       "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "c063c75a727a28a5ac1d4a33075e6abc824499b2cf7a51a0c801c6bfc4afa214"
+      "seed": 8453038,
+      "sha256": "a35ec42125734b2e8ab978e48080bfe5cd0abfce40c442ad051a8d49fafeea62"
     },
     {
-      "id": "047-biglove-xl2",
-      "group": 47,
+      "id": "038-biglove-xl2",
+      "group": 38,
       "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "851873288edea2ca24299ca822a2fe892b60f233e6a85dd054be48acb10a8b8a"
+      "seed": 8453038,
+      "sha256": "6475193fdc9deb44e83c05b6f615d961903e920c5ae6d54fbad924e3a0e64711"
     },
     {
-      "id": "047-cyberrealisticxl-desirev20",
-      "group": 47,
+      "id": "038-cyberrealisticxl-desirev20",
+      "group": 38,
       "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "59799bf128267cfe13c86a31729f6096cdb86b40776103bfc6e2b030a53469f2"
+      "seed": 8453038,
+      "sha256": "aa4db8bc887c9f5be4d08d008d9bae6fc7fcb4f3afc12971a6ef0a62a8401c88"
     },
     {
-      "id": "047-epicrealismxl-purefix",
-      "group": 47,
+      "id": "038-epicrealismxl-purefix",
+      "group": 38,
       "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "674f1c644829b75cf58d7f47d16ac4286e294f80338ee6dee6891712c23d8920"
+      "seed": 8453038,
+      "sha256": "728d5613a43f943b2280d0acf95d6b33e37f6a00d4bd0d1bddc18c4c3bd767c3"
     },
     {
-      "id": "047-eventhorizon-xlv60",
-      "group": 47,
+      "id": "038-eventhorizon-xlv60",
+      "group": 38,
       "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "f91ef59887354a12bd0b00b806b08e8305ac8c845fd660f650977e1685a63096"
+      "seed": 8453038,
+      "sha256": "8626a7d2406ddb4d6bbab8db15db0effd7bf57379adf4bf7b81692c70518d32b"
     },
     {
-      "id": "047-juggernautxl-ragnarokby",
-      "group": 47,
+      "id": "038-juggernautxl-ragnarokby",
+      "group": 38,
       "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "65527f143070f8617a3469264e226ccae1b1e792118f8aaf8f92861e7ba3bd7f"
+      "seed": 8453038,
+      "sha256": "e412b8027e6a63ce6becfbe4dc72933b4264b504ccb243f68097773ff78c21a5"
     },
     {
-      "id": "047-realityboundxl-soulgripv10",
-      "group": 47,
+      "id": "038-realityboundxl-soulgripv10",
+      "group": 38,
       "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
       "variables": {
-        "background": "academy",
-        "colour": "gold",
+        "background": "library",
+        "colour": "steel",
         "gender": "non-binary",
-        "pose": "standing",
-        "role": "knight"
+        "pose": "mining",
+        "role": "human"
       },
-      "seed": 8453047,
-      "sha256": "5260d646344c6ae2d27a4903c90117cbbba03c0bd83157c0ebd1fe37b80f92b2"
+      "seed": 8453038,
+      "sha256": "73d120bb9585323c4fba6252f04cc366e364c4cd073ac0cc12d12ff663b39fa8"
+    },
+    {
+      "id": "038-flux1-schnell-fp8-e4m3fn",
+      "group": 38,
+      "model": "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+      "variables": {
+        "background": "library",
+        "colour": "steel",
+        "gender": "non-binary",
+        "pose": "mining",
+        "role": "human"
+      },
+      "seed": 8453038,
+      "sha256": "97e81a7c981b89cc2cec4efa78a4058a4e84a1482c33b70c1d7ed84188bfc200"
+    },
+    {
+      "id": "038-flux-2-klein-9b-fp8",
+      "group": 38,
+      "model": "flux-klein/flux-2-klein-9b-fp8.safetensors",
+      "variables": {
+        "background": "library",
+        "colour": "steel",
+        "gender": "non-binary",
+        "pose": "mining",
+        "role": "human"
+      },
+      "seed": 8453038,
+      "sha256": "72e3feafb2114ef9eda954e9259e17154741adb8a32215ff66b9cdf0bf264a79"
+    },
+    {
+      "id": "038-sd3-5-large-fp8-scaled",
+      "group": 38,
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
+      "variables": {
+        "background": "library",
+        "colour": "steel",
+        "gender": "non-binary",
+        "pose": "mining",
+        "role": "human"
+      },
+      "seed": 8453038,
+      "sha256": "0490e478a5b6b4e40c7e20fded2086696f02e023fbfb54f5dead3e2ef1c6f3f8"
     },
     {
       "id": "047-flux1-dev-fp8",
@@ -685,7 +800,147 @@
         "role": "knight"
       },
       "seed": 8453047,
-      "sha256": "cf13191de19bb98fd0356086e1cfa20907113ed9fdf19ea5d2abb05a75e38242"
+      "sha256": "17bd3d21c0c3503e52fabab83a620666e792835ecfaf776340eeb211adb8e1e2"
+    },
+    {
+      "id": "047-aureanuancexl-v2",
+      "group": 47,
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "95948e2fcfebfab36f536313613e6ee8bd2b55ac3230afae00dd6acd0504c46d"
+    },
+    {
+      "id": "047-biglove-xl2",
+      "group": 47,
+      "model": "sdxl/bigLove_xl2/bigLove_xl2.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "0c3fbaafc5511667a5b8a9d19c2b7345df98f7ed15457274d56f4568a5831649"
+    },
+    {
+      "id": "047-cyberrealisticxl-desirev20",
+      "group": 47,
+      "model": "sdxl/cyberrealisticXL_desireV20/cyberrealisticXL_desireV20.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "2b37a7a31e0ff68d90b20d82da9b58dfd664bd5a77d8b4a0f0de1d88922cff23"
+    },
+    {
+      "id": "047-epicrealismxl-purefix",
+      "group": 47,
+      "model": "sdxl/epicrealismXL_pureFix/epicrealismXL_pureFix.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "05ff8deead78f2b769fc779a5e2368dac7fd75bbceab7a5c65db0837f4aaef2e"
+    },
+    {
+      "id": "047-eventhorizon-xlv60",
+      "group": 47,
+      "model": "sdxl/eventHorizon_xlV60/eventHorizon_xlV60.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "6239199b19c9da1c7467a26b1741c4f49c5e53047cd7d5b9419b177fb0862561"
+    },
+    {
+      "id": "047-juggernautxl-ragnarokby",
+      "group": 47,
+      "model": "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "e82d3b012e0861a569c749b17fda85c2c79c038e186c9896bc67a2679bc6a5f7"
+    },
+    {
+      "id": "047-realityboundxl-soulgripv10",
+      "group": 47,
+      "model": "sdxl/realityBoundxl_soulgripV10/realityBoundxl_soulgripV10.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "9d4786d5a2160781fb4c3eb618d4561c1d17fef45c7a4085f2818dd451c69558"
+    },
+    {
+      "id": "047-flux1-schnell-fp8-e4m3fn",
+      "group": 47,
+      "model": "flux/flux1-schnell-fp8-e4m3fn.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "2d50db7193e6a21ae23428e0db5b5740a69a61f520a35aa63cd0759bb474a331"
+    },
+    {
+      "id": "047-flux-2-klein-9b-fp8",
+      "group": 47,
+      "model": "flux-klein/flux-2-klein-9b-fp8.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "ad307b840b8f51e133c10033061fe120434998551e7d9df195fd0849dee791c7"
+    },
+    {
+      "id": "047-sd3-5-large-fp8-scaled",
+      "group": 47,
+      "model": "sd35/sd3.5_large_fp8_scaled.safetensors",
+      "variables": {
+        "background": "academy",
+        "colour": "gold",
+        "gender": "non-binary",
+        "pose": "standing",
+        "role": "knight"
+      },
+      "seed": 8453047,
+      "sha256": "6b6d7daa683ce4aa262ef2f42c5bf57cadaa070f3f18358046d4d73b425272db"
     }
   ]
 }

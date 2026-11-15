@@ -12,8 +12,10 @@ a UI reads, plus the images, under fixtures/api/:
     uv run python scripts/api_fixture.py [--library DIR] [--groups N] [ART.png ...]
 
 The library subset is whole groups (every checkpoint) of a built library (``argus-mint library
-build``; default ./library), ids and group numbers kept. The stand-in renderer returns the ART
-files, scaled to 1152x896 (the shape template v2 renders), or else the subset's own images.
+build``; default ./library), ids and group numbers kept. The fixture's approved template is the
+library's own (``templates/<id>-v<version>.yaml``), and a copy one version up awaits catalogue
+review. The stand-in renderer returns the ART files, scaled to 1152x896 (the shape the example
+template renders), or else the subset's images on the template's default checkpoint.
 """
 
 from __future__ import annotations
@@ -56,7 +58,7 @@ BIOS = [
 CARDS = [  # name, variables, display text, what happens to it
     ("Emerald Wizard", {"gender": "female", "role": "wizard", "colour": "emerald", "pose": "casting a spell",
                         "background": "library"}, {"class": "Wizard · Emerald", "stats": "No. 1"}, "published"),
-    ("Steel Tinker", {"gender": "non-binary", "role": "cyborg", "colour": "steel", "pose": "repairing",
+    ("Steel Tinker", {"gender": "non-binary", "role": "cyborg with metal limbs and glowing implants", "colour": "steel", "pose": "repairing",
                       "background": "workshop"}, {"class": "Cyborg · Steel", "stats": "No. 2"}, "pending"),
     ("Azure Stormcaller", {"gender": "male", "role": "wizard", "colour": "azure", "pose": "casting a spell",
                            "background": "temple"}, {"class": "Wizard · Azure", "stats": "No. 3"}, "approved"),
@@ -73,9 +75,9 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 
 - One draft per state: pending, approved, rejected, published (the published one has its
   `publish.json` result: pins, metadata, signed voucher).
-- The template (v2), card-green frame and bio template are the repo's examples, marked approved
-  for the fixture. Two drafts await catalogue review: template v3 (v2 with one more negative
-  term) and the placeholder example-plain frame. One sample job renders v3 in the frame.
+- The template (v3), card-green frame and bio template are the repo's examples, marked approved
+  for the fixture. Two drafts await catalogue review: template v4 (v3 with one more negative
+  term) and the placeholder example-plain frame. One sample job renders v4 in the frame.
 - Backends were stand-ins: art from files, canned bios, local (non-IPFS) CIDs, a throwaway owner
   wallet, Base Sepolia chain id. Nothing here was pinned or minted.
 - `drafts/<id>/layout.json` is where each line of the card's text sits (`POST /frames/…/layout`), and
@@ -83,9 +85,10 @@ they run without a backend. Regenerate with `uv run python scripts/api_fixture.p
 - `library.json` is `GET /library` for whole groups of the pre-rendered library (one entry per
   checkpoint, ids and group numbers as in the full library); `library/<id>.jpg` is each entry's
   640 px thumbnail. One pending draft was made from a library entry (`draft.library`).
-- Template v2 offers seven SDXL checkpoints and Flux dev (its own sampling, no negative prompt);
-  for the LoRA picker the fixture's copy also offers three LoRA options, as checked against
-  argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
+- Template v3 offers 11 checkpoints in four families: seven SDXL, Flux dev and schnell
+  (`flux`), FLUX.2 Klein 9B (`flux-klein`) and SD3.5 Large (`sd35`), each family with its own
+  sampling; for the LoRA picker the fixture's copy also offers three LoRA options, as checked
+  against argus-darkroom 0.1.3. The drafts use SDXL; the library has every checkpoint.
 - Images are half-size, 256-colour previews to keep the fixture small, so their sha256 differs
   from `image_sha256` in the JSON, which refers to the full-size originals.
 """
@@ -167,20 +170,23 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         lib = library_subset(library_dir, work / "library", groups)
-        default = lib.manifest.models[0]
+        tid, tv = lib.manifest.template, lib.manifest.template_version
+        src = ROOT / "templates" / f"{tid}-v{tv}.yaml"
+        default = yaml.safe_load(src.read_text())["model"]
+        if default not in lib.manifest.models:
+            default = lib.manifest.models[0]
         images = [landscape(p) for p in arts] or [lib.image(e.id) for e in lib.entries if e.model == default]
         for d in ("templates", "frames", "bios"):
             (work / d).mkdir()
-        v2 = ROOT / "templates" / "example-portrait-v2.yaml"
-        approved(v2, work / "templates" / "t.yaml", pickers(v2))
+        approved(src, work / "templates" / "t.yaml", pickers(src))
         approved(ROOT / "frames" / "card-green-v1.yaml", work / "frames" / "card-green-v1.yaml")
         shutil.copy(ROOT / "frames" / "card-green-v1.png", work / "frames")
-        # drafts awaiting review, for the catalogue pages: the placeholder frame, and a v3 of the template
+        # drafts awaiting review, for the catalogue pages: the placeholder frame, and the template one version up
         shutil.copy(ROOT / "frames" / "example-plain-v1.yaml", work / "frames")
         shutil.copy(ROOT / "frames" / "example-plain-v1.png", work / "frames")
-        v3 = yaml.safe_load(v2.read_text())
-        v3 |= {"version": 3, "status": "draft", "negative": v3["negative"] + ", blurry"}
-        (work / "templates" / "t3.yaml").write_text(yaml.safe_dump(v3, sort_keys=False))
+        nxt = yaml.safe_load(src.read_text())
+        nxt |= {"version": tv + 1, "status": "draft", "negative": nxt["negative"] + ", blurry"}
+        (work / "templates" / "t-next.yaml").write_text(yaml.safe_dump(nxt, sort_keys=False))
         shutil.copytree(ROOT / "frames" / "fonts", work / "frames" / "fonts")
         approved(ROOT / "bios" / "example-bio-v1.yaml", work / "bios" / "b.yaml")
 
@@ -217,7 +223,7 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
                 "/drafts",
                 headers=AUTH,
                 json={
-                    "template": {"id": "example-portrait", "version": 2}, "variables": values, "seed": 8453 + i,
+                    "template": {"id": tid, "version": tv}, "variables": values, "seed": 8453 + i,
                     "asset": f"fixture-{i + 1}", "to": owner.address, "name": name,
                     "frame": {"id": "card-green", "version": 1}, "bio": {"id": "example-bio", "version": 1},
                     "texts": texts,
@@ -247,7 +253,7 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
             "/drafts",
             headers=AUTH,
             json={
-                "template": {"id": "example-portrait", "version": 2}, "library": pick.id, "asset": "fixture-library",
+                "template": {"id": tid, "version": tv}, "library": pick.id, "asset": "fixture-library",
                 "to": owner.address, "name": "Library Pick", "frame": {"id": "card-green", "version": 1},
                 "bio": {"id": "example-bio", "version": 1},
                 "texts": {"class": f"{pick.variables['role'].title()} · {pick.variables['colour'].title()}",
@@ -260,7 +266,7 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
             "/samples",
             headers=AUTH,
             json={
-                "template": {"id": "example-portrait", "version": 3}, "frame": {"id": "card-green", "version": 1},
+                "template": {"id": tid, "version": tv + 1}, "frame": {"id": "card-green", "version": 1},
                 "bio": {"id": "example-bio", "version": 1}, "count": 2, "seed": 3, "name": "Sample",
                 "texts": {"class": "Sample class", "stats": "No. 0"},
             },
