@@ -1,0 +1,30 @@
+# argus-iris GPU tenant manifest for argus-mint (#33).
+# Validated by argus-cortex's TenantManifest (gpu-tenant-schema.json, tenant_version 1.0); tests/test_gpu.py fails if
+# it stops validating or drifts from the figures in src/argus_mint/gpu.py.
+#
+# With ARGUS_GPU_COORDINATOR=broker, argus-mint registers this with the broker on its first lease
+# (ARGUS_GPU_TENANT_MANIFEST points at it; the Docker image ships it at /app/gpu-tenant.yaml). Tokens never go here:
+# ARGUS_GPU_BROKER_TOKEN lives in the host's .env.
+#
+# argus-mint runs nothing on a GPU itself. Card art is rendered by darkroom, which takes its own leases (mint sends
+# X-Argus-Priority: batch for sample and library runs). The one GPU job mint asks for directly is a bio: a model in
+# Ollama, reached through the suite's chat API. VRAM figures are MiB; the broker uses its learned p95 when larger.
+tenant_version: "1.0"
+tenant: argus-mint
+description: Provenance cards for game assets. Writes card bios with a language model; art comes from darkroom.
+repo: smk762/argus-mint
+
+kinds:
+  # One bio reply. The lease names the bio template's model (ollama:<model>); this is the example template's.
+  # A person creating a draft waits on it (interactive); sample runs ask for batch. A reply can't be stopped part
+  # way, so it is not preemptible.
+  - kind: bio
+    target: "ollama:mistral-nemo"
+    vram_mb: 8500
+    model_mb: 7100 # mistral-nemo 12B (Q4), which stays loaded in Ollama
+    priority: interactive
+    preemptible: false
+    description: One card bio, written by a model in Ollama behind the suite's chat API.
+
+# Mint keeps no model loaded itself: Ollama holds the weights and declares them in its own manifest.
+residents: []

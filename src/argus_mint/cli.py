@@ -14,7 +14,7 @@ import typer
 from eth_account import Account
 
 import argus_mint
-from argus_mint import merkle, networks
+from argus_mint import gpu, merkle, networks
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
 from argus_mint.bios import WRITER_KEY_ENV, BioError, BioFailed, ChatWriter, load_bio, write_bio
 from argus_mint.cards import (
@@ -232,10 +232,12 @@ def _parse_texts(pairs: list[str]) -> dict[str, str]:
     return texts
 
 
-def _writer(writer_url: str | None) -> ChatWriter:
+def _writer(writer_url: str | None, priority: str | None = None) -> ChatWriter:
     if not writer_url:
         raise _fail("--bio needs --writer (or $ARGUS_MINT_WRITER_URL)", 2)
-    return ChatWriter(writer_url, api_key=os.environ.get(WRITER_KEY_ENV) or None)
+    return ChatWriter(
+        writer_url, api_key=os.environ.get(WRITER_KEY_ENV) or None, coordinator=gpu.coordinator(), priority=priority
+    )
 
 
 @app.command()
@@ -288,7 +290,7 @@ def sample(
         raise _fail(str(e)) from e
     if extra and lf is None:
         raise typer.BadParameter("display text needs a --frame to draw it on", param_hint="--text")
-    bio_writer = _writer(writer) if bt else None
+    bio_writer = _writer(writer, priority="batch") if bt else None
     unknown = fixed.keys() - t.variables.keys()
     if unknown:
         raise typer.BadParameter(f"unknown variables: {sorted(unknown)}", param_hint="--var")

@@ -221,17 +221,21 @@ wheels = [
 
 [[package]]
 name = "argus-cortex"
-version = "0.4.6"
+version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/27/3b/83e9d22e8c0a2e1172db90b598ebcdc3026493995c416c2e2d1ead95dc34/argus_cortex-0.4.6.tar.gz", hash = "sha256:6540fe3fea34bf083ae8a477fbc1fd4af1ac35383747ac0902b62f21e2d3f485", size = 89130, upload-time = "2026-11-06T00:15:44.099Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/25/cb4c4cabcac3987e56576008a6ae882f9a5c426d603f473c6f31dd1f4450/argus_cortex-0.6.0.tar.gz", hash = "sha256:1439b2f98f587d917ae29f9fe95a3e6644b8230a42341e90de39b15e34927723", size = 145324, upload-time = "2026-11-15T19:32:36.226Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/26/789554ecc0f97d94aa01446475eb5578b81d4ab36023a92cadd050059ddc/argus_cortex-0.4.6-py3-none-any.whl", hash = "sha256:22c8bf90bfc8782ea9af9e8a624ad9fc92b0682a2b41cc61fbab8b1d9fb789a8", size = 64201, upload-time = "2026-11-06T00:15:42.667Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/a8/87d11dfecc9aede7adf6a8a1a287c61daa6f97a252668c38ab513ed5858a/argus_cortex-0.6.0-py3-none-any.whl", hash = "sha256:eedcf1577b2a333f8c1f30bfe69215642326f15d4df4f5624f81b54a2edbb69c", size = 91730, upload-time = "2026-11-15T19:32:35.044Z" },
 ]
 
 [package.optional-dependencies]
+remote = [
+    { name = "certifi" },
+    { name = "httpx" },
+]
 server = [
     { name = "starlette" },
 ]
@@ -267,7 +271,7 @@ frames = [
     { name = "pillow" },
 ]
 server = [
-    { name = "argus-cortex", extra = ["server"] },
+    { name = "argus-cortex", extra = ["remote", "server"] },
     { name = "better-profanity" },
     { name = "fastapi" },
     { name = "pillow" },
@@ -278,7 +282,7 @@ server = [
 
 [package.metadata]
 requires-dist = [
-    { name = "argus-cortex", extras = ["server"], marker = "extra == 'server'", specifier = ">=0.4.6,<0.5" },
+    { name = "argus-cortex", extras = ["remote", "server"], marker = "extra == 'server'", specifier = ">=0.6,<0.7" },
     { name = "better-profanity", marker = "extra == 'server'", specifier = ">=0.7,<0.8" },
     { name = "eth-abi", specifier = ">=5.0" },
     { name = "eth-account", specifier = ">=0.13" },

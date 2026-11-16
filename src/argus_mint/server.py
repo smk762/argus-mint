@@ -57,7 +57,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 import argus_mint
-from argus_mint import networks, siwe
+from argus_mint import gpu, networks, siwe
 from argus_mint._codec import canonical, hex0x, keccak256, to_bytes32
 from argus_mint.bios import BioError, BioFailed, BioTemplate, ChatWriter, load_bio
 from argus_mint.cards import (
@@ -256,7 +256,11 @@ def create_app(
     lock = threading.Lock()  # one writer at a time over the drafts directory
     challenges = _Challenges()
     darkroom = darkroom or (DarkroomClient(cfg.darkroom_url, policy=cfg.policy) if cfg.darkroom_url else None)
-    writer = writer or (ChatWriter(cfg.writer_url, api_key=cfg.writer_key or None) if cfg.writer_url else None)
+    writer = writer or (
+        ChatWriter(cfg.writer_url, api_key=cfg.writer_key or None, coordinator=gpu.coordinator())
+        if cfg.writer_url
+        else None
+    )
     pinner = pinner or (KuboPinner(cfg.ipfs_api) if cfg.ipfs_api else None)
     signer_box: dict[str, Any] = {"signer": signer}
 
@@ -841,13 +845,14 @@ def create_app(
             raise HTTPException(422, f"checkpoint {body.model!r} is not one this template allows")
         pool = [c for c in combinations(t) if all(c[k] == v for k, v in body.variables.items())]
         picks = random.Random(body.seed).sample(pool, min(body.count, len(pool)))
-        # Samples are background work: darkroom leases the GPU for them at batch priority, behind a person.
+        # Samples are background work: darkroom (and the bio writer) lease the GPU at batch priority, behind a person.
         renderer = darkroom.batch() if hasattr(darkroom, "batch") else darkroom
+        sample_writer = writer.batch() if hasattr(writer, "batch") else writer
 
         def run_one(n: int, values: dict[str, str]) -> Any:
             return sample_card(
                 renderer=renderer, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
-                writer=writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
+                writer=sample_writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
                 style=body.style, model=body.model, loras=tuple(body.loras),
             )  # fmt: skip
 
