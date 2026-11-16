@@ -38,7 +38,7 @@ class SiweError(ValueError):
 def _check_time(v: str | None) -> str | None:
     if v is None:
         return v
-    if not _RFC3339.match(v):
+    if not _RFC3339.fullmatch(v):
         raise ValueError(f"not an RFC 3339 date-time: {v!r}")
     datetime.fromisoformat(v)
     return v
@@ -70,14 +70,14 @@ class SiweMessage(BaseModel):
     @field_validator("domain")
     @classmethod
     def _domain(cls, v: str) -> str:
-        if not _DOMAIN.match(v):
+        if not _DOMAIN.fullmatch(v):
             raise ValueError(f"not a host[:port] authority: {v!r}")
         return v
 
     @field_validator("scheme")
     @classmethod
     def _scheme(cls, v: str | None) -> str | None:
-        if v is not None and not re.match(r"^[A-Za-z][A-Za-z0-9+.\-]*$", v):
+        if v is not None and not re.fullmatch(r"^[A-Za-z][A-Za-z0-9+.\-]*$", v):
             raise ValueError(f"bad scheme {v!r}")
         return v
 
@@ -91,7 +91,7 @@ class SiweMessage(BaseModel):
     @field_validator("uri")
     @classmethod
     def _uri(cls, v: str) -> str:
-        if not _URI.match(v):
+        if not _URI.fullmatch(v):
             raise ValueError(f"not a URI: {v!r}")
         return v
 
@@ -99,7 +99,7 @@ class SiweMessage(BaseModel):
     @classmethod
     def _resources(cls, v: tuple[str, ...]) -> tuple[str, ...]:
         for r in v:
-            if not _URI.match(r):
+            if not _URI.fullmatch(r):
                 raise ValueError(f"resource is not a URI: {r!r}")
         return v
 
@@ -113,7 +113,7 @@ class SiweMessage(BaseModel):
     @field_validator("nonce")
     @classmethod
     def _nonce(cls, v: str) -> str:
-        if not _NONCE.match(v):
+        if not _NONCE.fullmatch(v):
             raise ValueError("nonce must be at least 8 alphanumeric characters")
         return v
 

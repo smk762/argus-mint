@@ -100,7 +100,7 @@ def test_duplicate_trait_rejected():
         make(attributes=[Attribute(trait_type="A", value=1), Attribute(trait_type="A", value=2)])
 
 
-@pytest.mark.parametrize("cid", ["", f"ipfs://{CID}", "not-a-cid", "Qm123"])
+@pytest.mark.parametrize("cid", ["", f"ipfs://{CID}", "not-a-cid", "Qm123", f"{CID}\n"])
 def test_bad_cid_rejected(cid):
     with pytest.raises(ValueError):
         ipfs_uri(cid)

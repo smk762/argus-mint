@@ -173,7 +173,7 @@ class Template(BaseModel):
     @classmethod
     def _check_variables(cls, v: dict[str, tuple[str, ...]]) -> dict[str, tuple[str, ...]]:
         for name, values in v.items():
-            if not re.match(_VAR_PATTERN, name):
+            if not re.fullmatch(_VAR_PATTERN, name):
                 raise ValueError(f"variable name {name!r} must match {_VAR_PATTERN}")
             if not values:
                 raise ValueError(f"variable {name!r} has no allowed values")

@@ -938,7 +938,7 @@ class _SampleRunner:
         self.live: set[str] = set()
 
     def _dir(self, job_id: str) -> Path:
-        if not _JOB_ID.match(job_id):
+        if not _JOB_ID.fullmatch(job_id):
             raise HTTPException(400, f"not a sample job id: {job_id!r}")
         return self.root / job_id
 
@@ -962,7 +962,7 @@ class _SampleRunner:
     def all(self) -> list[SampleJob]:
         if not self.root.is_dir():
             return []
-        found = [p for p in self.root.iterdir() if _JOB_ID.match(p.name) and (p / "job.json").is_file()]
+        found = [p for p in self.root.iterdir() if _JOB_ID.fullmatch(p.name) and (p / "job.json").is_file()]
         ordered = sorted(found, key=lambda p: (p / "job.json").stat().st_mtime, reverse=True)
         return [self.get(p.name) for p in ordered]
 

@@ -138,7 +138,7 @@ class Library:
         return self.manifest.entries
 
     def entry(self, entry_id: str) -> LibraryEntry:
-        if not _ENTRY_ID.match(entry_id) or entry_id not in self._by_id:
+        if not _ENTRY_ID.fullmatch(entry_id) or entry_id not in self._by_id:
             raise LibraryError(f"no library entry {entry_id!r}")
         return self._by_id[entry_id]
 

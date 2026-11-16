@@ -261,7 +261,7 @@ class DraftStore:
         return secrets.token_hex(8)
 
     def path(self, draft_id: str) -> Path:
-        if not _DRAFT_ID.match(draft_id):
+        if not _DRAFT_ID.fullmatch(draft_id):
             raise DraftError(f"not a draft id: {draft_id!r}")
         return self.root / draft_id
 
@@ -272,7 +272,7 @@ class DraftStore:
         """Every draft id, newest first."""
         if not self.root.is_dir():
             return []
-        found = [p for p in self.root.iterdir() if _DRAFT_ID.match(p.name) and (p / DRAFT_FILE).is_file()]
+        found = [p for p in self.root.iterdir() if _DRAFT_ID.fullmatch(p.name) and (p / DRAFT_FILE).is_file()]
         return [p.name for p in sorted(found, key=lambda p: (p / DRAFT_FILE).stat().st_mtime, reverse=True)]
 
     def load(self, draft_id: str) -> tuple[CardDraft, bytes, bytes]:
