@@ -352,4 +352,5 @@ class DarkroomClient:
             return GenResult.error(f"image {rid} does not match the record's sha256", ref=rid)
         r = record.get("request") or {}
         workflow = {"name": r["workflow"], "sha256": r.get("workflow_sha256") or ""} if r.get("workflow") else None
-        return GenResult.ok(img.content, ref=rid, workflow=workflow)
+        version = record.get("darkroom_version")
+        return GenResult.ok(img.content, ref=rid, workflow=workflow, version=str(version) if version else None)

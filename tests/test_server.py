@@ -8,6 +8,7 @@ from eth_account import Account
 from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
 
+import argus_mint
 from argus_mint.pin import LocalPinner
 from argus_mint.render import GenResult
 from argus_mint.server import Settings, create_app
@@ -25,7 +26,7 @@ class FakeDarkroom:
         self.texts = []
 
     def generate(self, req):
-        return GenResult.ok(ART, ref="rec1")
+        return GenResult.ok(ART, ref="rec1", version="0.1.3")
 
     def check_text(self, text):
         self.texts.append(text)
@@ -104,7 +105,7 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.8" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert h["wire_version"] == "1.9" and h["chain_id"] == 84532 and h["card"] == CARD
     assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library", "check_templates"))
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
@@ -121,6 +122,8 @@ def test_full_flow(setup, owner):
     draft_id = d["id"]
     assert d["status"] == "pending" and d["awaiting"] == ["moderator", "owner"]
     assert d["draft"]["bio"]["text"] == "Hana polishes a lyrical lute."
+    # which argus-mint (and darkroom) made it, read from the draft, not the server running now (#34)
+    assert d["draft"]["made_with"] == {"argus-mint": argus_mint.__version__, "darkroom": "0.1.3"}
     assert c.get(f"/drafts/{draft_id}/image").content[:8] == b"\x89PNG\r\n\x1a\n"
     assert c.post(f"/drafts/{draft_id}/publish", json={}, headers=AUTH).status_code == 409  # not reviewed
 

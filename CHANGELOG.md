@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- **Drafts record what made them (wire 1.9, #34).** `CardDraft.made_with` is written when a draft is created: `{"argus-mint": <its version>}`, plus `"darkroom": <version>` for a draft rendered through darkroom, taken from the generation's record (`darkroom_version`). Library and supplied-art drafts leave darkroom out: this draft didn't ask it for anything. It is empty on older drafts, which still load, and stays out of provenance and the metadata. `GenResult` and `Rendered` carry the renderer's version. The API fixture is re-recorded with it.
+
 - **Sample and library runs ask darkroom for the GPU at `batch` priority.** `DarkroomClient` takes `priority` and sends it as `X-Argus-Priority`; `DarkroomClient.batch()` is a copy at `batch` sharing the connection. `POST /samples`, `argus-mint sample` and `argus-mint library-build` use it, so on a darkroom behind the argus-iris GPU broker (darkroom#53) they wait behind a person's render. Drafts a moderator or owner is waiting on send nothing: darkroom's default, `interactive`. The 409 retry stays: a darkroom without the broker still runs one generation at a time.
 
 ### Changed

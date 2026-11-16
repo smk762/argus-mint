@@ -457,6 +457,13 @@
           "default": null,
           "title": "Library"
         },
+        "made_with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Made With",
+          "type": "object"
+        },
         "name": {
           "minLength": 1,
           "title": "Name",
@@ -1373,7 +1380,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.8",
+          "default": "1.9",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2857,5 +2864,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.8"
+  "title": "argus-mint wire 1.9"
 }

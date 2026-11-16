@@ -194,7 +194,7 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
 
         class Darkroom:
             def generate(self, req):
-                return GenResult.ok(images[state["n"] % len(images)], ref=f"fixture-{state['n']}")
+                return GenResult.ok(images[state["n"] % len(images)], ref=f"fixture-{state['n']}", version="0.1.3")
 
             def check_text(self, text):
                 return True, ""

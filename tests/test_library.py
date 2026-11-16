@@ -151,6 +151,7 @@ def test_server_drafts_from_the_library_without_darkroom(tmp_path, tdoc):
     d = r.json()["draft"]
     assert d["library"] == entry["id"] and d["request"]["model"] == entry["model"] and d["renderer"] == "darkroom"
     assert d["attempts"] == list(lib.entry(entry["id"]).attempts)
+    assert list(d["made_with"]) == ["argus-mint"]  # rendered earlier, by a darkroom this draft didn't ask
     bad = c.post("/drafts", json=body | {"library": "999-nope"}, headers={"Authorization": "Bearer t"})
     assert bad.status_code == 404
     render = c.post(
