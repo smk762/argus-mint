@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- **A `docs/` set, one topic per file (#35)**, for argus-assay's `/docs`: [review.md](docs/review.md) (who approves what, owner sign-in, auto-moderation), [drafts.md](docs/drafts.md) (statuses, `awaiting`, attempts, publish), [catalogue.md](docs/catalogue.md) (templates, families, the darkroom check, frames, bio templates, their review), [customise.md](docs/customise.md) (owner styling: layout, fonts, tint maths), [api.md](docs/api.md) (HTTP endpoints) and [cli.md](docs/cli.md), generated from the CLI by `make cli-docs`; `tests/test_cli_docs.py` fails when it's stale.
 - **Sample and library runs ask darkroom for the GPU at `batch` priority.** `DarkroomClient` takes `priority` and sends it as `X-Argus-Priority`; `DarkroomClient.batch()` is a copy at `batch` sharing the connection. `POST /samples`, `argus-mint sample` and `argus-mint library-build` use it, so on a darkroom behind the argus-iris GPU broker (darkroom#53) they wait behind a person's render. Drafts a moderator or owner is waiting on send nothing: darkroom's default, `interactive`. The 409 retry stays: a darkroom without the broker still runs one generation at a time.
 
 ### Changed
