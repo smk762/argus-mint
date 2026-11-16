@@ -48,6 +48,7 @@ verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signatu
 templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing, seven SDXL checkpoints + Flux dev; v3: draft, v2 reworded for clothing, described roles and no lettering, plus Flux schnell, FLUX.2 Klein 9B and SD3.5 Large)
 bios/             example bio template (draft; mistral-nemo, fruity flavour text)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
+docs/             one topic per file (review, drafts, catalogue, customise, api, deploy; argus-assay serves them at /docs). cli.md is generated (`make cli-docs`, src/argus_mint/_cli_docs.py; a test fails if stale)
 schema/           mint-wire.schema.json: the HTTP wire contract (`argus-mint schema`; a test fails if stale)
 fixtures/api/     recorded API responses for the UIs' demo mode, incl. a library subset (scripts/api_fixture.py --library library-v3; the template version comes from the library)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)
@@ -100,6 +101,7 @@ make install      # git submodules + uv sync --locked --all-extras
 make test         # pytest (no network: clients are stubbed)
 make lint         # ruff 0.15.16 check + format --check, forge fmt --check
 make forge-build  # / forge-test
+make cli-docs     # regenerate docs/cli.md after a CLI change (commit it)
 make abi          # forge build, then copy ABIs into src/argus_mint/abi (commit them)
 make fixtures     # regenerate OZ merkle-tree fixtures (Node) + Python-built forge fixtures
 make fixtures-rpc # record Ledger JSON-RPC responses from anvil for the verifier tests
