@@ -19,6 +19,7 @@ SFW policy), and the returned record is checked to be the render that was asked 
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import time
@@ -193,6 +194,7 @@ class DarkroomClient:
         busy_timeout: float = 600.0,
         client: httpx.Client | None = None,
         timeout: float = 900.0,
+        priority: str | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.policy = policy
@@ -202,6 +204,15 @@ class DarkroomClient:
         self.busy_wait = busy_wait
         self.busy_timeout = busy_timeout
         self.client = client or httpx.Client(timeout=httpx.Timeout(timeout, connect=10.0))
+        # The GPU lease class darkroom asks argus-iris for (X-Argus-Priority): None is darkroom's default,
+        # interactive, for a moderator or owner waiting on a draft. Sample and library runs are batch.
+        self.priority = priority
+
+    def batch(self) -> DarkroomClient:
+        """This client at the ``batch`` GPU priority, sharing its connection: for sample and library runs."""
+        other = copy.copy(self)
+        other.priority = "batch"
+        return other
 
     def _body(self, req: RenderRequest, *, for_preflight: bool = False) -> dict[str, Any]:
         return request_body(
@@ -272,10 +283,18 @@ class DarkroomClient:
     # -- generation -----------------------------------------------------------------------------
 
     def _stream(self, req: RenderRequest) -> dict[str, Any] | str:
-        """Run one generation; return the record, or the error detail. Waits while darkroom is busy."""
+        """Run one generation; return the record, or the error detail.
+
+        Retries a 409 every ``busy_wait`` seconds until ``busy_timeout``. A darkroom on the GPU broker
+        (argus-iris) queues a second generation itself and rarely answers 409; one without it runs one at a
+        time and does, so the retry stays.
+        """
         deadline = time.monotonic() + self.busy_timeout
         while True:
-            with self.client.stream("POST", f"{self.base_url}/generate/stream", json=self._body(req)) as resp:
+            headers = {"X-Argus-Priority": self.priority} if self.priority else {}
+            with self.client.stream(
+                "POST", f"{self.base_url}/generate/stream", json=self._body(req), headers=headers
+            ) as resp:
                 if resp.status_code == 409 and time.monotonic() < deadline:
                     log.info("darkroom_busy", wait=self.busy_wait)
                 else:

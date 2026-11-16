@@ -34,10 +34,12 @@ class FakeDarkroom:
         self.tamper = tamper
         self.bodies: list[dict] = []
         self.images: dict[str, bytes] = {}
+        self.priorities: list[str | None] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
         if path == "/generate/stream":
+            self.priorities.append(request.headers.get("X-Argus-Priority"))
             if self.busy:
                 self.busy -= 1
                 return httpx.Response(409, json={"detail": "a generation is already running"})
@@ -239,3 +241,21 @@ def test_unreachable_is_an_error(tdoc):
 def test_preflight(tdoc):
     out = client(FakeDarkroom()).preflight(fill(Template.model_validate(tdoc), VALUES, 1))
     assert out["outcome"] == "ok"
+
+
+def test_no_priority_header_by_default(tdoc):
+    """A draft someone is waiting on: darkroom's default class, interactive."""
+    fake = FakeDarkroom("passed")
+    assert client(fake).generate(fill(Template.model_validate(tdoc), VALUES, 1)).ok
+    assert fake.priorities == [None]
+
+
+def test_batch_sends_the_priority_and_shares_the_connection(tdoc):
+    fake = FakeDarkroom("passed", "passed", busy=1)
+    c = client(fake, busy_wait=0)
+    batch = c.batch()
+    assert batch.client is c.client and c.priority is None
+    assert batch.generate(fill(Template.model_validate(tdoc), VALUES, 1)).ok
+    assert c.generate(fill(Template.model_validate(tdoc), VALUES, 2)).ok
+    # the 409 retry still runs, and keeps the header
+    assert fake.priorities == ["batch", "batch", None]

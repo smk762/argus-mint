@@ -841,10 +841,12 @@ def create_app(
             raise HTTPException(422, f"checkpoint {body.model!r} is not one this template allows")
         pool = [c for c in combinations(t) if all(c[k] == v for k, v in body.variables.items())]
         picks = random.Random(body.seed).sample(pool, min(body.count, len(pool)))
+        # Samples are background work: darkroom leases the GPU for them at batch priority, behind a person.
+        renderer = darkroom.batch() if hasattr(darkroom, "batch") else darkroom
 
         def run_one(n: int, values: dict[str, str]) -> Any:
             return sample_card(
-                renderer=darkroom, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
+                renderer=renderer, template=t, values=values, seed=(body.seed + n) % (2**32), frame=lf, bio=bt,
                 writer=writer if bt else None, guard=darkroom if bt else None, name=body.name, texts=body.texts,
                 style=body.style, model=body.model, loras=tuple(body.loras),
             )  # fmt: skip
