@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+### Added
+
+- **Sample and library runs ask darkroom for the GPU at `batch` priority.** `DarkroomClient` takes `priority` and sends it as `X-Argus-Priority`; `DarkroomClient.batch()` is a copy at `batch` sharing the connection. `POST /samples`, `argus-mint sample` and `argus-mint library-build` use it, so on a darkroom behind the argus-iris GPU broker (darkroom#53) they wait behind a person's render. Drafts a moderator or owner is waiting on send nothing: darkroom's default, `interactive`. The 409 retry stays: a darkroom without the broker still runs one generation at a time.
+
 ### Changed
 
 - **The portrait library covers template v3's 11 checkpoints (#6).** A v3 library (48 groups, seed 8453) now has 48 of 48 images on each checkpoint, including Flux schnell, FLUX.2 Klein 9B and SD3.5 Large: 528 images, none lost to the safety check.

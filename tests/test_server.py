@@ -410,3 +410,31 @@ def test_auto_moderation_approves_clean_drafts_and_holds_the_rest(setup, owner, 
     # a hand-edited bio reached no model, so it goes through the word filter
     e = _edit_as_owner(c, d["id"], owner, {"bio": "Sh1t happens."}).json()
     assert e["awaiting"] == ["moderator", "owner"] and "bio" in e["draft"]["auto_check"]["held"][0]
+
+
+class PriorityDarkroom(FakeDarkroom):
+    """Records the GPU priority each render was asked at (DarkroomClient.batch)."""
+
+    def __init__(self, seen=None, priority=None):
+        super().__init__()
+        self.seen = [] if seen is None else seen
+        self.priority = priority
+
+    def batch(self):
+        return PriorityDarkroom(self.seen, "batch")
+
+    def generate(self, req):
+        self.seen.append(self.priority)
+        return super().generate(req)
+
+
+def test_samples_render_at_batch_priority(setup, tmp_path):
+    dark = PriorityDarkroom()
+    c = setup(darkroom=dark)
+    t = tmp_path / "templates" / "t.yaml"
+    t.write_text(t.read_text().replace("status: approved", "status: draft"))
+    body = {"template": {"id": "test-portrait", "version": 1}, "count": 2}
+    r = c.post("/samples", json=body, headers=AUTH)
+    assert r.status_code == 202, r.text
+    assert _wait(c, r.json()["id"])["status"] == "done"
+    assert dark.seen == ["batch", "batch"]

@@ -298,7 +298,7 @@ def sample(
     if not pool:
         raise _fail("no combination matches the fixed --var values")
     picks = random.Random(seed).sample(pool, min(count, len(pool)))
-    client = DarkroomClient(darkroom, policy=policy)
+    client = DarkroomClient(darkroom, policy=policy, priority="batch")
     out.mkdir(parents=True, exist_ok=True)
     results = []
     for i, values in enumerate(picks, 1):
@@ -816,7 +816,7 @@ def library_build(
     try:
         t = load_template(template)
         lib = build_library(
-            DarkroomClient(darkroom, policy=policy), t, out, models=model or None, count=count, seed=seed,
+            DarkroomClient(darkroom, policy=policy, priority="batch"), t, out, models=model or None, count=count, seed=seed,
             progress=lambda m: typer.echo(m, err=True),
         )  # fmt: skip
     except (TemplateError, LibraryError) as e:
