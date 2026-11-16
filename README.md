@@ -55,6 +55,18 @@ tree = merkle.build(leaf_hashes)            # OpenZeppelin StandardMerkleTree-co
 proof = tree.proof(3)                       # verifies in Ledger.verify and MerkleProof.verify
 ```
 
+## Docs
+
+One topic per file in [docs/](docs/):
+
+- [review.md](docs/review.md): who approves a card image (moderator and owner), and auto-moderation
+- [drafts.md](docs/drafts.md): draft statuses, attempts, edits and publishing
+- [catalogue.md](docs/catalogue.md): templates, frames, bio templates and their review
+- [customise.md](docs/customise.md): the owner's styling, its layout, fonts and tint maths
+- [api.md](docs/api.md): the HTTP endpoints of `argus-mint serve`
+- [cli.md](docs/cli.md): every CLI command and option (generated)
+- [deploy.md](docs/deploy.md): deploying the contracts to Base
+
 ## Develop
 
 Needs [uv](https://docs.astral.sh/uv/), [Foundry](https://book.getfoundry.sh/) and Node (for fixtures and the verifier).

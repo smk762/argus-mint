@@ -13,6 +13,7 @@ from typing import Any
 
 from eth_account.signers.local import LocalAccount
 
+import argus_mint
 from argus_mint._codec import hex0x
 from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
 from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
@@ -111,6 +112,7 @@ def create_draft(
     ``BioError``/``BioFailed``, ``FrameError``.
     """
     texts = dict(texts or {})
+    made_with = {"argus-mint": argus_mint.__version__}
     if frame is not None:
         require_approved(frame)
     check_texts(texts, frame)
@@ -147,6 +149,8 @@ def create_draft(
         rendered = render(renderer, template, values, seed, model, loras)
         art, req = rendered.image, rendered.request
         attempts = [a.to_json() for a in rendered.attempts]
+        if rendered.renderer_version:
+            made_with[renderer_name] = rendered.renderer_version
     b = write_bio(writer, guard, bio, values, template, name) if bio and writer and guard else None
     card_image = compose(frame, art, card_texts(frame, name, b.text if b else None, texts), style) if frame else art
     draft = CardDraft(
@@ -164,6 +168,7 @@ def create_draft(
         texts=texts,
         style=style,
         library=library.id if library is not None else None,
+        made_with=made_with,
         art_sha256=sha256_hex(art),
         image_sha256=sha256_hex(card_image),
         created_at=datetime.now(UTC),

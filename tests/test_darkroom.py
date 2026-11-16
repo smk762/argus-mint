@@ -72,6 +72,7 @@ class FakeDarkroom:
             },  # fmt: skip
             "guard": {"enforcing_policy": body["enforcing_policy"]},
             "image": None,
+            "darkroom_version": "0.1.3",
         }
         if outcome in ("passed", "review"):
             self.images[rid] = PNG
@@ -117,6 +118,7 @@ def test_passed_returns_verified_image(tdoc):
     # darkroom's workflow is kept with the attempt, so a draft and its publish record name it
     assert r.attempts[0].workflow == {"name": "sdxl+lora1", "sha256": "ab" * 32}
     assert r.attempts[0].to_json()["workflow"] == {"name": "sdxl+lora1", "sha256": "ab" * 32}
+    assert r.renderer_version == "0.1.3"  # from the record, for the draft's made_with
 
 
 def _models(*checkpoints, workflows=(), loras=("fantasy-portrait.safetensors",)):
