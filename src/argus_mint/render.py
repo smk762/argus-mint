@@ -52,10 +52,13 @@ class GenResult:
     ref: str = ""  # the renderer's id for this attempt (darkroom: the record id), for the audit trail
     # The renderer's workflow, when it says: darkroom's {"name": "sdxl+lora1", "sha256": ...}.
     workflow: dict[str, str] | None = None
+    version: str | None = None  # the renderer's own version, when it says (darkroom's record does)
 
     @classmethod
-    def ok(cls, image: bytes, ref: str = "", workflow: dict[str, str] | None = None) -> GenResult:
-        return cls(Outcome.OK, image=image, ref=ref, workflow=workflow)
+    def ok(
+        cls, image: bytes, ref: str = "", workflow: dict[str, str] | None = None, version: str | None = None
+    ) -> GenResult:
+        return cls(Outcome.OK, image=image, ref=ref, workflow=workflow, version=version)
 
     @classmethod
     def safety_rejected(cls, detail: str = "", ref: str = "") -> GenResult:
@@ -91,6 +94,7 @@ class Rendered:
     image: bytes
     request: RenderRequest  # the request that produced the image (its seed is the final seed)
     attempts: tuple[Attempt, ...] = field(default=())
+    renderer_version: str | None = None  # the version the renderer reported for the image, if any
 
     @property
     def seed(self) -> int:
@@ -185,7 +189,7 @@ def _render(
         )
         if result.outcome is Outcome.OK:
             assert result.image is not None
-            return Rendered(image=result.image, request=req, attempts=tuple(attempts))
+            return Rendered(image=result.image, request=req, attempts=tuple(attempts), renderer_version=result.version)
         if result.outcome is Outcome.ERROR:
             raise RenderError(f"darklight error on attempt {n + 1}: {result.detail}", tuple(attempts))
     raise RenderFailed(

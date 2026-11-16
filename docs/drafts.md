@@ -21,6 +21,8 @@ Then, if a bio template was named, a language model writes the bio, and if a fra
 
 Over HTTP: `POST /drafts` (moderator token). From the CLI: `argus-mint draft`. Both make the same record.
 
+Each draft also records what made it, in `made_with`: `{"argus-mint": <version>}`, plus `"darkroom": <version>` when darkroom rendered the art for this draft (the version from darkroom's record of that render). Library and supplied drafts leave darkroom out. Drafts made before argus-mint recorded this have an empty `made_with`. A UI reads the "made with" line from here, not from `/health`, which reports the server running now.
+
 ## Draft status
 
 `GET /drafts/{id}` and `GET /drafts` report a `status`, worked out from the reviews of the **current** image:
