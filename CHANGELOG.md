@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-11-16
+
 ### Added
 
 - **The bio writer leases the GPU through the argus-iris broker (#33).** With `ARGUS_GPU_COORDINATOR=broker` (and `ARGUS_GPU_BROKER_URL`, `ARGUS_GPU_BROKER_TOKEN`, `ARGUS_GPU_TENANT_MANIFEST`, `ARGUS_GPU_BROKER_FALLBACK`), each bio reply is written under a lease on `ollama:<model>`: `interactive` for a draft, `batch` for samples (`ChatWriter.batch()`). The committed `gpu-tenant.yaml` declares the `bio` kind; a test keeps it valid and equal to `argus_mint.gpu`'s figures. Renders are unchanged: darkroom takes its own leases. A refused or timed-out lease is a `BioError`. Unset, or without argus-cortex installed, nothing is leased. The image sets `ARGUS_GPU_TENANT_MANIFEST=/app/gpu-tenant.yaml`; compose, `.env.example` and docs/deploy.md list the settings.
@@ -14,7 +16,6 @@ All notable changes to this project are documented here. Versions come from git 
 ### Changed
 
 - **argus-cortex 0.6** (`argus-cortex[server,remote]>=0.6,<0.7` in the `server` extra), for its GPU broker client.
-
 - **The portrait library covers template v3's 11 checkpoints (#6).** A v3 library (48 groups, seed 8453) now has 48 of 48 images on each checkpoint, including Flux schnell, FLUX.2 Klein 9B and SD3.5 Large: 528 images, none lost to the safety check.
 - **The API fixture is re-recorded from the v3 library.** Its approved template is v3 (v4 awaits catalogue review), and its library subset has six whole groups on all 11 checkpoints. `scripts/api_fixture.py` now takes the template from the library's manifest instead of assuming v2, and draws the drafts' stand-in art from the template's default checkpoint. Record it with `--library library-v3`.
 
