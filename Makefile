@@ -4,7 +4,7 @@ FORGE ?= $(shell command -v forge 2>/dev/null || echo $(HOME)/.foundry/bin/forge
 NPM ?= npm
 RUFF := $(UV)x ruff@0.15.16
 
-.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check ipfs ipfs-down serve serve-up schema
+.PHONY: help install lock lint format test build clean forge-build forge-test forge-fmt abi fixtures fixtures-rpc verifier-install verifier-test deploy check ipfs ipfs-down serve serve-up schema cli-docs
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -84,6 +84,9 @@ serve-up:  ## Build and start the service + Kubo in docker (compose profile `ser
 
 schema:  ## Write the HTTP wire schema (schema/mint-wire.schema.json); commit it
 	$(UV) run argus-mint schema
+
+cli-docs:  ## Write docs/cli.md from the CLI (generated; a test fails if stale); commit it
+	$(UV) run --no-sync python scripts/cli_docs.py
 
 check: lint test forge-test verifier-test  ## Everything a milestone needs green
 
