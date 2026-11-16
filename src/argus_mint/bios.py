@@ -19,17 +19,20 @@ the draft, drawn on the card, and published as the card's ``description``.
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import re
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import httpx
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from argus_mint._codec import canonical, keccak256
+from argus_mint.gpu import BIO_KIND, BIO_MODEL_MB, BIO_VRAM_MB
 from argus_mint.metadata import BioRef
 from argus_mint.templates import Template, placeholders
 
@@ -145,13 +148,52 @@ class ChatWriter:
     """A :class:`Writer` over an OpenAI-style ``POST {base_url}/chat`` (messages in, choices out)."""
 
     def __init__(
-        self, base_url: str, *, api_key: str | None = None, client: httpx.Client | None = None, timeout: float = 180
+        self,
+        base_url: str,
+        *,
+        api_key: str | None = None,
+        client: httpx.Client | None = None,
+        timeout: float = 180,
+        coordinator: Any = None,
+        priority: str | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.client = client or httpx.Client(timeout=timeout)
+        # An argus-cortex GpuCoordinator (argus_mint.gpu.coordinator()): each reply is written under a lease on
+        # ollama:<model>. None leases nothing. priority None is the kind's own (interactive); samples are batch.
+        self.coordinator = coordinator
+        self.priority = priority
+
+    def batch(self) -> ChatWriter:
+        """This writer at the ``batch`` GPU priority, sharing its connection: for sample runs."""
+        other = copy.copy(self)
+        other.priority = "batch"
+        return other
+
+    def _lease(self, model: str) -> contextlib.AbstractContextManager[Any]:
+        if self.coordinator is None:
+            return contextlib.nullcontext()
+        return self.coordinator.lease(
+            caller=f"argus-mint:{BIO_KIND}",
+            min_vram_mb=BIO_VRAM_MB,
+            model_mb=BIO_MODEL_MB,
+            target=f"ollama:{model}",
+            kind=BIO_KIND,
+            priority=self.priority,
+        )
 
     def write(self, *, model: str, system: str, prompt: str, temperature: float, max_tokens: int) -> str:
+        with contextlib.ExitStack() as stack:
+            try:
+                stack.enter_context(self._lease(model))
+            except (TimeoutError, RuntimeError) as e:  # cortex's GpuLeaseTimeout, GpuLeaseRefused, BrokerError
+                raise BioError(f"no GPU lease for the bio writer's {model}: {e}") from e
+            return self._write(
+                model=model, system=system, prompt=prompt, temperature=temperature, max_tokens=max_tokens
+            )
+
+    def _write(self, *, model: str, system: str, prompt: str, temperature: float, max_tokens: int) -> str:
         body = {
             "model": model,
             "temperature": temperature,

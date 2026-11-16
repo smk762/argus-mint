@@ -204,3 +204,19 @@ ssh <user>@<vps> ipfs dag import <cid>.car
 Each card needs about 1.7 MB (image plus metadata), so 1,000 cards take about 2 GB. Kubo uses 1–2 GB of RAM.
 
 For mainnet, consider a pinning service as a second copy, so cards survive the VPS going down.
+
+## 7. GPU leases through argus-iris (optional)
+
+argus-mint runs nothing on a GPU itself. Card art is rendered by argus-darkroom, which takes its own GPU leases; mint only tells it the priority (`X-Argus-Priority: batch` for sample and library runs, nothing for a draft someone is waiting on). The one GPU job mint asks for directly is a **bio**: a model in Ollama behind the suite's chat API. With the broker configured, `argus-mint serve` (and the CLI, when argus-cortex is installed) takes a lease on `ollama:<model>` for each bio reply: `interactive` for a draft, `batch` for samples.
+
+Set these in `.env` (compose passes them to the `mint` service; the image ships the manifest at `/app/gpu-tenant.yaml`):
+
+| Variable | Value |
+|---|---|
+| `ARGUS_GPU_COORDINATOR` | `broker` (unset or `none`: no lease) |
+| `ARGUS_GPU_BROKER_URL` | the broker, e.g. `http://<broker-host>:8120` |
+| `ARGUS_GPU_BROKER_TOKEN` | the suite's shared caller token. Host `.env` only, never a repo |
+| `ARGUS_GPU_TENANT_MANIFEST` | path to the committed [gpu-tenant.yaml](../gpu-tenant.yaml) (or `ARGUS_GPU_TENANT=argus-mint`) |
+| `ARGUS_GPU_BROKER_FALLBACK` | `none` or `lease`: what to use when the broker can't be reached. Cortex defaults to `lease` (a local lock); mint's host usually has no GPU of its own, so `none` is the usual choice |
+
+The client fails open: if the broker can't be reached (or has no lease routes yet, a `404`), the fallback is used and the bio is written anyway. A refused or timed-out lease fails the bio like any writer error, and the draft request reports it.
