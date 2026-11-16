@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+### Changed
+
+- Id and value checks use `fullmatch` (argus-cortex's `fullmatch` codemod, ai-code-auditor#56), so they match the whole string: draft, sample-job and library entry ids, CIDs, template variable and frame slot names, and the SIWE domain, scheme, URI, resources, nonce and date-times. `$` also matches before a final newline, so a value followed by `\n` used to pass these checks.
+
 ## [0.2.2] - 2026-11-16
 
 ### Added

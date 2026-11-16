@@ -55,7 +55,7 @@ _NUMERIC_DISPLAY = {"number", "boost_number", "boost_percentage", "date"}
 
 def ipfs_uri(cid: str) -> str:
     """``ipfs://<cid>`` for a bare CID; rejects anything that doesn't look like one."""
-    if not isinstance(cid, str) or not _CID.match(cid):
+    if not isinstance(cid, str) or not _CID.fullmatch(cid):
         raise ValueError(f"not a CID: {cid!r} (pass the bare CID, without ipfs://)")
     return f"ipfs://{cid}"
 

@@ -115,7 +115,7 @@ class Frame(BaseModel):
         import re
 
         for slot in self.texts:
-            if not re.match(_SLOT_PATTERN, slot):
+            if not re.fullmatch(_SLOT_PATTERN, slot):
                 raise ValueError(f"text slot name {slot!r} must match {_SLOT_PATTERN}")
         if self.status != "draft" and (not self.approved_by or self.approved_at is None):
             raise ValueError(f"status {self.status!r} requires approved_by and approved_at (approval is a human step)")

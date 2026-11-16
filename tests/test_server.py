@@ -9,6 +9,7 @@ from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
 
 import argus_mint
+from argus_mint.cards import DraftError, DraftStore
 from argus_mint.pin import LocalPinner
 from argus_mint.render import GenResult
 from argus_mint.server import Settings, create_app
@@ -441,3 +442,12 @@ def test_samples_render_at_batch_priority(setup, tmp_path):
     assert r.status_code == 202, r.text
     assert _wait(c, r.json()["id"])["status"] == "done"
     assert dark.seen == ["batch", "batch"]
+
+
+def test_a_draft_id_with_a_trailing_newline_is_refused(tmp_path):
+    # `$` also matches before a final newline; the id check matches the whole string, before any path is built.
+    store = DraftStore(tmp_path)
+    draft_id = store.new_id()
+    assert store.path(draft_id) == tmp_path / draft_id
+    with pytest.raises(DraftError):
+        store.path(draft_id + "\n")
