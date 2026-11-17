@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+### Added
+
+- **`requirements-test.txt`**: the test dependencies for a plain pip venv (`pip install -r requirements-test.txt && pytest`, no install of argus-mint needed: pytest gets `pythonpath = ["src"]`). ai-code-auditor's `validate_patch` builds its test environment from it, so fixes here are proven by pytest rather than lint only (cf. agent-composer#61). Pins match `uv.lock`; `tests/test_requirements_test.py` fails if they drift or a dependency is missing.
+
 ### Changed
 
 - argus-cortex is pinned `>=0.9,<0.10` (was `>=0.6,<0.7`), so the `server` extra has the suite's paved-road helpers (`fs`, `net`, `auth`, `limits`; ai-code-auditor#56).
