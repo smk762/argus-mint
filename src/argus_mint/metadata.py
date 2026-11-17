@@ -105,7 +105,8 @@ def _whole_as_int(x: float) -> int | float:
     Provenance is hashed as canonical JSON, and JSON libraries disagree on a whole float: Python
     writes ``1.0``, JavaScript ``1``. Written as an int, every verifier hashes the same bytes.
     """
-    return int(x) if x.is_integer() else x
+    # Only within the range JavaScript writes as a plain integer: from 1e21 it writes 1e+21.
+    return int(x) if x.is_integer() and abs(x) < 1e21 else x
 
 
 class Tint(BaseModel):
@@ -224,7 +225,7 @@ class Provenance(BaseModel):
             template_version=req.template_version,
             template_hash=req.template_hash,
             seed=req.seed,
-            variables=dict(sorted(req.variables.items())),
+            variables=dict(sorted(req.variables.items())) or None,
             model=req.model,
             loras=tuple(LoraUse(name=x.name, weight=x.weight) for x in req.loras) or None,
             **fields,
@@ -234,6 +235,8 @@ class Provenance(BaseModel):
     @classmethod
     def _art_uri(cls, v: str | None) -> str | None:
         if v is not None:
+            if not v.startswith("ipfs://"):
+                raise ValueError(f"art must be an ipfs:// URI, not {v!r}")
             ipfs_uri(v.removeprefix("ipfs://"))  # validates the CID
         return v
 

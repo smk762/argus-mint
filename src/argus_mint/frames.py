@@ -23,11 +23,11 @@ import hashlib
 import io
 from dataclasses import dataclass, field
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from argus_mint._codec import canonical, keccak256
 from argus_mint.metadata import CardStyle, FrameRef, SlotStyle, Tint
@@ -50,6 +50,20 @@ __all__ = [
 
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 _SLOT_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
+MAX_ART_PIXELS = 8192 * 8192  # a template's largest render (templates.Template width/height)
+
+
+def _inside_path(v: str | None) -> str | None:
+    """A file path relative to the frame file that stays in its directory: no absolute path, drive,
+    backslash or ``..`` (the frame's files are read, hashed and served back)."""
+    if v is None:
+        return v
+    p = PurePosixPath(v)
+    if not p.parts or "\\" in v or p.is_absolute() or ".." in p.parts or ":" in p.parts[0]:
+        raise ValueError(f"{v!r} must be a path inside the frame's directory (relative, no '..')")
+    return v
+
+
 _COLOUR_PATTERN = r"^#[0-9a-fA-F]{6}$"
 ELLIPSIS = "…"
 
@@ -87,6 +101,8 @@ class TextSlot(Rect):
     wrap: bool = False
     line_spacing: float = Field(default=1.15, ge=0.8, le=3.0)
 
+    _font_inside = field_validator("font")(_inside_path)
+
     @model_validator(mode="after")
     def _sizes(self) -> TextSlot:
         if self.min_size > self.size:
@@ -109,6 +125,8 @@ class Frame(BaseModel):
     # slot name -> box; "name" and "bio" are filled by argus-mint
     texts: dict[str, TextSlot] = Field(default_factory=dict)
     style_locked: bool = False  # true: owners can't restyle cards in this frame
+
+    _overlay_inside = field_validator("overlay")(_inside_path)
 
     @model_validator(mode="after")
     def _check(self) -> Frame:
@@ -167,8 +185,12 @@ def load_frame(path: Path) -> LoadedFrame:
     except ValidationError as e:
         raise FrameError(f"{path}: {e}") from e
 
+    base = path.parent.resolve()
+
     def read(rel: str) -> bytes:
-        f = path.parent / rel
+        f = (base / rel).resolve()
+        if not f.is_relative_to(base):  # e.g. through a symlink
+            raise FrameError(f"{path}: {rel} lies outside the frame's directory")
         try:
             return f.read_bytes()
         except OSError as e:
@@ -319,8 +341,10 @@ def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, sty
     filter_mod = _filters()
     try:
         src = image_mod.open(io.BytesIO(art))
+        if src.width * src.height > MAX_ART_PIXELS:
+            raise FrameError(f"the render is {src.width}x{src.height}: larger than any template renders")
         src.load()
-    except OSError as e:
+    except (OSError, ValueError, SyntaxError, image_mod.DecompressionBombError) as e:
         raise FrameError(f"the render is not a readable image: {e}") from e
 
     win = f.frame.window

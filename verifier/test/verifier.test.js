@@ -155,6 +155,28 @@ test("verifies an epoch's secret end to end", async () => {
   assert.ok(!(await verifyEpochSecret(URL_, rpc.ledger, 20401, opts)).ok);
 });
 
+test("a malformed beacon is rejected, not thrown", () => {
+  const a = drand.rounds[0];
+  for (const signature of ["abc", "zz".repeat(48), 42, null, undefined]) {
+    assert.deepEqual(verifyDrandBeacon({ round: a.round, signature }), { ok: false, randomness: null });
+  }
+  assert.deepEqual(verifyDrandBeacon({ round: "x", signature: a.signature }), { ok: false, randomness: null });
+});
+
+test("the revealed secret is read at the pinned block and ignores removed logs", async () => {
+  const seen = [];
+  const logsFetch = (logs) => async (_url, init) => {
+    seen.push(JSON.parse(init.body).params[0]);
+    return { ok: true, json: async () => ({ jsonrpc: "2.0", id: 1, result: logs }) };
+  };
+  const data = "0x" + "20".padStart(64, "0") + "02".padStart(64, "0") + "abcd".padEnd(64, "0");
+  assert.equal(await readRevealedSecret(URL_, rpc.ledger, 20400, { fetch: logsFetch([{ data }]), block: 1234 }), "0xabcd");
+  assert.equal(seen.at(-1).toBlock, "0x4d2");
+  const removed = [{ data, removed: true }];
+  assert.equal(await readRevealedSecret(URL_, rpc.ledger, 20400, { fetch: logsFetch(removed) }), null);
+  assert.equal(seen.at(-1).toBlock, "latest");
+});
+
 test("surfaces RPC errors", async () => {
   const failing = async () => ({ ok: true, json: async () => ({ error: { message: "boom" } }) });
   await assert.rejects(readRoot(URL_, rpc.ledger, 1, { fetch: failing }), /boom/);

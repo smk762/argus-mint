@@ -54,3 +54,15 @@ def test_cli_network_sets_chain_id(tmp_path, template_doc):
     mainnet = json.loads(runner.invoke(app, [*base, "--network", "base"]).stdout)
     assert mainnet["typed_data"]["domain"]["chainId"] == 8453
     assert runner.invoke(app, [*base, "--network", "polygon"]).exit_code != 0
+
+
+def test_rpc_errors_never_carry_the_provider_key():
+    pytest.importorskip("web3")
+    from argus_mint.chain import NoRpcAvailable, connect, redact_url
+
+    urls = ["http://127.0.0.1:1/v3/SECRETKEY?apikey=SECRET2", "http://user:SECRET3@127.0.0.1:1/"]
+    with pytest.raises(NoRpcAvailable) as e:
+        connect("base", urls, timeout=0.5)
+    assert "SECRET" not in str(e.value) and "http://127.0.0.1:1" in str(e.value)
+    assert redact_url("https://eth-mainnet.g.alchemy.com/v2/KEY") == "https://eth-mainnet.g.alchemy.com"
+    assert redact_url("not a url") == "<rpc url>"

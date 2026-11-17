@@ -8,6 +8,29 @@ All notable changes to this project are documented here. Versions come from git 
 
 - argus-cortex is pinned `>=0.9,<0.10` (was `>=0.6,<0.7`), so the `server` extra has the suite's paved-road helpers (`fs`, `net`, `auth`, `limits`; ai-code-auditor#56).
 - Id and value checks use `fullmatch` (argus-cortex's `fullmatch` codemod, ai-code-auditor#56), so they match the whole string: draft, sample-job and library entry ids, CIDs, template variable and frame slot names, and the SIWE domain, scheme, URI, resources, nonce and date-times. `$` also matches before a final newline, so a value followed by `\n` used to pass these checks.
+- **`submit` needs `--card`** (or `$ARGUS_MINT_CARD`) and refuses a voucher whose EIP-712 domain names another contract: its pre-flight checks ran against the contract the voucher named, so a forged voucher could point them, and the payment, at any contract.
+- **`publish --dry-run` signs with a throwaway key, never the real one** (and doesn't load it), so a dry run's voucher (local pins, maybe placeholder art) can't mint. `signer_is_ephemeral` is always true for a dry run.
+- **Wire 1.10: slot texts are bounded.** `texts` in draft, edit, sample, preview and layout requests takes at most 16 slots, named like frame slots, each up to 2000 characters.
+- `freeze --uri` takes only `ipfs://<cid>` or a bare CID, checked before connecting: a freeze can't be undone.
+- Provenance `art` must be an `ipfs://` URI; a bare CID is refused. A render without variables leaves `variables` out of provenance, as with `loras`. Whole floats of 1e21 and more stay floats in hashed JSON, as JavaScript writes them.
+- A frame's overlay and fonts must be paths inside its directory (relative, no `..`, no symlink out).
+- A template can't offer a LoRA option it already applies in `loras`.
+- `Library.thumbnail` serves widths 1 to 1024, rounded up to one of a few cached sizes.
+- `ARGUS_MINT_*` settings that are set but empty take their defaults.
+- `chain.connect`'s error names each RPC by scheme and host only: provider keys stay out of it.
+
+### Fixed
+
+- `cards.write_atomic` writes a unique, fsynced temp file and removes it on failure; catalogue decisions validate the edit in a temp file and rename it over the original, so neither is left half-written.
+- `bios.clean` never returns more than `max_chars`, and a bio's `max_chars` holds once the name is in.
+- darkroom: a record without `guard.enforcing_policy` is an error, not a pass; a `complete` event without a record or with malformed data is an error result, not an exception; the text check turns a non-JSON or non-object answer into a `DarkroomError`; `final_prompt` matches darkroom 0.2's trigger-word rule (whole words, any case).
+- `indexer.follow` pins the last block's hash before reading logs and checks it after, refuses logs from another branch, and skips `removed` logs.
+- `argus-mint sample` keeps a render's art, seed and framed preview when its bio fails. `draft --library` refuses `--lora` cleanly (exit 2); `create_draft` refuses a library entry with a renderer with a `ValueError`.
+- Every pin of a card is named by template, version and seed (the metadata pin was named by template only).
+- Unreadable or oversized art is a `FrameError`, not a 500. Mixed-case blocklist terms match.
+- `scripts/api_fixture.py` writes nothing unless its sample job finished `done`.
+- verifier: a malformed drand beacon returns `{ok: false}`; `readRevealedSecret` honours `block` and skips removed logs.
+- Tests that passed vacuously (no example frames, bios or demo mints found) or asserted too little (unsigned owner edits, a live publish without a signer, the CLI's `--text`/`--bio` checks) now check what they claim.
 
 ## [0.2.2] - 2026-11-16
 

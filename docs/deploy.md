@@ -142,10 +142,10 @@ Sourcify is the default. Blockscout (`base-sepolia.blockscout.com`, `base.blocks
    argus-mint publish drafts/demo-1 --network base-sepolia --card <CARD> \
      --ipfs-api http://127.0.0.1:5001 > demo-1.json
 
-   argus-mint submit demo-1.json               # sends the voucher; prints the token id
+   argus-mint submit demo-1.json --card <CARD>   # sends the voucher; prints the token id
    argus-mint freeze --card <CARD> --token-id 1 --uri <metadata_cid from demo-1.json>   # METADATA_ROLE
    ```
-   `submit` checks first what the contract would refuse: a signer without the role, an asset already minted, an expired voucher, or the wrong chain. Those cost no gas. Any account may submit; in production that's the player's wallet.
+   `submit` refuses a voucher for any contract but `--card` (or `$ARGUS_MINT_CARD`), then checks what the contract would refuse: a signer without the role, an asset already minted, an expired voucher, or the wrong chain. Those cost no gas. Any account may submit; in production that's the player's wallet.
 4. Anchor a Merkle root. The leaves are 32-byte record hashes, one per line:
    ```bash
    argus-mint anchor leaves.txt --ledger <LEDGER> --epoch 1 --tree epoch-1.json   # COMMITTER_ROLE
