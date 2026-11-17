@@ -89,6 +89,7 @@ include = ["/src", "/tests", "/README.md", "/CHANGELOG.md", "/LICENSE", "/pyproj
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]  # so `pip install -r requirements-test.txt && pytest` runs without installing argus-mint
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = ["anvil: starts a local anvil node (skips without Foundry unless ARGUS_MINT_REQUIRE_ANVIL=1)"]
 

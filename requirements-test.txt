@@ -1,0 +1,32 @@
+# What `pytest` needs, for a plain pip venv (no uv, no install of argus-mint itself):
+#
+#   pip install -r requirements-test.txt && pytest
+#
+# pytest finds the package through `pythonpath = ["src"]` in pyproject.toml. ai-code-auditor's
+# validate_patch builds its test environment from this file. Pins match uv.lock; keep them in
+# step when `make lock` changes a dependency (tests/test_requirements_test.py fails otherwise).
+# Tests marked `anvil` skip without Foundry; nothing here needs a GPU or network.
+
+# base dependencies
+pydantic==2.14.3
+structlog==26.1.0
+pyyaml==6.0.3
+eth-account==0.14.0
+eth-abi==6.0.0
+eth-utils==6.0.0
+pycryptodome==3.24.1
+httpx==0.28.1
+
+# extras: chain, cli, frames, server
+web3==8.0.0
+typer==0.28.0
+rich==15.0.0
+pillow==13.0.0
+argus-cortex[server,remote]==0.9.0
+fastapi==0.162.2
+uvicorn==0.54.0
+better-profanity==0.7.0
+
+# dev
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
