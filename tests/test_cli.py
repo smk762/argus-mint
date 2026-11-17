@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 import yaml
@@ -289,7 +290,8 @@ def test_submit_refuses_a_voucher_for_another_contract(tmp_path, template_doc):
     result = runner.invoke(app, ["submit", str(voucher), "--card", other, "--network", "anvil"])
     assert result.exit_code == 2 and f"not the Card {other}" in result.output
     result = runner.invoke(app, ["submit", str(voucher), "--network", "anvil"], env={"ARGUS_MINT_CARD": ""})
-    assert result.exit_code == 2 and "--card" in result.output  # required
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)  # CI forces colour on typer's usage errors
+    assert result.exit_code == 2 and "--card" in plain  # required
 
 
 @pytest.mark.parametrize(
