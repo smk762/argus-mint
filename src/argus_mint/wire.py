@@ -19,10 +19,12 @@ from argus_mint.cards import CardDraft
 from argus_mint.frames import Frame
 from argus_mint.metadata import CardStyle
 from argus_mint.templates import LoraChoice, Template
+from argus_mint.training import TrainingRecord
 
 __all__ = [
     "WIRE_VERSION",
     "BackgroundDecision",
+    "IdentityTrainingView",
     "BackgroundSetList",
     "CreateTeaserDraft",
     "ProjectTracker",
@@ -74,8 +76,9 @@ __all__ = [
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
 # 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts);
-# 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker
-WIRE_VERSION = "1.12"
+# 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker;
+# 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
+WIRE_VERSION = "1.14"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -110,6 +113,9 @@ class Capabilities(_Wire):
     author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
     backgrounds: bool = False  # scene backgrounds can be rendered: darkroom configured, token set, not read-only
     teasers: bool = False  # teaser drafts: moderator token set, not read-only (embodied ones need darkroom too)
+    # an embodied identity's LoRA can be trained here: darkroom, curator, lens, forge and proof configured,
+    # the shared exports and LoRA directories set, moderator token set, not read-only
+    identity_training: bool = False
 
 
 class Health(_Wire):
@@ -550,6 +556,23 @@ class CreateTeaserDraft(_Wire):
     to: str  # the owner, who signs the review
 
 
+TrainingStepStatus = Literal["not_started", "queued", "running", "done", "failed"]
+TrainingStep = Literal["candidates", "select", "caption", "train", "evaluate", "pin"]
+
+
+class IdentityTrainingView(_Wire):
+    """GET /projects/{id}/identities/{identity}/{version}/training: the record, and each step's status
+    as mint works it out (a job a restart cut off reads as failed). ``next``: the one step the
+    moderator may start now, if any."""
+
+    project: str
+    identity: str
+    version: int
+    steps: dict[TrainingStep, TrainingStepStatus]
+    next: TrainingStep | None
+    record: TrainingRecord | None
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -585,4 +608,5 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     BackgroundDecision,
     CreateTeaserDraft,
     ProjectTracker,
+    IdentityTrainingView,
 )

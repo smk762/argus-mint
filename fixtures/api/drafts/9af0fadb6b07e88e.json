@@ -1,5 +1,5 @@
 {
-  "id": "20e50c1efdc98d99",
+  "id": "9af0fadb6b07e88e",
   "status": "rejected",
   "awaiting": [
     "owner"
@@ -45,7 +45,7 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0xc69006856306bbeaba31ac4a8f62e322285735071ccf46f6c466a81e32bffeae",
-    "to": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
+    "to": "0xfB0253F9674B261ECedAfc7D2839B2272A6131C3",
     "name": "Lantern Keeper",
     "description": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
     "external_url": null,
@@ -80,20 +80,20 @@
     "style": null,
     "library": null,
     "made_with": {
-      "argus-mint": "0.2.3.dev9+g9c4dfe789",
+      "argus-mint": "0.2.3.dev24+ge7d6cdf40",
       "darkroom": "0.1.3"
     },
     "edits": [],
     "auto_check": null,
     "art_sha256": "f0156b629a90d69b275eca79d504106ba8c2cad674f8901e7c635e139244803e",
     "image_sha256": "359b9b8be993ad846cddceaf74ecef26a5015ca8988df346d4438c3bee3ab727",
-    "created_at": "2026-11-18T06:39:46.488367Z",
+    "created_at": "2026-11-18T07:02:03.770320Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "rejected",
         "by": "moderator-1",
-        "at": "2026-11-18T06:39:46.496758Z",
+        "at": "2026-11-18T07:02:03.778147Z",
         "image_sha256": "359b9b8be993ad846cddceaf74ecef26a5015ca8988df346d4438c3bee3ab727",
         "note": "The halo reads as a second face at card size."
       }

@@ -51,6 +51,7 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 | `author_catalogue` | moderator token set, projects directory writable, not read-only |
 | `backgrounds` | moderator token and darkroom, not read-only |
 | `teasers` | moderator token set, not read-only (painting an embodied identity in also needs darkroom) |
+| `identity_training` | moderator token, darkroom, curator, lens, forge and proof, the shared exports and LoRA directories, not read-only |
 
 ## Catalogue
 
@@ -82,6 +83,14 @@ Backgrounds and teaser drafts ([projects.md](projects.md#backgrounds)):
 | `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}`; once per background |
 | `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft from `T<n>` (201, `{id, status, awaiting, draft}`), reviewed like any draft |
 | `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: per teaser, its `stages` (`quote_final`, `concept_chosen`, `image_made`, `posted`, `minted`), `background` and `drafts` |
+
+Training an embodied identity's LoRA ([projects.md](projects.md#training-an-identity)):
+
+| Endpoint | Auth | |
+|---|---|---|
+| `GET /projects/{id}/identities/{identity}/{version}/training` | | `{project, identity, version, steps, next, record}`: each step's status (`not_started`, `queued`, `running`, `done`, `failed`), the one step that may start now (`next`, or `null`), and the record (`null` before the first step) |
+| `POST /projects/{id}/identities/{identity}/{version}/training/{step}` | moderator | start one step as a job (202), `step` one of `candidates`, `select`, `caption`, `train`, `evaluate`, `pin`. 409 unless the step before it is done, nothing of this training is queued or running, and the step isn't done; 503 when training isn't set up |
+| `GET /projects/{id}/identities/{identity}/{version}/training/candidates/{n}` | | candidate `n`'s PNG |
 
 ## Library
 

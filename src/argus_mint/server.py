@@ -19,6 +19,7 @@
 ``POST /frames/{id}/{version}/layout``   where each line of text goes, for a browser's SVG preview
 ``GET  /frames/{id}/{version}/fonts/…``  the fonts a frame names, for that preview
 ``POST /{templates,frames,bios}/{id}/{version}/review``  approve a draft or retire an approved file
+``…/projects/{id}/identities/{identity}/{version}/training[/{step}]``  train an identity's LoRA (server_training)
 =====================================  =============================================================================
 
 Who may do what: the moderator token (``ARGUS_MINT_MODERATOR_TOKEN``) creates drafts, reviews
@@ -80,8 +81,10 @@ from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
 from argus_mint.server_projects import add_project_routes
 from argus_mint.server_teasers import add_teaser_routes
+from argus_mint.server_training import TrainingClients, add_training_routes
 from argus_mint.spoilers import load_spoilers
 from argus_mint.templates import Template, TemplateError, combinations, load_template
+from argus_mint.training_clients import CuratorClient, ForgeClient, LensClient, ProofClient
 from argus_mint.wire import (
     BioInfo,
     Capabilities,
@@ -158,6 +161,13 @@ class Settings:
     projects_dir: Path = Path("projects")  # teaser projects, one directory each
     spoilers: Path | None = None  # the private spoiler list (outside any repository; chmod 600)
     backgrounds_dir: Path = Path("backgrounds")  # rendered scene backgrounds, one directory per scene version
+    curator_url: str = ""  # argus-curator: selects an identity's training images
+    lens_url: str = ""  # argus-lens: captions them
+    forge_url: str = ""  # argus-forge: trains the LoRA (on the trusted GPU host only)
+    proof_url: str = ""  # argus-proof: evaluates it against the held-out references
+    training_dir: Path = Path("training")  # training records and candidates, one directory per identity version
+    training_exports_dir: Path | None = None  # the exports volume curator, forge and proof share, as mint sees it
+    loras_dir: Path | None = None  # the LoRA directory darkroom and proof load from, as mint sees it
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -195,6 +205,13 @@ class Settings:
             projects_dir=Path(get("PROJECTS_DIR", "projects")),
             spoilers=Path(get("SPOILERS")) if get("SPOILERS") else None,
             backgrounds_dir=Path(get("BACKGROUNDS_DIR", "backgrounds")),
+            curator_url=get("CURATOR_URL"),
+            lens_url=get("LENS_URL"),
+            forge_url=get("FORGE_URL"),
+            proof_url=get("PROOF_URL"),
+            training_dir=Path(get("TRAINING_DIR", "training")),
+            training_exports_dir=Path(get("TRAINING_EXPORTS_DIR")) if get("TRAINING_EXPORTS_DIR") else None,
+            loras_dir=Path(get("LORAS_DIR")) if get("LORAS_DIR") else None,
         )
 
 
@@ -259,6 +276,7 @@ def create_app(
     pinner: Any = None,
     signer: Any = None,
     probe_fn: Any = probe,
+    training: TrainingClients | None = None,
 ) -> FastAPI:
     """The app. Clients can be injected (tests); otherwise they are built from ``settings``."""
     cfg = settings or Settings.from_env()
@@ -275,6 +293,14 @@ def create_app(
     pinner = pinner or (KuboPinner(cfg.ipfs_api) if cfg.ipfs_api else None)
     signer_box: dict[str, Any] = {"signer": signer}
     spoiler_list = load_spoilers(cfg.spoilers)  # fail at start, not on the first save, if it can't be read
+    training = training or TrainingClients(
+        curator=CuratorClient(cfg.curator_url) if cfg.curator_url else None,
+        lens=LensClient(cfg.lens_url) if cfg.lens_url else None,
+        forge=ForgeClient(cfg.forge_url) if cfg.forge_url else None,
+        proof=ProofClient(cfg.proof_url) if cfg.proof_url else None,
+        exports_dir=cfg.training_exports_dir,
+        loras_dir=cfg.loras_dir,
+    )
 
     def get_signer() -> Any:
         if signer_box["signer"] is None:
@@ -319,6 +345,7 @@ def create_app(
             and os.access(cfg.projects_dir, os.W_OK),
             backgrounds=writable and has_token and darkroom is not None,
             teasers=writable and has_token,
+            identity_training=writable and has_token and darkroom is not None and not training.missing(),
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -937,7 +964,8 @@ def create_app(
         media = "font/otf" if font.lower().endswith(".otf") else "font/ttf"
         return Response(lf.fonts[font], media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
-    add_project_routes(
+    vouch_box: dict[str, Any] = {}
+    save_project_file = add_project_routes(
         app,
         projects_dir=cfg.projects_dir,
         spoilers=spoiler_list,
@@ -945,6 +973,17 @@ def create_app(
         require_token=require_token,
         lock=lock,
         frame_keys=lambda: set(frames()),
+        vouch=lambda pid, identity: vouch_box["vouch"](pid, identity),
+    )
+    _runner, vouch_box["vouch"] = add_training_routes(
+        app,
+        projects_dir=cfg.projects_dir,
+        training_dir=cfg.training_dir,
+        clients=training,
+        spoilers=spoiler_list,
+        darkroom=darkroom,
+        require_token=require_token,
+        save_file=save_project_file,
     )
     add_teaser_routes(
         app,
