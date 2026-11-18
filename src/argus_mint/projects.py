@@ -8,6 +8,7 @@ A project lives in one directory::
       scenes/*.yaml         # the backgrounds: prompt, sampling, how many to render, where a figure goes
       lines/*.yaml          # the quotes, verbatim, with the published wording and their source
       teasers/*.json        # which line goes with which identity, scene and frame, and its alt text
+      frames/*.yaml         # optional: the project's own frames, ids ``<project>/<name>`` (argus_mint.frames)
 
 Every file is versioned and reviewed like a template (``draft -> approved -> retired``,
 ``catalogue.record_decision``), so only approved files make teasers (hard rule 2). A scene's
@@ -40,6 +41,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from argus_mint._codec import canonical, keccak256
+from argus_mint.frames import FRAME_ID_PATTERN
 from argus_mint.templates import LoraRef, Sampling, family
 
 __all__ = [
@@ -51,6 +53,7 @@ __all__ = [
     "ProjectBundle",
     "ProjectError",
     "Reference",
+    "FrameLink",
     "Ref",
     "Scene",
     "TeaserLink",
@@ -90,6 +93,18 @@ class Ref(BaseModel):
     @property
     def key(self) -> tuple[str, int]:
         return (self.id, self.version)
+
+
+class FrameLink(Ref):
+    """A frame by id and version: a global frame's id, or one of the project's own, ``<project>/<name>``.
+
+    It dumps exactly as a :class:`Ref` does, so files written before project frames hash as before."""
+
+    id: str = Field(pattern=FRAME_ID_PATTERN)
+
+    @property
+    def project(self) -> str | None:
+        return self.id.split("/", 1)[0] if "/" in self.id else None
 
 
 def text_sha256(text: str) -> str:
@@ -153,7 +168,7 @@ class Project(_Reviewed):
     title: str = Field(min_length=1, max_length=120)  # the working title; what is posted becomes the public name
     attribution: str | None = Field(default=None, max_length=120)  # a fixed line under each quote; None: unsigned
     generated_label: bool = True  # draw "generated image" (the frame's `label` slot) on each teaser
-    frames: tuple[Ref, ...] = ()  # frames teasers may use (one per aspect, or one per voice)
+    frames: tuple[FrameLink, ...] = ()  # frames teasers may use (one per aspect, or one per voice)
     policy: str = Field(default="default", min_length=1, max_length=64)  # SingGuard policy for this project's text
     family: str = Field(default="sdxl", min_length=1, max_length=32)  # checkpoint family (inpainting is SDXL-only)
     style_lora: LoraRef | None = None  # the project's look, trained once enough is approved
@@ -245,7 +260,7 @@ class Identity(_Reviewed):
     presence: Literal["embodied", "viewpoint"]
     prompt: str = Field(default="", max_length=2000)  # appearance, for an embodied identity
     negative: str = Field(default="", max_length=2000)
-    frame: Ref | None = None  # the overlay of a viewpoint identity
+    frame: FrameLink | None = None  # the overlay of a viewpoint identity
     lora: LoraRef | None = None  # pinned from proof's manifest once a training run passes
     proof_run: str | None = Field(default=None, min_length=1, max_length=128)  # the run that passed it
     proof_export: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -354,7 +369,7 @@ class TeaserLink(BaseModel):
     line: Ref
     identity: Ref
     scene: Ref
-    frame: Ref
+    frame: FrameLink
     alt: str = Field(min_length=1, max_length=1000)  # posts refuse an image without it
     background: str | None = Field(default=None, min_length=1, max_length=64)  # the chosen render, once there is one
 
@@ -514,21 +529,26 @@ def problems(b: ProjectBundle, frames: set[tuple[str, int]] | None = None) -> li
     """Everything that is wrong across a project's files, as sentences for its author.
 
     Each file has already validated on its own; this checks what one file says about another.
-    ``frames``: the (id, version) of every frame the server has, when known.
+    ``frames``: the (id, version) of every frame the server has, when known, the project's own
+    (``<project>/<name>``) included. A project may use global frames and its own, never another's.
     """
     out: list[str] = []
     proj = b.project
     if proj.id != b.id:
         out.append(f"project.yaml says id {proj.id!r}, but the directory is {b.id!r}")
     for fr in proj.frames:
-        if frames is not None and fr.key not in frames:
+        if fr.project not in (None, b.id):
+            out.append(f"project.yaml names frame {fr.id}, which is project {fr.project}'s")
+        elif frames is not None and fr.key not in frames:
             out.append(f"project.yaml names frame {fr.id} v{fr.version}, which this server doesn't have")
     for kind, table in (("identity", b.identities), ("scene", b.scenes), ("line", b.lines)):
         for obj, path in table.values():
             if obj.project != b.id:
                 out.append(f"{path.name}: {kind} {obj.id} belongs to project {obj.project!r}, not {b.id!r}")
     for ident, path in b.identities.values():
-        if ident.frame is not None and frames is not None and ident.frame.key not in frames:
+        if ident.frame is not None and ident.frame.project not in (None, b.id):
+            out.append(f"{path.name}: frame {ident.frame.id} is project {ident.frame.project}'s")
+        elif ident.frame is not None and frames is not None and ident.frame.key not in frames:
             out.append(f"{path.name}: frame {ident.frame.id} v{ident.frame.version} doesn't exist")
     for scene, path in b.scenes.values():
         if family(scene.model) != proj.family:
@@ -556,7 +576,9 @@ def teaser_problems(b: ProjectBundle, links: TeaserLinks) -> list[str]:
             out.append(f"{n}: no identity {t.identity.id} v{t.identity.version}")
         if scene is None:
             out.append(f"{n}: no scene {t.scene.id} v{t.scene.version}")
-        if allowed and t.frame.key not in allowed:
+        if t.frame.project not in (None, b.id):
+            out.append(f"{n}: frame {t.frame.id} is project {t.frame.project}'s")
+        elif allowed and t.frame.key not in allowed:
             out.append(f"{n}: frame {t.frame.id} v{t.frame.version} isn't one of the project's frames")
         if line is not None and ident is not None and line[0].voice != ident[0].voice:
             out.append(f"{n}: the line is in the {line[0].voice!r} voice but the identity speaks as {ident[0].voice!r}")

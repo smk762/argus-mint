@@ -13,6 +13,13 @@ Frames are reviewed like templates (hard rule 2): ``draft | approved | retired``
 ``argus-mint sample`` for review. A frame's :meth:`LoadedFrame.hash` covers its YAML (minus
 ``status``) and the bytes of its overlay and fonts, and is recorded in the card's provenance.
 
+A teaser project may keep its own frames, in ``<projects>/<project>/frames/``. Their ids are
+scoped by the project, ``<project>/<name>`` (e.g. ``example-teasers/harbour-feed``), and that is
+how they are referenced, served and recorded: a global frame's id has no ``/``, so the two never
+collide, and since the id is part of the hash a project's frame hashes as that project's. Where a
+file lives decides its scope (:func:`frame_scope`): :func:`load_frame` refuses a scoped id in the
+global directory, and an id in a project's directory that isn't scoped by that project.
+
 Compositing needs Pillow (the ``frames`` extra). Apart from reading the frame's files this
 module does no I/O.
 """
@@ -33,6 +40,7 @@ from argus_mint._codec import canonical, keccak256
 from argus_mint.metadata import CardStyle, FrameRef, SlotStyle, Tint
 
 __all__ = [
+    "FRAME_ID_PATTERN",
     "Frame",
     "FrameError",
     "LoadedFrame",
@@ -44,11 +52,16 @@ __all__ = [
     "fit_text",
     "layout",
     "tint_matrix",
+    "frame_scope",
     "load_frame",
+    "project_frame_files",
     "require_approved",
 ]
 
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
+_NAME = r"[a-z0-9][a-z0-9-]{0,63}"
+# A global frame's id, or a project's frame: ``<project>/<name>``.
+FRAME_ID_PATTERN = rf"^(?:{_NAME}/)?{_NAME}$"
 _SLOT_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
 MAX_ART_PIXELS = 8192 * 8192  # a template's largest render (templates.Template width/height)
 
@@ -115,7 +128,7 @@ class Frame(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    id: str = Field(pattern=_ID_PATTERN)
+    id: str = Field(pattern=FRAME_ID_PATTERN)  # ``<project>/<name>`` for a project's frame
     version: int = Field(ge=1)
     status: Literal["draft", "approved", "retired"]
     approved_by: str | None = None
@@ -138,6 +151,11 @@ class Frame(BaseModel):
         if self.status != "draft" and (not self.approved_by or self.approved_at is None):
             raise ValueError(f"status {self.status!r} requires approved_by and approved_at (approval is a human step)")
         return self
+
+    @property
+    def project(self) -> str | None:
+        """The project whose frame this is, or None for a global frame."""
+        return self.id.split("/", 1)[0] if "/" in self.id else None
 
 
 @dataclass(frozen=True)
@@ -171,8 +189,34 @@ def _pil() -> Any:
     return Image, ImageDraw, ImageFont
 
 
+def frame_scope(path: Path) -> str | None:
+    """The project a frame file belongs to, from where it lives: ``<project>/frames/<file>`` beside
+    that project's ``project.yaml``. None for any other file: a global frame."""
+    parent = Path(path).parent
+    if parent.name == "frames" and (parent.parent / "project.yaml").is_file():
+        return parent.parent.name
+    return None
+
+
+def project_frame_files(projects_dir: Path) -> list[Path]:
+    """Every project's frame files: ``<projects_dir>/<project>/frames/*.yaml`` (not nested)."""
+    projects_dir = Path(projects_dir)
+    if not projects_dir.is_dir():
+        return []
+    out: list[Path] = []
+    for d in sorted(p for p in projects_dir.iterdir() if p.is_dir() and (p / "project.yaml").is_file()):
+        fdir = d / "frames"
+        if fdir.is_dir():
+            out += sorted([*fdir.glob("*.yaml"), *fdir.glob("*.yml")])
+    return out
+
+
 def load_frame(path: Path) -> LoadedFrame:
-    """Load and validate a frame YAML file and the files it names."""
+    """Load and validate a frame YAML file and the files it names.
+
+    A frame in a project's ``frames/`` directory must be named ``<project>/<name>`` by that
+    project; any other frame must not be scoped (:func:`frame_scope`).
+    """
     path = Path(path)
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -184,6 +228,11 @@ def load_frame(path: Path) -> LoadedFrame:
         frame = Frame.model_validate(raw)
     except ValidationError as e:
         raise FrameError(f"{path}: {e}") from e
+    scope = frame_scope(path)
+    if scope is None and frame.project is not None:
+        raise FrameError(f"{path}: {frame.id} is a project's frame: it lives in <projects>/{frame.project}/frames/")
+    if scope is not None and frame.project != scope:
+        raise FrameError(f"{path}: a frame of project {scope} is named {scope}/<name>, not {frame.id!r}")
 
     base = path.parent.resolve()
 

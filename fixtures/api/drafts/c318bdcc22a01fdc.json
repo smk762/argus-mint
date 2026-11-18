@@ -1,8 +1,7 @@
 {
-  "id": "c7e23d6cdda64ebe",
-  "status": "pending",
+  "id": "c318bdcc22a01fdc",
+  "status": "rejected",
   "awaiting": [
-    "moderator",
     "owner"
   ],
   "draft": {
@@ -24,31 +23,31 @@
       },
       "width": 1152,
       "height": 896,
-      "prompt": "waist-up portrait of a single non-binary cyborg with metal limbs and glowing implants, centered and facing the viewer, fully clothed in a tunic bearing steel heraldry, repairing, background: workshop, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "prompt": "waist-up portrait of a single female priest, centered and facing the viewer, fully clothed in a tunic bearing gold heraldry, praying, background: temple, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
       "negative": "nude, nudity, bare chest, topless, cleavage, text, letters, words, handwriting, script, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
       "variables": {
-        "background": "workshop",
-        "colour": "steel",
-        "gender": "non-binary",
-        "pose": "repairing",
-        "role": "cyborg with metal limbs and glowing implants"
+        "background": "temple",
+        "colour": "gold",
+        "gender": "female",
+        "pose": "praying",
+        "role": "priest"
       },
-      "seed": 8454,
+      "seed": 8456,
       "init_image": null
     },
     "attempts": [
       {
-        "seed": 8454,
+        "seed": 8456,
         "outcome": "ok",
-        "ref": "fixture-1",
+        "ref": "fixture-3",
         "detail": ""
       }
     ],
     "renderer": "darkroom",
-    "asset_id": "0x309a65fb4c95d87a9b67c21ca029d0e120baab30d9931785d1408f9886cc71e2",
-    "to": "0x67aa0a5E28798bEf676FF01e86e379f6E01aeDAd",
-    "name": "Steel Tinker",
-    "description": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+    "asset_id": "0xc69006856306bbeaba31ac4a8f62e322285735071ccf46f6c466a81e32bffeae",
+    "to": "0x75FB7A459686e42BD44f622d8EbE8D68AC70E3a1",
+    "name": "Lantern Keeper",
+    "description": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
     "external_url": null,
     "consumer": "argus-mint",
     "teaser": null,
@@ -64,7 +63,7 @@
         "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
         "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
       },
-      "text": "Steel Tinker keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
+      "text": "Lantern Keeper keeps a lantern lit for travellers who have not yet set out, just in case they lose their way.",
       "attempts": [
         {
           "outcome": "ok",
@@ -75,21 +74,30 @@
       "edited": false
     },
     "texts": {
-      "class": "Cyborg · Steel",
-      "stats": "No. 2"
+      "class": "Priest · Gold",
+      "stats": "No. 4"
     },
     "style": null,
     "library": null,
     "made_with": {
-      "argus-mint": "0.2.3.dev36+gdc9ba8a28.d20261118",
+      "argus-mint": "0.2.3.dev40+gd32345987",
       "darkroom": "0.1.3"
     },
     "edits": [],
     "auto_check": null,
-    "art_sha256": "c7da2f1f92a39ab46e48c53c827d4a92effec5c906add952cc797cf62ae58469",
-    "image_sha256": "94b24d225b7ae99dd14cf9997573c40af89bb0a4ee443d6d0ed1d3444e6ccbeb",
-    "created_at": "2026-11-18T07:18:57.254589Z",
-    "reviews": []
+    "art_sha256": "f0156b629a90d69b275eca79d504106ba8c2cad674f8901e7c635e139244803e",
+    "image_sha256": "359b9b8be993ad846cddceaf74ecef26a5015ca8988df346d4438c3bee3ab727",
+    "created_at": "2026-11-18T08:13:59.377497Z",
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "rejected",
+        "by": "moderator-1",
+        "at": "2026-11-18T08:13:59.385162Z",
+        "image_sha256": "359b9b8be993ad846cddceaf74ecef26a5015ca8988df346d4438c3bee3ab727",
+        "note": "The halo reads as a second face at card size."
+      }
+    ]
   },
   "published": null,
   "posts": []

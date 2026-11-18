@@ -92,6 +92,11 @@ def approve(root: Path, *, skip: tuple[str, ...] = (), refuse: str | None = None
         rel = f.relative_to(root).as_posix()
         if rel in skip:
             continue
+        if rel.startswith("frames/"):  # the project's own frame: approved like a global one
+            f.write_text(
+                f.read_text().replace("status: draft", "status: approved\napproved_by: tester\napproved_at: 2026-11-18")
+            )
+            continue
         doc = json.loads(f.read_text()) if f.suffix == ".json" else yaml.safe_load(f.read_text())
         doc |= {"status": "approved", "approved_by": "tester", "approved_at": "2026-11-18", "guard": []}
         obj = MODELS["project" if rel == "project.yaml" else rel.split("/")[0]].model_validate(doc)
@@ -402,13 +407,23 @@ def test_check_inpaint_reads_darkrooms_inpainting_workflows():
 # -- the draft --------------------------------------------------------------------------------------
 
 
-def _make(root, frames, store, number="T1", *, bg=None, renderer=None, spoilers=EMPTY):
+def linked_frame(root: Path, frames: Path, number: str) -> Path:
+    """The frame file teaser ``number`` links: a global one, or the project's own (``<project>/<name>``)."""
+    link = json.loads((root / LINKS).read_text())["teasers"][number]["frame"]
+    project, _, name = link["id"].rpartition("/")
+    return (root / "frames" if project else frames) / f"{name}-v{link['version']}.yaml"
+
+
+FRAME_KEYS = {("example-teaser", 1), ("example-plain", 1), (f"{PID}/harbour-feed", 1)}
+
+
+def _make(root, frames, store, number="T1", *, bg=None, renderer=None, spoilers=EMPTY, frame=None):
     b = load_bundle(root)
     _s, background = store.find(PID, bg or json.loads((root / LINKS).read_text())["teasers"][number]["background"])
     return make_teaser(
-        bundle=b, number=number, frame=load_frame(frames / "example-teaser-v1.yaml"), background=background,
+        bundle=b, number=number, frame=frame or load_frame(linked_frame(root, frames, number)), background=background,
         background_image=store.image(PID, background.id), to=OWNER, renderer=renderer, spoilers=spoilers,
-        frames={("example-teaser", 1), ("example-plain", 1)},
+        frames=FRAME_KEYS,
     )  # fmt: skip
 
 
@@ -464,7 +479,7 @@ def test_refusals(world):
     bg, _ = rendered_background(store, root, "lamp-room")
     pending, _ = rendered_background(store, root, "lamp-room", 2, approved=False)
     with pytest.raises(TeaserNotFound):
-        _make(root, frames, store, "T9", bg=bg.id, renderer=Stub())
+        _make(root, frames, store, "T9", bg=bg.id, renderer=Stub(), frame=load_frame(frames / "example-teaser-v1.yaml"))
     with pytest.raises(TeaserError, match="no background chosen"):
         _make(root, frames, store, bg=bg.id, renderer=Stub())
     choose(root, "T1", pending.id)

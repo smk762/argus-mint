@@ -177,7 +177,7 @@ def test_the_poster_token_does_nothing_but_post(mint):
     for route in c.app.routes:  # type: ignore[attr-defined]
         if "POST" not in getattr(route, "methods", set()) or route.path in posting:
             continue
-        path = route.path.format(**params)
+        path = route.path_format.format(**params)  # convertors (`{frame_id:frame_id}`) left out
         with_poster, without = c.post(path, json={}, headers=POSTER_AUTH), c.post(path, json={})
         assert with_poster.status_code == without.status_code, route.path
 

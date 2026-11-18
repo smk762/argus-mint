@@ -1,0 +1,45 @@
+/* The harbour-camera look, 1024 x 1024. Text slots (quote, attribution, label) are drawn by
+   argus-mint over this; their boxes are in capture.json. Colours: a pale phosphor green. */
+@font-face {
+  font-family: "Crimson Text";
+  src: url("../../fonts/CrimsonText-Regular.ttf") format("truetype");
+}
+:root { --ink: rgb(214 236 214 / 0.9); --dim: rgb(214 236 214 / 0.55); }
+html, body { margin: 0; width: 1024px; height: 1024px; background: transparent; overflow: hidden; }
+body { position: relative; font: 22px/1.3 "Crimson Text", serif; color: var(--ink);
+       letter-spacing: 0.12em; font-variant-numeric: tabular-nums; text-shadow: 0 0 3px rgb(0 0 0 / 0.8); }
+
+.corner { position: absolute; width: 56px; height: 56px; border: 0 solid var(--ink); }
+.tl { left: 28px; top: 28px; border-left-width: 3px; border-top-width: 3px; }
+.tr { right: 28px; top: 28px; border-right-width: 3px; border-top-width: 3px; }
+.bl { left: 28px; bottom: 28px; border-left-width: 3px; border-bottom-width: 3px; }
+.br { right: 28px; bottom: 28px; border-right-width: 3px; border-bottom-width: 3px; }
+
+.status { position: absolute; left: 52px; top: 44px; }
+.status .time { color: var(--dim); margin-top: 4px; }
+.rec { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 10px;
+       background: rgb(226 64 52); box-shadow: 0 0 6px rgb(226 64 52 / 0.8); }
+
+/* behind the "generated image" label slot: x 712, y 46, 200 x 32, clear of the corner mark */
+.label-tab { position: absolute; left: 700px; top: 40px; width: 224px; height: 44px;
+             border-radius: 10px; background: rgb(0 0 0 / 0.55); }
+
+.signal { position: absolute; right: 100px; top: 96px; text-align: right; color: var(--dim); }
+.bars { display: inline-flex; gap: 3px; align-items: flex-end; height: 16px; margin-left: 6px; }
+.bars i { display: block; width: 5px; background: var(--ink); }
+.bars i:nth-child(1) { height: 5px; } .bars i:nth-child(2) { height: 9px; }
+.bars i:nth-child(3) { height: 13px; } .bars i:nth-child(4) { height: 16px; }
+.bars i.off { background: var(--dim); opacity: 0.4; }
+
+.reticle { position: absolute; left: 512px; top: 440px; }
+.ring { position: absolute; left: -46px; top: -46px; width: 88px; height: 88px;
+        border: 2px solid var(--dim); border-radius: 50%; }
+.tick { position: absolute; background: var(--ink); }
+.tick.n, .tick.s { left: -1px; width: 2px; height: 26px; }
+.tick.n { top: -70px; } .tick.s { top: 44px; }
+.tick.e, .tick.w { top: -1px; height: 2px; width: 26px; }
+.tick.e { left: 44px; } .tick.w { left: -70px; }
+
+/* a dark band fading in under the quote (slot y 700 to 920) and the attribution */
+.band { position: absolute; left: 0; right: 0; top: 600px; bottom: 0;
+        background: linear-gradient(to bottom, rgb(0 0 0 / 0) 0, rgb(0 0 0 / 0.72) 180px); }
