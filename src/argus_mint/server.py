@@ -267,7 +267,7 @@ def create_app(
 ) -> FastAPI:
     """The app. Clients can be injected (tests); otherwise they are built from ``settings``."""
     cfg = settings or Settings.from_env()
-    if cfg.poster_token and cfg.poster_token == cfg.moderator_token:
+    if cfg.poster_token and secrets.compare_digest(cfg.poster_token.encode(), cfg.moderator_token.encode()):
         raise ValueError("the poster token must differ from the moderator token: it only records posts")
     net = networks.get(cfg.network)
     store = DraftStore(cfg.drafts_dir)
