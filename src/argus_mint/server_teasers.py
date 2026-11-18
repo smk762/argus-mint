@@ -39,6 +39,7 @@ from argus_mint.backgrounds import (
     BackgroundJob,
     BackgroundSet,
     BackgroundStore,
+    background_loras,
     render_background,
 )
 from argus_mint.cards import CardDraft, DraftError, DraftStore
@@ -218,6 +219,15 @@ def add_teaser_routes(
         hits = spoilers.hits(*file_strings(sc.model_dump(mode="json")))
         if hits:
             raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
+        loras = background_loras(b.project)
+        check = getattr(darkroom, "check_render", None)
+        if check is not None:
+            try:
+                refused = check(sc.model, len(loras))
+            except DarkroomError as e:
+                raise HTTPException(502, str(e)) from e
+            if refused:
+                raise HTTPException(409, "darkroom can't render this scene's backgrounds: " + "; ".join(refused))
         # Background work: darkroom leases the GPU at batch priority, behind a person.
         renderer = darkroom.batch() if hasattr(darkroom, "batch") else darkroom
         with starting:

@@ -31,7 +31,7 @@ from argus_mint.backgrounds import (
     scene_request,
 )
 from argus_mint.cards import CardDraft, DraftError
-from argus_mint.darkroom import DarkroomClient, DarkroomError, check_inpaint, request_body
+from argus_mint.darkroom import DarkroomClient, DarkroomError, check_inpaint, check_render, request_body
 from argus_mint.frames import load_frame
 from argus_mint.projects import (
     Area,
@@ -125,8 +125,10 @@ def choose(root: Path, number: str, bg: str | None) -> None:
 class Stub:
     """Stands in for darkroom: renders a flat colour per seed, inpaints by filling the mask's white area."""
 
-    def __init__(self, *outcomes: str, inpaint: list[str] | None = None):
+    def __init__(self, *outcomes: str, inpaint: list[str] | None = None, render: list[str] | None = None):
         self.outcomes = list(outcomes)
+        self.render = render
+        self.render_asks: list[tuple[str, int]] = []
         self.calls: list[tuple[object, InitImage | None]] = []
         self.priority: str | None = None
         self.inpaint = inpaint
@@ -136,6 +138,10 @@ class Stub:
         b = Stub()
         b.priority, b.parent, b.outcomes = "batch", self, self.outcomes
         return b
+
+    def check_render(self, model: str, loras: int) -> list[str]:
+        self.render_asks.append((model, loras))
+        return [] if self.render is None else self.render
 
     def check_inpaint(self, model: str, loras: int) -> list[str]:
         return [] if self.inpaint is None else self.inpaint
@@ -745,3 +751,41 @@ def test_the_tracker_reports_each_teasers_stages_from_the_files_and_drafts(app):
     line.write_text(line.read_text().replace("status: approved", "status: retired"))
     assert c.get(f"/projects/{PID}/tracker").json()["teasers"][0]["stages"]["quote_final"] is False
     assert c.get("/projects/nope/tracker").status_code == 404
+
+
+def test_backgrounds_take_the_projects_style_lora_when_it_has_one(app, tmp_path):
+    build, _stub, root = app
+    style = {"name": "lantern-style.safetensors", "weight": 0.7, "trigger_words": ["lantern style"]}
+    project = root / "project.yaml"
+    doc = yaml.safe_load(project.read_text())
+    project.write_text(yaml.safe_dump(doc | {"style_lora": style}, sort_keys=False))
+    approve(root)  # re-judge the project's texts (its hash changed)
+
+    refusing = Stub(render=["no workflow renders it with 1 LoRA(s) (it has [0])"])
+    c = build(darkroom=refusing, backgrounds_dir=tmp_path / "bg-refused")
+    r = c.post(f"/projects/{PID}/scenes/lamp-room/1/backgrounds", headers=AUTH)
+    assert r.status_code == 409 and "with 1 LoRA" in r.json()["detail"]
+    assert refusing.calls == [] and refusing.render_asks[0][1] == 1
+
+    stub = Stub()
+    c = build(darkroom=stub, backgrounds_dir=tmp_path / "bg-styled")
+    url = f"/projects/{PID}/scenes/lamp-room/1/backgrounds"
+    assert c.post(url, headers=AUTH).status_code == 202
+    s = _wait(c, url)
+    assert all(b["request"]["loras"] == [style] for b in s["backgrounds"])  # recorded in each request
+    assert {tuple(x.name for x in req.loras) for req, _ in stub.calls} == {("lantern-style.safetensors",)}
+    assert stub.render_asks == [(load_bundle(root).scenes[("lamp-room", 1)][0].model, 1)]
+
+
+def test_without_a_style_lora_backgrounds_take_none():
+    b = load_bundle(REPO / "projects" / PID)
+    assert b.project.style_lora is None
+    assert scene_request(b.scenes[("lamp-room", 1)][0], 1).loras == ()
+
+
+def test_check_render_reads_darkrooms_workflows():
+    model = "sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors"
+    models = {"checkpoints": [{"name": model, "lora_counts": [0, 1, 2]}]}
+    assert check_render(models, model, 1) == []
+    assert "with 1 LoRA" in check_render({"checkpoints": [{"name": model, "lora_counts": [0]}]}, model, 1)[0]
+    assert "no such checkpoint" in check_render(models, "flux/x.safetensors", 0)[0]

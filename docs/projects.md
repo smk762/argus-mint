@@ -78,7 +78,7 @@ An approved or retired file never changes: the author saves a new version.
 
 A scene's backgrounds are rendered by a job: `POST /projects/{id}/scenes/{scene}/{version}/backgrounds` (moderator). Both the scene and the project must be approved, and no spoiler rule may match the scene. The job renders, through darkroom at `batch` priority (behind a person waiting on a draft), each of the scene's `backgrounds` that has no image yet:
 
-- The prompt, negative prompt, checkpoint, sampling and size are the scene's own. No LoRA is used.
+- The prompt, negative prompt, checkpoint, sampling and size are the scene's own. The one LoRA is the project's `style_lora`, when it has one, and each background's `request` records it. With a style LoRA, darkroom must have a workflow for that checkpoint with one LoRA (`<family>+lora1.json`): the job is refused (409) before anything renders when its `/models` says it hasn't.
 - Background *n*'s seed is derived from the project, scene id, version and *n* (`backgrounds.background_seed`), so the same scene always asks for the same renders.
 - A safety rejection is retried with the next derived seed, up to the scene's `max_attempts`. Every attempt is recorded.
 - A background the safety check refused every time is recorded in `failed` with `final: true`, and no later job renders it again. One stopped by an error (`final: false`) is tried again by the next job.

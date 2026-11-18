@@ -38,6 +38,7 @@ __all__ = [
     "DarkroomClient",
     "DarkroomError",
     "check_inpaint",
+    "check_render",
     "check_template",
     "final_prompt",
     "lora_counts",
@@ -210,6 +211,21 @@ def check_template(t: Template, models: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(problems))
 
 
+def check_render(models: dict[str, Any], model: str, loras: int) -> list[str]:
+    """What would make darkroom refuse a text-to-image render on ``model`` with ``loras`` LoRAs, from its
+    ``GET /models`` (``lora_counts``: it picks ``<family>.json`` or ``<family>+lora<N>.json``). Pure."""
+    c = next(
+        (c for c in models.get("checkpoints") or [] if isinstance(c, dict) and c.get("name") == model),
+        None,
+    )
+    if c is None:
+        return [f"{model}: darkroom has no such checkpoint"]
+    offered = sorted(n for n in c.get("lora_counts") or [] if isinstance(n, int))
+    if loras not in offered:
+        return [f"{model}: no darkroom workflow renders it with {loras} LoRA(s) (it has {offered or 'none'})"]
+    return []
+
+
 def check_inpaint(models: dict[str, Any], model: str, loras: int) -> list[str]:
     """What would make darkroom refuse to inpaint on ``model`` with ``loras`` LoRAs, from its ``GET /models``.
 
@@ -340,6 +356,10 @@ class DarkroomClient:
         return False, (refusal.get("rule") or refusal.get("reason") or verdict.get("outcome") or "refused")
 
     # -- generation -----------------------------------------------------------------------------
+
+    def check_render(self, model: str, loras: int) -> list[str]:
+        """:func:`check_render` against this darkroom."""
+        return check_render(self.models(), model, loras)
 
     def check_inpaint(self, model: str, loras: int) -> list[str]:
         """:func:`check_inpaint` against this darkroom."""

@@ -31,7 +31,7 @@ from argus_mint._codec import hex0x
 from argus_mint.cards import write_atomic
 from argus_mint.projects import Project, Scene
 from argus_mint.render import Darklight, Rendered, render_requests
-from argus_mint.templates import SEED_MAX, RenderRequest
+from argus_mint.templates import SEED_MAX, LoraRef, RenderRequest
 
 __all__ = [
     "Background",
@@ -42,6 +42,7 @@ __all__ = [
     "BackgroundStore",
     "FailedBackground",
     "background_id",
+    "background_loras",
     "background_seed",
     "parse_background_id",
     "render_background",
@@ -76,8 +77,14 @@ def background_seed(project: str, scene: Scene, n: int) -> int:
     return int.from_bytes(digest[:4], "big") & SEED_MAX
 
 
-def scene_request(scene: Scene, seed: int) -> RenderRequest:
-    """The render request for one background: the scene's fixed prompt and settings, no LoRAs.
+def background_loras(project: Project) -> tuple[LoraRef, ...]:
+    """A background's LoRAs: the project's ``style_lora`` when it has one (so at most one), else none."""
+    return (project.style_lora,) if project.style_lora is not None else ()
+
+
+def scene_request(scene: Scene, seed: int, loras: tuple[LoraRef, ...] = ()) -> RenderRequest:
+    """The render request for one background: the scene's fixed prompt and settings, plus ``loras``
+    (:func:`background_loras`: the project's style LoRA, if any).
 
     The request's ``template_*`` name the scene (its id, version and hash).
     """
@@ -86,7 +93,7 @@ def scene_request(scene: Scene, seed: int) -> RenderRequest:
         template_version=scene.version,
         template_hash=scene.hash(),
         model=scene.model,
-        loras=(),
+        loras=tuple(loras),
         sampling=scene.sampling,
         width=scene.width,
         height=scene.height,
@@ -112,7 +119,7 @@ def render_background(client: Darklight, project: Project, scene: Scene, n: int)
         raise BackgroundError(f"scene {scene.id} v{scene.version} asks for {scene.backgrounds} backgrounds, not #{n}")
     return render_requests(
         client,
-        lambda seed: scene_request(scene, seed),
+        lambda seed: scene_request(scene, seed, background_loras(project)),
         background_seed(project.id, scene, n),
         scene.max_attempts,
         label=f"scene {scene.id} v{scene.version} background {n}",
