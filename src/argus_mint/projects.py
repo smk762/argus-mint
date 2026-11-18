@@ -34,7 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import ClassVar, Literal, TypeVar
+from typing import Any, ClassVar, Literal, TypeVar
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -163,22 +163,25 @@ class Project(_Reviewed):
 class Reference(BaseModel):
     """An image an identity is trained or checked against, with where it came from.
 
-    A reference showing a real person needs a consent record (argus-cortex ``ConsentRecord``,
-    checked by the server); a generated or licensed image does not.
+    ``provenance`` is an argus-cortex ``Provenance`` record (``kind``, ``source``, ``license``,
+    and for a real person ``subject`` and ``release_sha256``), kept as JSON here so this module
+    stays pure. The server checks it with cortex's own models (:mod:`argus_mint.references`):
+    only cleared kinds (``stock``, ``synthetic``, ``consented``) may be approved, since teasers
+    are public, and a ``consented`` one needs a valid consent record that binds this image.
+    An image mint rendered itself is ``synthetic``, with a ``generator`` (model, seed, prompt).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     file: str = Field(min_length=1)  # relative to the identity file
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    provenance: Literal["generated", "licensed", "personal"]
-    consent: str | None = Field(default=None, min_length=1, max_length=128)  # consent record id
+    provenance: dict[str, Any]  # argus-cortex Provenance JSON
     held_out: bool = False  # kept out of training, so proof can score against it
 
     @model_validator(mode="after")
-    def _consent_for_people(self) -> Reference:
-        if self.provenance == "personal" and not self.consent:
-            raise ValueError(f"reference {self.file}: a personal photo needs a consent record (`consent`)")
+    def _has_a_kind(self) -> Reference:
+        if not isinstance(self.provenance.get("kind"), str):
+            raise ValueError(f"reference {self.file}: provenance needs a `kind` (argus-cortex Provenance)")
         return self
 
 

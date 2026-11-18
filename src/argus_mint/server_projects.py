@@ -58,6 +58,7 @@ from argus_mint.projects import (
     teaser_problems,
     text_sha256,
 )
+from argus_mint.references import ConsentStore, reference_problems
 from argus_mint.spoilers import SpoilerList
 from argus_mint.wire import (
     CatalogueDecision,
@@ -116,8 +117,16 @@ def add_project_routes(
     require_token: Callable[[str | None], None],
     lock: threading.Lock,
     frame_keys: Callable[[], set[tuple[str, int]]],
+    consent_dir: Path | None = None,
 ) -> None:
     can_guard = hasattr(darkroom, "check_text")
+    consent = ConsentStore(consent_dir) if consent_dir is not None else None
+
+    def identity_problems(b: ProjectBundle) -> list[str]:
+        """Reference provenance and consent, checked now (a release can expire or be revoked)."""
+        now = datetime.now(UTC)
+        return [p for ident, _ in b.identities.values() if ident.status != "retired"
+                for p in reference_problems(ident, consent, at=now)]  # fmt: skip
 
     def project_root(pid: str) -> Path:
         if not _ID.fullmatch(pid):
@@ -180,6 +189,7 @@ def add_project_routes(
             found = problems(b, frame_keys())
         except HTTPException as e:  # a broken frames directory: report it, don't hide the project's own
             found = [f"frames can't be listed: {e.detail}"]
+        found += identity_problems(b)
         policy = b.project.policy
         return ProjectChecks(
             problems=found,
@@ -304,6 +314,10 @@ def add_project_routes(
             hits = spoilers.hits(*file_strings(_doc(obj)))
             if hits:
                 raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
+            if kind == "identity":
+                refused = reference_problems(obj, consent, at=datetime.now(UTC))
+                if refused:
+                    raise HTTPException(409, "its references can't be approved: " + "; ".join(refused))
             if kind == "teasers":
                 wrong = teaser_problems(b, obj)
                 if wrong:

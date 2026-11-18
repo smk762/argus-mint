@@ -161,6 +161,7 @@ class Settings:
     blocklist: Path | None = None  # extra word-filter terms, one per line
     projects_dir: Path = Path("projects")  # teaser projects, one directory each
     spoilers: Path | None = None  # the private spoiler list (outside any repository; chmod 600)
+    consent_dir: Path | None = None  # consent records by release sha256 (private: they name people; never served)
     backgrounds_dir: Path = Path("backgrounds")  # rendered scene backgrounds, one directory per scene version
 
     @classmethod
@@ -199,6 +200,7 @@ class Settings:
             blocklist=Path(get("BLOCKLIST")) if get("BLOCKLIST") else None,
             projects_dir=Path(get("PROJECTS_DIR", "projects")),
             spoilers=Path(get("SPOILERS")) if get("SPOILERS") else None,
+            consent_dir=Path(get("CONSENT_DIR")) if get("CONSENT_DIR") else None,
             backgrounds_dir=Path(get("BACKGROUNDS_DIR", "backgrounds")),
         )
 
@@ -970,6 +972,7 @@ def create_app(
         require_token=require_token,
         lock=lock,
         frame_keys=lambda: set(frames()),
+        consent_dir=cfg.consent_dir,
     )
     add_teaser_routes(
         app,

@@ -200,7 +200,7 @@ The browser previews a restyle as SVG from `/layout` and the fonts, using the sa
 - **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`. Keystores are looked up in `KEYSTORE_DIR` (default `~/.foundry/keystores`).
 - **Chain and metadata:** `NETWORK`, `CARD`, `CONSUMER` (the consumer named in card metadata, default `argus-mint`), `VOUCHER_TTL` (seconds a signed voucher stays valid, default 3600).
 - **Access:** `MODERATOR_TOKEN`, `POSTER_TOKEN` (argus-herald's: records posts of approved teasers and nothing else), `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.
-- **Moderation:** `AUTO_MODERATE`, `BLOCKLIST` (above), `SPOILERS` (the private spoiler list for teaser projects, outside any repository).
+- **Moderation:** `AUTO_MODERATE`, `BLOCKLIST` (above), `SPOILERS` (the private spoiler list for teaser projects, outside any repository), `CONSENT_DIR` (argus-cortex consent records for identity references showing a real person, by release sha256; private, never served).
 
 Like the other suite services, it binds to localhost and refuses writes from browser origins it wasn't told about.
 

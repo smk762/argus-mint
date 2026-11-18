@@ -110,12 +110,12 @@ def test_lora_comes_with_the_proof_run_that_passed_it() -> None:
     assert Identity(**base, prompt="someone", lora={"name": "x.safetensors"}, proof_run="r1").proof_run == "r1"
 
 
-def test_a_photo_of_a_person_needs_a_consent_record() -> None:
-    sha = "0" * 64
-    with pytest.raises(ValueError, match="consent"):
-        Reference(file="a.png", sha256=sha, provenance="personal")
-    assert Reference(file="a.png", sha256=sha, provenance="personal", consent="c-1").consent == "c-1"
-    assert Reference(file="b.png", sha256=sha, provenance="generated").consent is None
+def test_a_reference_carries_a_provenance_record() -> None:
+    sha = "ab" * 32
+    with pytest.raises(ValueError, match="kind"):
+        Reference(file="a.png", sha256=sha, provenance={"source": "somewhere"})
+    r = Reference(file="a.png", sha256=sha, provenance={"kind": "stock", "source": "s", "license": "CC0"})
+    assert r.provenance["kind"] == "stock"  # checked against cortex's Provenance by the server (references.py)
 
 
 def test_scene_character_area_must_fit_the_render() -> None:
