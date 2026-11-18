@@ -46,6 +46,7 @@ from argus_mint.projects import (
     ProjectError,
     Scene,
     TeaserLinks,
+    file_strings,
     fresh_verdicts,
     load_bundle,
     load_identity,
@@ -91,17 +92,6 @@ KINDS: dict[str, _Kind] = {
     "teasers": _Kind("teasers", load_teasers, TeaserLinks, ext="json"),
 }
 _OWN_ID = ("project", "teasers")  # kinds whose id is the project's own
-
-
-def file_strings(value: Any) -> list[str]:
-    """Every string in a document, for the spoiler list (which reads everything, negatives included)."""
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, dict):
-        return [s for k, v in value.items() if k not in REVIEW_KEYS for s in file_strings(v)]
-    if isinstance(value, (list, tuple)):
-        return [s for v in value for s in file_strings(v)]
-    return []
 
 
 def _doc(obj: BaseModel) -> dict[str, Any]:

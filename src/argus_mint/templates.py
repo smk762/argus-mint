@@ -282,8 +282,27 @@ class Template(BaseModel):
         return (self.model, *(m for m in self.models if m != self.model))
 
 
+class InitImageRef(BaseModel):
+    """An inpainting (or image-to-image) input, by hash: the bytes travel beside the request.
+
+    ``sha256`` is of the image bytes sent and ``mask_sha256`` of the mask's (white repaints,
+    black keeps); darkroom's record names both as ``source_sha256``, and the client checks them.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mask_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    denoise: float = Field(ge=0.05, le=1.0)  # darkroom's range
+
+
 class RenderRequest(BaseModel):
-    """Everything a renderer needs, fully determined by template version + values + seed."""
+    """Everything a renderer needs, fully determined by template version + values + seed.
+
+    A teaser's renders are not of a template: a background's ``template_*`` name its scene, and
+    an inpainted figure's name its identity (each file's id, version and hash). ``init_image``
+    is set only for an inpainted figure.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -299,6 +318,7 @@ class RenderRequest(BaseModel):
     negative: str
     variables: dict[str, str]
     seed: int = Field(ge=0, le=SEED_MAX)
+    init_image: InitImageRef | None = None
 
 
 def load_template(path: Path) -> Template:

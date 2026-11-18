@@ -56,6 +56,7 @@ __all__ = [
     "TeaserLinks",
     "REVIEW_KEYS",
     "fresh_verdicts",
+    "file_strings",
     "load_bundle",
     "load_identity",
     "load_line",
@@ -430,6 +431,18 @@ def load_bundle(root: Path) -> ProjectBundle:
     tdir = root / "teasers"
     b.teasers = _collect(sorted(tdir.glob("*.json")) if tdir.is_dir() else [], load_teasers, "teaser links")
     return b
+
+
+def file_strings(value: object) -> list[str]:
+    """Every string in a file's document, review fields aside: what the spoiler list reads
+    (everything, negatives and sources included)."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for k, v in value.items() if k not in REVIEW_KEYS for s in file_strings(v)]
+    if isinstance(value, (list, tuple)):
+        return [s for v in value for s in file_strings(v)]
+    return []
 
 
 # -- cross-checks ---------------------------------------------------------------------------------

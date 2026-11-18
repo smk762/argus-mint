@@ -4,7 +4,7 @@ A teaser is an image with a quote on it, made to show an upcoming story before t
 
 A teaser is drawn in layers: a **background** from a scene, then the **identity** painted into it (or, for a viewpoint identity, its frame over the top), then the **quote**.
 
-> Rendering backgrounds, painting identities in, training identities and posting teasers are on the way ([epic #47](https://github.com/smk762/argus-mint/issues/47)). This page covers the project's files, the checks on them and their review, which are here now.
+> Training identities, checking a teaser's identity, and posting or minting teasers are on the way ([epic #47](https://github.com/smk762/argus-mint/issues/47)). This page covers the project's files, the checks on them, their review, backgrounds and teaser drafts, which are here now.
 
 ## Files
 
@@ -66,5 +66,59 @@ An approved or retired file never changes: the author saves a new version.
 | `GET /projects/{id}` | | `{id, files, checks}`. Each file is `{kind, id, version, status, hash, file, doc}`; the teaser links are kind `teasers`. `checks.guard` holds the stored verdicts that still hold |
 | `POST /projects/{id}/files/{kind}/{item}/{version}` | moderator | `{doc}` writes a draft `project`, `identity`, `scene`, `line` or `teasers` (the links; `item` is the project's id). Leave out `status`, `approved_by`, `approved_at` and `guard`. SingGuard judges the texts first and its verdicts are saved with the file. Returns `{file, checks}`. A new project starts with `files/project/{id}/1` |
 | `POST /projects/{id}/files/{kind}/{item}/{version}/review` | moderator | `{decision: "approve" \| "retire", by}` |
+| `POST /projects/{id}/scenes/{scene}/{version}/backgrounds` | moderator | start a background job (202): the scene's set, with its `job` |
+| `GET /projects/{id}/backgrounds` | | `{sets}`, one per scene version |
+| `GET /projects/{id}/scenes/{scene}/{version}/backgrounds` | | one set |
+| `GET /projects/{id}/backgrounds/{bg}/image` | | a background's PNG |
+| `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}` |
+| `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft (201) |
+| `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: each teaser's stages and drafts |
+
+## Backgrounds
+
+A scene's backgrounds are rendered by a job: `POST /projects/{id}/scenes/{scene}/{version}/backgrounds` (moderator). Both the scene and the project must be approved, and no spoiler rule may match the scene. The job renders, through darkroom at `batch` priority (behind a person waiting on a draft), each of the scene's `backgrounds` that has no image yet:
+
+- The prompt, negative prompt, checkpoint, sampling and size are the scene's own. The one LoRA is the project's `style_lora`, when it has one, and each background's `request` records it. With a style LoRA, darkroom must have a workflow for that checkpoint with one LoRA (`<family>+lora1.json`): the job is refused (409) before anything renders when its `/models` says it hasn't.
+- Background *n*'s seed is derived from the project, scene id, version and *n* (`backgrounds.background_seed`), so the same scene always asks for the same renders.
+- A safety rejection is retried with the next derived seed, up to the scene's `max_attempts`. Every attempt is recorded.
+- A background the safety check refused every time is recorded in `failed` with `final: true`, and no later job renders it again. One stopped by an error (`final: false`) is tried again by the next job.
+
+They are stored outside the repository, under `ARGUS_MINT_BACKGROUNDS_DIR` (default `backgrounds`): `<project>/<scene>-v<version>/manifest.json`, plus one PNG per background, exactly as darkroom returned it. Each background has an id (`<scene>-v<version>-<nn>`, such as `lamp-room-v1-02`), its `sha256`, the `request` and `attempts`, `made_with`, and a `status`: `pending`, then `approved` or `rejected`. Only one job runs at a time; a job cut off by a restart reads as `failed`.
+
+The moderator looks at each one (`GET /projects/{id}/backgrounds/{bg}/image`) and approves or rejects it (`POST /projects/{id}/backgrounds/{bg}/review`, `{decision, by, note}`). The decision is bound to the image's sha256 and made once. Only an approved background goes into a teaser. Choose it as the teaser's `background` in a new version of the teaser links, and approve that version.
+
+## Teaser drafts
+
+`POST /projects/{id}/teasers/{n}/draft` (moderator, `{to}`) makes the draft for teaser `T<n>` of the newest approved teaser links. It is refused (409) unless:
+
+- the project has no problems, and no spoiler rule matches any linked text (the project, line, identity, scene and the teaser's entry);
+- the teaser links, project, line, identity and scene are approved, and so is the frame;
+- every text of those files has a stored SingGuard verdict that still holds (same text, the project's policy) and passed;
+- the teaser has a `background`, rendered from its scene, approved, and unchanged on disk.
+
+Then the layers:
+
+1. **The art.** For an **embodied** identity, its `prompt` (and `negative`) is painted into the scene's `character_area` on the background, through darkroom's inpainting: the background as the input image, a mask that is white over the area, `denoise` 1.0. The checkpoint, sampling and size are the scene's. The LoRAs are the identity's `lora` (once pinned) and then the project's `style_lora`, never more than two. Inpainting needs SDXL, and darkroom must have an inpainting workflow for that many LoRAs: its example workflows stop at one (`sdxl+lora1+inpaint.json`), so a teaser with both LoRAs needs a `sdxl+lora2+inpaint.json` in its workflow directory. The draft is refused (409) before rendering when darkroom's `/models` says it can't. The seed is derived from the project, the teaser number and the background's sha256. A safety rejection is retried with the next derived seed, and every attempt is recorded. Every pixel outside the mask stays the background's. For a **viewpoint** identity the background itself is the art, and nothing is rendered.
+2. **The frame**, with the line's published text in its `quote` slot, the project's `attribution` in `attribution` when it is set, and "generated image" in `label` when `generated_label` is on. A frame without a slot the teaser needs is refused. [frames/example-teaser-v1.yaml](https://github.com/smk762/argus-mint/tree/dev/frames/example-teaser-v1.yaml) is a full-bleed example: the window is the whole canvas.
+3. **The PNG** is baked opaque, with only its critical chunks (`IHDR`, `IDAT`, `IEND`): no text, time, colour-profile or size metadata. Stripping metadata (argus-herald does) changes no byte, so its sha256 stays the one reviewed.
+
+The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash, `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Publishing a teaser as a card is refused; posting and minting teasers come later.
+
+## The tracker
+
+`GET /projects/{id}/tracker` reports, for each teaser of the newest approved links, the stages argus-mint works out, so a UI shows them rather than deciding them:
+
+| Stage | Reached when |
+|---|---|
+| `quote_final` | the teaser's line is approved |
+| `concept_chosen` | its identity and its scene are approved |
+| `image_made` | a teaser draft made from the current line, identity and scene is approved (or published) |
+| `posted`, `minted` | always `false` for now: posting and minting teasers come later |
+
+Each teaser also lists its chosen `background` and its drafts, newest first: `{id, status, awaiting, created_at, links_version, background, current}`. `current` is false for a draft made from another line, identity or scene than the current links name. With no approved links, `links_version` is `null` and `teasers` is empty.
+
+## Capabilities
+
+`capabilities.backgrounds` is true when the moderator token and a darkroom are set and the server isn't read-only. `capabilities.teasers` is true when the moderator token is set and the server isn't read-only (an embodied teaser also needs darkroom).
 
 `capabilities.author_catalogue` is true when the moderator token is set, the projects directory is writable, and the server isn't read-only.

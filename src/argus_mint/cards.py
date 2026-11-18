@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from argus_mint._codec import Bytes32
 from argus_mint.metadata import BioRef, CardStyle, FrameRef, Provenance
@@ -45,6 +45,8 @@ __all__ = [
     "DraftError",
     "NotApproved",
     "Review",
+    "TeaserFile",
+    "TeaserRecord",
     "check_publishable",
     "load_draft",
     "review",
@@ -113,21 +115,67 @@ class AutoCheck(BaseModel):
     held: tuple[str, ...] = ()  # why a person must look instead
 
 
+class TeaserFile(BaseModel):
+    """A reviewed project file a teaser was made from, by id, version and hash (0x keccak256)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    version: int = Field(ge=1)
+    hash: str = Field(pattern=r"^0x[0-9a-f]{64}$")
+
+
+class TeaserBackground(BaseModel):
+    """The approved background a teaser was made on."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class TeaserRecord(BaseModel):
+    """What a teaser draft was made from: its project, number, each linked file and the background.
+
+    The frame is the draft's own ``frame``. The quote, attribution and label drawn on it are the
+    draft's ``texts`` (by slot), from the reviewed line and project, never edited.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    project: TeaserFile
+    links: TeaserFile  # the version of the teaser links it was made from (id = the project's)
+    number: str = Field(pattern=r"^T[1-9][0-9]{0,4}$")
+    line: TeaserFile
+    identity: TeaserFile
+    scene: TeaserFile
+    presence: Literal["embodied", "viewpoint"]
+    background: TeaserBackground
+    alt: str = Field(min_length=1, max_length=1000)
+
+
 class CardDraft(BaseModel):
-    """Everything needed to publish a card, except the pins and the signature."""
+    """Everything needed to publish a card, except the pins and the signature.
+
+    ``kind`` is ``card`` (a game card: ``asset_id``, ``consumer``, maybe a bio) or ``teaser``
+    (an image and quote from a teaser project: ``teaser`` records what made it, and it has no
+    asset id, consumer or bio). Both are reviewed the same way; ``to`` is the owner who signs.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     format: Literal[1] = 1
+    kind: Literal["card", "teaser"] = "card"
     request: RenderRequest  # the request that produced the art (its seed is the final seed)
     attempts: tuple[dict[str, Any], ...]
     renderer: str
-    asset_id: Bytes32
+    asset_id: Bytes32 | None = None  # a card's; a teaser has none
     to: str
     name: str = Field(min_length=1)
     description: str = ""
     external_url: str | None = None
-    consumer: str = Field(min_length=1, max_length=64)
+    consumer: str | None = Field(default=None, min_length=1, max_length=64)  # a card's; a teaser has none
+    teaser: TeaserRecord | None = None  # what a teaser was made from
     frame: FrameRef | None = None
     bio: BioRecord | None = None
     texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot (class, stats...)
@@ -142,6 +190,22 @@ class CardDraft(BaseModel):
     image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # the finished card image (== art when unframed)
     created_at: datetime
     reviews: tuple[Review, ...] = ()
+
+    @model_validator(mode="after")
+    def _kind_fits(self) -> CardDraft:
+        if self.kind == "card":
+            if self.asset_id is None or self.consumer is None:
+                raise ValueError("a card draft needs its asset_id and consumer")
+            if self.teaser is not None:
+                raise ValueError("a card draft has no teaser record")
+        else:
+            if self.teaser is None or self.frame is None:
+                raise ValueError("a teaser draft needs its teaser record and frame")
+            if self.asset_id is not None or self.consumer is not None or self.bio is not None:
+                raise ValueError("a teaser draft has no asset_id, consumer or bio")
+            if self.library is not None or self.style is not None:
+                raise ValueError("a teaser draft takes no library entry or owner style")
+        return self
 
     @property
     def status(self) -> Literal["pending", "approved", "rejected"]:
@@ -158,6 +222,8 @@ class CardDraft(BaseModel):
 
     def provenance(self, art_cid: str | None) -> Provenance:
         """The card's provenance. ``art_cid`` (the unframed render) is required for a framed card."""
+        if self.kind != "card" or self.asset_id is None or self.consumer is None:
+            raise DraftError("a teaser has no card provenance: posting and minting teasers come later (#52)")
         return Provenance.for_render(
             self.request,
             attempts=len(self.attempts),

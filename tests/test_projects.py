@@ -28,7 +28,7 @@ from argus_mint.projects import (
 from argus_mint.spoilers import SpoilerError, load_spoilers, parse
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "projects" / "example-teasers"
-FRAMES = {("example-plain", 1)}
+FRAMES = {("example-teaser", 1)}
 SAMPLING = {"sampler": "euler", "scheduler": "normal", "steps": 20, "cfg": 6.0}
 
 
@@ -66,7 +66,7 @@ def test_example_project_loads_without_problems() -> None:
 
 def test_unknown_frame_is_reported_when_the_server_lists_its_frames() -> None:
     found = problems(load_bundle(EXAMPLE), frames=set())
-    assert any("frame example-plain v1" in p for p in found)
+    assert any("frame example-teaser v1" in p for p in found)
 
 
 # -- each file on its own --------------------------------------------------------------------------

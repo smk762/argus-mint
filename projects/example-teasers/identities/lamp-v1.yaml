@@ -5,4 +5,4 @@ status: draft
 project: example-teasers
 voice: lamp
 presence: viewpoint
-frame: {id: example-plain, version: 1}
+frame: {id: example-teaser, version: 1}

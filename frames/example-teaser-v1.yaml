@@ -1,0 +1,18 @@
+# Example full-bleed teaser frame: the art fills the whole canvas, a dark band fades in under the
+# quote, and a small tab carries the "generated image" label. Drawn by scripts/make_teaser_frame.py.
+# A teaser fills `quote` (the line's published text), `attribution` (the project's, when set) and
+# `label` (when the project's generated_label is on); a teaser refuses a frame missing a slot it needs.
+# Reviewed like any frame: only approved frames go on a teaser.
+id: example-teaser
+version: 1
+status: draft             # draft | approved | retired
+overlay: example-teaser-v1.png
+window: {x: 0, y: 0, width: 1024, height: 1024}     # full bleed: suits the 1024x1024 scene renders
+style_locked: true        # a teaser isn't restyled
+texts:
+  quote:       {x: 72,  y: 700, width: 880, height: 220, font: fonts/CrimsonText-Italic.ttf, size: 46, min_size: 24,
+                colour: "#ffffff", wrap: true, valign: middle}
+  attribution: {x: 72,  y: 930, width: 880, height: 52,  font: fonts/CrimsonText-Regular.ttf, size: 30, min_size: 18,
+                colour: "#e8d9b5", align: right}
+  label:       {x: 772, y: 26,  width: 220, height: 32,  font: fonts/CrimsonText-Regular.ttf, size: 22, min_size: 14,
+                colour: "#ffffff"}

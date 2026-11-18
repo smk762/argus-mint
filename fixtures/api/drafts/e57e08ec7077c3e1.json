@@ -1,5 +1,5 @@
 {
-  "id": "08f74746893da5ad",
+  "id": "e57e08ec7077c3e1",
   "status": "pending",
   "awaiting": [
     "moderator",
@@ -7,6 +7,7 @@
   ],
   "draft": {
     "format": 1,
+    "kind": "card",
     "request": {
       "template_id": "example-portrait",
       "template_version": 3,
@@ -32,7 +33,8 @@
         "pose": "standing",
         "role": "knight"
       },
-      "seed": 8453047
+      "seed": 8453047,
+      "init_image": null
     },
     "attempts": [
       {
@@ -48,11 +50,12 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x4e7c4b1ae555535666b339bbef3ecfd778991593efc8590c56c77501872e8ea5",
-    "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+    "to": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
     "name": "Library Pick",
     "description": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
     "external_url": null,
     "consumer": "argus-mint",
+    "teaser": null,
     "frame": {
       "id": "card-green",
       "version": 1,
@@ -82,13 +85,13 @@
     "style": null,
     "library": "047-sd3-5-large-fp8-scaled",
     "made_with": {
-      "argus-mint": "0.2.3.dev8+g10490f51c"
+      "argus-mint": "0.2.3.dev9+g9c4dfe789"
     },
     "edits": [],
     "auto_check": null,
     "art_sha256": "6b6d7daa683ce4aa262ef2f42c5bf57cadaa070f3f18358046d4d73b425272db",
     "image_sha256": "889de87d15ba54b119b68c7514e0dffac6fa640aee9573c90219dccb71ca361c",
-    "created_at": "2026-11-18T06:23:50.046941Z",
+    "created_at": "2026-11-18T06:39:46.946859Z",
     "reviews": []
   },
   "published": null

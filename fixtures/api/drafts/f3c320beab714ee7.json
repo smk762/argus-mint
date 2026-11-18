@@ -1,9 +1,10 @@
 {
-  "id": "4b30fc131847ac65",
+  "id": "f3c320beab714ee7",
   "status": "published",
   "awaiting": [],
   "draft": {
     "format": 1,
+    "kind": "card",
     "request": {
       "template_id": "example-portrait",
       "template_version": 3,
@@ -29,7 +30,8 @@
         "pose": "casting a spell",
         "role": "wizard"
       },
-      "seed": 8453
+      "seed": 8453,
+      "init_image": null
     },
     "attempts": [
       {
@@ -41,11 +43,12 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
-    "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+    "to": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
     "name": "Emerald Wizard",
     "description": "Emerald Wizard mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
     "external_url": null,
     "consumer": "argus-mint",
+    "teaser": null,
     "frame": {
       "id": "card-green",
       "version": 1,
@@ -75,28 +78,28 @@
     "style": null,
     "library": null,
     "made_with": {
-      "argus-mint": "0.2.3.dev8+g10490f51c",
+      "argus-mint": "0.2.3.dev9+g9c4dfe789",
       "darkroom": "0.1.3"
     },
     "edits": [],
     "auto_check": null,
     "art_sha256": "9fec142fce99f181d84ace6b513d30647e123e131407c0a2d6181750e1a4c56b",
     "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
-    "created_at": "2026-11-18T06:23:48.118966Z",
+    "created_at": "2026-11-18T06:39:44.996364Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-18T06:23:48.128268Z",
+        "at": "2026-11-18T06:39:45.005772Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
-        "at": "2026-11-18T06:23:48.149645Z",
+        "by": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
+        "at": "2026-11-18T06:39:45.027401Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       }
@@ -124,15 +127,15 @@
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-18T06:23:48.128268Z",
+        "at": "2026-11-18T06:39:45.005772Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
-        "at": "2026-11-18T06:23:48.149645Z",
+        "by": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
+        "at": "2026-11-18T06:39:45.027401Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       }
@@ -174,13 +177,13 @@
     },
     "metadata_cid": "bafkreicp5gb5oyy7sv7brdsgrybkh6hrmbil36fcp3nsrhdsxlde7owx3a",
     "voucher": {
-      "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+      "to": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
       "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
       "content_hash": "0xbf7a0cfaae71254a8f6109e89b4a199a2288681b14e65d9c941bacdd5fa1f874",
       "price": 0,
       "deadline": 1900000000
     },
-    "signature": "0x7f1e73a862e18ed798e444d47dd863fe41be2b2ca1b56a52b8c8f90fc5bdbb37451e881634d8736ffd1816e560c33bd9dd83e48dfdad9d4a275db96cc497c44f1b",
+    "signature": "0xd6f69453bd93557fd807a103ed104f9843157850ad127fc55c309bf65e51f5840135f2ff98413b80cb1088ab4b93db4a08b88b04f2b1760a8a71ebe21113964d1c",
     "typed_data": {
       "types": {
         "EIP712Domain": [
@@ -232,7 +235,7 @@
         "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
       },
       "message": {
-        "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+        "to": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
         "assetId": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
         "contentHash": "0xbf7a0cfaae71254a8f6109e89b4a199a2288681b14e65d9c941bacdd5fa1f874",
         "price": 0,

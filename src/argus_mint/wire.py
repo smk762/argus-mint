@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from argus_mint.backgrounds import Background, BackgroundSet
 from argus_mint.bios import BioTemplate
 from argus_mint.cards import CardDraft
 from argus_mint.frames import Frame
@@ -21,6 +22,13 @@ from argus_mint.templates import LoraChoice, Template
 
 __all__ = [
     "WIRE_VERSION",
+    "BackgroundDecision",
+    "BackgroundSetList",
+    "CreateTeaserDraft",
+    "ProjectTracker",
+    "TeaserDraftState",
+    "TeaserProgress",
+    "TeaserStages",
     "BioInfo",
     "Capabilities",
     "Challenge",
@@ -66,8 +74,8 @@ __all__ = [
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
 # 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts);
-# 1.11 teaser projects (authoring, checks, review)
-WIRE_VERSION = "1.11"
+# 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker
+WIRE_VERSION = "1.12"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -100,6 +108,8 @@ class Capabilities(_Wire):
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
     check_templates: bool = False  # darkroom can be asked whether it renders a template (GET .../check)
     author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
+    backgrounds: bool = False  # scene backgrounds can be rendered: darkroom configured, token set, not read-only
+    teasers: bool = False  # teaser drafts: moderator token set, not read-only (embodied ones need darkroom too)
 
 
 class Health(_Wire):
@@ -168,8 +178,14 @@ class CreateDraft(_Wire):
     style: CardStyle | None = None  # the owner's choices, if the consumer collected them up front
 
 
+class TeaserOf(_Wire):
+    project: str
+    number: str
+
+
 class DraftSummary(_Wire):
     id: str
+    kind: Literal["card", "teaser"] = "card"
     name: str
     to: str
     status: DraftStatus
@@ -178,6 +194,7 @@ class DraftSummary(_Wire):
     template: Ref
     frame: Ref | None
     image_sha256: str
+    teaser: TeaserOf | None = None  # a teaser's project and number
 
 
 class DraftList(_Wire):
@@ -475,6 +492,64 @@ class SavedProjectFile(_Wire):
     checks: ProjectChecks  # for the saved file's texts, and the project's cross-file problems
 
 
+class BackgroundSetList(_Wire):
+    """GET /projects/{id}/backgrounds: each scene version's backgrounds, by scene then version."""
+
+    sets: list[BackgroundSet]
+
+
+class BackgroundDecision(_Wire):
+    """POST /projects/{id}/backgrounds/{bg}/review: the moderator's decision on one background."""
+
+    decision: Literal["approve", "reject"]
+    by: str = Field(min_length=1, max_length=128)
+    note: str = Field(default="", max_length=2000)
+
+
+class TeaserStages(_Wire):
+    """The stages a teaser has reached, as argus-mint works them out (a client never does)."""
+
+    quote_final: bool  # its line is approved
+    concept_chosen: bool  # its identity and scene are approved
+    image_made: bool  # a draft made from the current line, identity and scene is approved or published
+    posted: bool = False  # reserved: posting teasers comes later (#52)
+    minted: bool = False  # reserved: minting teasers comes later (#52)
+
+
+class TeaserDraftState(_Wire):
+    """One teaser draft, as the tracker lists it. ``current``: made from the current links' line,
+    identity and scene (an older draft of the same number may not be)."""
+
+    id: str
+    status: DraftStatus
+    awaiting: list[str]
+    created_at: datetime
+    links_version: int
+    background: str
+    current: bool
+
+
+class TeaserProgress(_Wire):
+    number: str
+    stages: TeaserStages
+    background: str | None  # the chosen background, if any
+    drafts: list[TeaserDraftState]  # newest first
+
+
+class ProjectTracker(_Wire):
+    """GET /projects/{id}/tracker: each teaser of the newest approved links (none: ``links_version`` null)."""
+
+    project: str
+    links_version: int | None
+    teasers: list[TeaserProgress]
+
+
+class CreateTeaserDraft(_Wire):
+    """POST /projects/{id}/teasers/{n}/draft. Everything else comes from the project's reviewed files."""
+
+    to: str  # the owner, who signs the review
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -504,4 +579,10 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     ProjectDetail,
     SaveProjectFile,
     SavedProjectFile,
+    BackgroundSet,
+    BackgroundSetList,
+    Background,
+    BackgroundDecision,
+    CreateTeaserDraft,
+    ProjectTracker,
 )
