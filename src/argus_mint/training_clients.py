@@ -18,10 +18,15 @@ __all__ = ["CuratorClient", "ForgeClient", "LensClient", "ProofClient", "Trainin
 
 _SHORT = httpx.Timeout(30.0)
 _LONG = httpx.Timeout(30.0, read=6 * 3600.0)  # a scan, a caption batch, a proof run: minutes to hours
+_SCORE = httpx.Timeout(30.0, read=600.0)  # one teaser scored: a GPU lease and a model load, with a person waiting
 
 
 class TrainingClientError(Exception):
-    """A sibling answered with an error, or not at all."""
+    """A sibling answered with an error (``status``), or not at all (``status`` None)."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class _Http:
@@ -41,11 +46,11 @@ class _Http:
                 detail = resp.json().get("detail")
             except (ValueError, AttributeError):
                 detail = resp.text[:500]
-            raise TrainingClientError(f"{self.service} {method} {path}: {resp.status_code} {detail}")
+            raise TrainingClientError(f"{self.service} {method} {path}: {resp.status_code} {detail}", resp.status_code)
         try:
             return resp.json()
         except ValueError as e:
-            raise TrainingClientError(f"{self.service} {method} {path}: not JSON") from e
+            raise TrainingClientError(f"{self.service} {method} {path}: not JSON", resp.status_code) from e
 
     def _maybe(self, path: str) -> dict[str, Any] | None:
         try:
@@ -119,9 +124,17 @@ class ForgeClient(_Http):
 class ProofClient(_Http):
     """argus-proof (:8104). ``POST /run/stream`` (``RunRequest``; NDJSON frames ending in
     ``complete`` or ``error``), ``GET /report/{run}`` (``EvalReport``), ``GET /report/{run}/manifest``
-    (``RunManifest``)."""
+    (``RunManifest``), ``POST /score`` (multipart ``images`` plus a ``request`` part holding a
+    ``ScoreRequest`` as JSON -> ``ScoreResult``; nothing stored)."""
 
     service = "proof"
+
+    def score(self, images: list[tuple[str, bytes]], request: dict[str, Any]) -> dict[str, Any]:
+        """Score ``images`` against an export's references (``identity_check.py``). A 503 is proof
+        saying the scorer can't run now (not installed, or the GPU lease was refused)."""
+        return self._json(
+            "POST", "/score", data={"request": json.dumps(request)}, files=_files("images", images), timeout=_SCORE
+        )
 
     def run(self, body: dict[str, Any]) -> dict[str, Any]:
         last: dict[str, Any] = {"type": "error", "message": "proof's stream ended without a result"}

@@ -69,6 +69,7 @@ from argus_mint.cards import (
     DraftError,
     DraftNotFound,
     DraftStore,
+    IdentityCheck,
     review,
     sha256_hex,
     write_atomic,
@@ -355,6 +356,7 @@ def create_app(
             teasers=writable and has_token,
             post=writable and (has_token or has_poster),
             identity_training=writable and has_token and darkroom is not None and not training.missing(),
+            identity_check=writable and training.proof is not None,
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -732,7 +734,11 @@ def create_app(
         challenges.add(nonce, (draft_id, purpose, d.draft.image_sha256, now + CHALLENGE_TTL))
         return Challenge(message=msg.text(), nonce=nonce, expires_at=now + CHALLENGE_TTL)
 
-    def moderate_automatically(d: CardDraft, image: bytes) -> CardDraft:
+    def moderate_automatically(d: CardDraft, image: bytes, identity: IdentityCheck | None = None) -> CardDraft:
+        """Auto-moderation's checks. A card is checked only with it on; a teaser always is, so its
+        identity check is on record and holds it, but only with it on can they approve."""
+        if d.kind == "teaser":
+            return auto_review(d, image, word_filter(), identity=identity, approve=cfg.auto_moderate)
         return auto_review(d, image, word_filter()) if cfg.auto_moderate else d
 
     @app.post("/drafts/{draft_id}/edit")
@@ -1021,6 +1027,7 @@ def create_app(
         frames=frames,
         drafts=store,
         moderate=moderate_automatically,
+        proof=training.proof,
         detail=detail,
         status_of=status_of,
     )

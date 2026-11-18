@@ -51,12 +51,16 @@ __all__ = [
     "BioRecord",
     "Edit",
     "CardDraft",
+    "IdentityCheck",
+    "IdentityOutcome",
     "DraftNotFound",
     "DraftStore",
     "DraftError",
     "NotApproved",
     "Post",
     "Review",
+    "ScoreBox",
+    "ScorerFile",
     "TeaserFile",
     "TeaserRecord",
     "check_publishable",
@@ -115,8 +119,76 @@ class Edit(BaseModel):
     image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # the new card image
 
 
+class ScoreBox(BaseModel):
+    """The part of an image proof scored, in the image's own pixels."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+
+class ScorerFile(BaseModel):
+    """The weights a proof scorer loaded, pinned by sha256 (proof's ``ModelRef``)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1, max_length=512)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+IdentityOutcome = Literal["passed", "below", "uncalibrated", "skipped", "unavailable", "error"]
+
+
+class IdentityCheck(BaseModel):
+    """argus-proof's score of a teaser's figure against its identity's held-out references (#51).
+
+    ``outcome``: ``passed`` (``score`` >= ``min_score``), ``below`` (under it), ``uncalibrated``
+    (scored, but the identity has no ``min_score`` yet), ``skipped`` (nothing to score: a
+    viewpoint identity, or an embodied one with no ``proof_export`` yet), ``unavailable`` (proof
+    is unreachable, answered 503, or isn't configured) or ``error`` (proof refused the request,
+    or its answer can't be read). ``reason`` says it in words. Only ``passed`` (or a viewpoint's
+    ``skipped``) lets auto-moderation stand in for the moderator; ``below``, ``unavailable``,
+    ``error`` and an embodied ``skipped`` hold the draft.
+
+    ``art_sha256`` is the unframed art that was scored, ``crop`` the scene's ``character_area``
+    in its pixels; ``scorer``, ``scorer_version`` and ``model_file`` are proof's provenance for
+    ``metric``'s scorer, and ``proof_version`` its wire version.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    at: datetime
+    art_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    presence: Literal["embodied", "viewpoint"]
+    outcome: IdentityOutcome
+    reason: str = Field(min_length=1)
+    metric: Literal["identity", "likeness"] | None = None
+    score: float | None = None
+    min_score: float | None = None
+    export: str | None = None
+    crop: ScoreBox | None = None
+    proof_version: str | None = None
+    scorer: str | None = None
+    scorer_version: str | None = None
+    model_file: ScorerFile | None = None
+
+    @property
+    def held(self) -> bool:
+        """Does this outcome hold the draft for a person (whatever auto-moderation is set to)?"""
+        return self.outcome in ("below", "unavailable", "error") or (
+            self.outcome == "skipped" and self.presence == "embodied"
+        )
+
+
 class AutoCheck(BaseModel):
-    """What auto-moderation found for the current image. ``passed`` recorded the moderator's approval."""
+    """What the platform's checks found for the current image. ``passed`` recorded the moderator's approval.
+
+    ``passed`` is only ever true with auto-moderation on: with it off, a teaser's checks (and its
+    ``identity`` check) are still recorded, held for a person with the reason that it is off.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -125,6 +197,7 @@ class AutoCheck(BaseModel):
     passed: bool
     checks: tuple[str, ...]  # what was checked, in words
     held: tuple[str, ...] = ()  # why a person must look instead
+    identity: IdentityCheck | None = None  # a teaser's identity check (argus-proof's score of its figure)
 
 
 class Post(BaseModel):
