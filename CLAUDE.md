@@ -4,7 +4,7 @@ Guidance for AI agents working in this repo. Human-facing usage lives in [README
 
 ## What this is
 
-Provenance tokens for game assets. A Python package (and an HTTP service, `argus-mint serve`) plus Foundry contracts that render art from **reviewed templates** through darklight, pin it to IPFS, build canonical ERC-721 metadata, mint transferable **Card**s and soulbound **Deed**s, and anchor commit/reveal secrets and Merkle roots in a **Ledger** contract so anyone can verify a consumer's records. First consumer: atlas-realms (a browser strategy game), which writes its own adapter.
+Provenance tokens for game assets. A Python package (and an HTTP service, `argus-mint serve`) plus Foundry contracts that render art from **reviewed templates** through darklight, pin it to IPFS, build canonical ERC-721 metadata, mint transferable **Card**s and soulbound **Deed**s, and anchor commit/reveal secrets and Merkle roots in a **Ledger** contract so anyone can verify a consumer's records. First consumer: atlas-realms (a browser strategy game; repo smk762/argus-realms, package `atlas_realms`), which writes its own adapter.
 
 **argus-mint has no game in it.** It never knows about units, battles, hexes or coins. A consumer supplies a template's variables, a record to show, and 32-byte leaf hashes. Out of scope: game rules/stats, marketplaces, fungible tokens, staking or yield, free-text prompts, a frontend (only a JS verifier module ships; the UIs are argus-studio's pages and argus-assay, clients of `argus-mint serve`).
 
@@ -43,7 +43,7 @@ Each row names what catches it. **UNENFORCED** rows need a check, not more prose
 | A bio holds a number | 4 | `test_bios::test_a_bio_with_a_number_is_retried_and_never_reaches_the_card` |
 | argus-mint writes an attribute (a stat) into a card's metadata | 4 | `test_cli::test_draft_review_publish_dry_run` (`attributes == []`). Attributes a consumer adds are its own adapter's to check. |
 | A contract pays out: a fungible token, revenue share or staking | 5 | `must_never::test_no_contract_pays_out` (ABIs: no ERC-20 surface or payout-shaped function; the only payable is `Card.mint`) |
-| A consumer's deterministic code reads the chain | 6 | **UNENFORCED** here: consumer-side. Follow-up: #53 |
+| A consumer's deterministic code reads the chain | 6 | Consumer-side, in each consumer: argus-realms' `tests/test_deterministic_imports.py` (its rules and tick engine import no chain, network or database client; smk762/argus-realms#19). A new consumer adds the same |
 | The same template version + variables + seed give a different request, or metadata hashes differently | 7 | `test_templates::test_fill_is_reproducible`, `test_metadata::test_canonical_is_byte_stable`, `::test_canonical_known_bytes` |
 | A change alters the hash of a card already minted | 7 | `test_frames::test_existing_demo_metadata_still_hashes_to_its_voucher`, `test_metadata::test_unset_render_choices_leave_the_content_hash_as_it_was`, `test_templates::test_hash_ignores_status_but_not_content`, `test_library::test_models_are_a_reviewed_choice_and_old_hashes_hold` |
 | The pure core (`_codec templates metadata merkle vouchers siwe`, and `projects spoilers`) imports a network client | 8 | `must_never::test_the_pure_core_imports_no_network_client` |
