@@ -7,9 +7,12 @@ All notable changes to this project are documented here. Versions come from git 
 ### Added
 
 - **`requirements-test.txt`**: the test dependencies for a plain pip venv (`pip install -r requirements-test.txt && pytest`, no install of argus-mint needed: pytest gets `pythonpath = ["src"]`). ai-code-auditor's `validate_patch` builds its test environment from it, so fixes here are proven by pytest rather than lint only (cf. agent-composer#61). Pins match `uv.lock`; `tests/test_requirements_test.py` fails if they drift or a dependency is missing.
+- **CLAUDE.md has a "Must never happen" table (#41).** Each row names the test or CI job that catches it, or says UNENFORCED with a follow-up issue (#53, hard rule 6, consumer-side). The prose that walked through modules is cut to the facts the code doesn't show (26 KB to 20 KB).
+- New checks for rules that had none (`tests/test_must_never.py`): the pure core imports no network client (rule 8); no contract ABI has an ERC-20 surface, a payout-shaped function or a payable other than `Card.mint` (rule 5); no CLI option takes a key; OpenZeppelin's pinned commit and `evm_version = "cancun"` move together; compose publishes the Kubo RPC on 127.0.0.1 by default. CI's `verifier` job rebuilds `tests/fixtures/merkle.json` with `@openzeppelin/merkle-tree` and fails on any difference.
 
 ### Changed
 
+- **A bio holds no numbers (hard rule 4).** A reply with a digit, in any script, is an unusable attempt and is retried, like one with stray braces. The name goes in after the check, so a name with digits is fine.
 - argus-cortex is pinned `>=0.9,<0.10` (was `>=0.6,<0.7`), so the `server` extra has the suite's paved-road helpers (`fs`, `net`, `auth`, `limits`; ai-code-auditor#56).
 - Id and value checks use `fullmatch` (argus-cortex's `fullmatch` codemod, ai-code-auditor#56), so they match the whole string: draft, sample-job and library entry ids, CIDs, template variable and frame slot names, and the SIWE domain, scheme, URI, resources, nonce and date-times. `$` also matches before a final newline, so a value followed by `\n` used to pass these checks.
 

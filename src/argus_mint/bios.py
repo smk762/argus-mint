@@ -55,6 +55,7 @@ WRITER_KEY_ENV = "ARGUS_MINT_WRITER_KEY"  # bearer token for the bio writer, if 
 NAME_TOKEN = re.compile(r"\{\s*name\s*\}", re.IGNORECASE)
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 _SENTENCE_END = re.compile(r"[.!?…](?=\s|$)")
+_DIGIT = re.compile(r"\d")  # any script's digits: a bio holds no numbers (hard rule 4)
 
 
 class BioError(ValueError):
@@ -271,6 +272,9 @@ def write_bio(
         stray = re.sub(r"\{name\}", "", text)
         if "{" in stray or "}" in stray or not text:
             attempts.append(BioAttempt("unusable", "stray braces or empty", text))
+            continue
+        if _DIGIT.search(text):  # hard rule 4: a bio is flavour, never a number a game could read as a stat
+            attempts.append(BioAttempt("unusable", "contains a number", text))
             continue
         ok, detail = guard.check_text(text)  # still holds the {name} token: the name never reaches a model
         if not ok:

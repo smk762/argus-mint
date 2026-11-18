@@ -66,6 +66,7 @@ def test_draft_review_publish_dry_run(tmp_path, template_doc, monkeypatch):
     pub = json.loads(result.stdout)
     assert pub["dry_run"] is True and pub["signer_is_ephemeral"] is False
     assert [r["role"] for r in pub["reviews"]] == ["moderator", "owner"]
+    assert pub["metadata"]["attributes"] == []  # hard rule 4: argus-mint writes no stats into a token
     prov = pub["metadata"]["provenance"]
     assert prov["template"] == "test-portrait" and prov["seed"] == 81234
     assert "frame" not in prov and "art" not in prov and pub["render"]["art_cid"] is None

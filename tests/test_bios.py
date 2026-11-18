@@ -73,6 +73,18 @@ def test_flagged_and_unusable_replies_are_retried_then_fail(bio_doc, template_do
     assert len(e.value.attempts) == 3
 
 
+def test_a_bio_with_a_number_is_retried_and_never_reaches_the_card(bio_doc, template_doc):
+    """Hard rule 4: a bio is display text, never a number a game could read back as a stat."""
+    bt, t = BioTemplate.model_validate(bio_doc), Template.model_validate(template_doc)
+    guard = Guard()
+    b = write_bio(
+        Writer("{name} has 12 strength.", "{name} is ٣ feet tall.", "{name} hums."), guard, bt, VALUES, t, "R2"
+    )
+    assert [(a.outcome, a.detail) for a in b.attempts] == [("unusable", "contains a number")] * 2 + [("ok", "")]
+    assert b.text == "R2 hums."  # the name may hold digits: it goes in after the check
+    assert guard.seen == ["{name} hums."]  # a reply with a number is never even screened
+
+
 def test_bio_templates_are_reviewed_and_keep_the_name_out(bio_doc, template_doc):
     t = Template.model_validate(template_doc)
     draft = BioTemplate.model_validate({**bio_doc, "status": "draft", "approved_by": None, "approved_at": None})
