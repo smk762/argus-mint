@@ -7,13 +7,19 @@ A project lives in one directory::
       identities/*.yaml     # who appears (or whose view it is), and how they keep their look
       scenes/*.yaml         # the backgrounds: prompt, sampling, how many to render, where a figure goes
       lines/*.yaml          # the quotes, verbatim, with the published wording and their source
-      teasers.json          # which line goes with which identity, scene and frame, and its alt text
+      teasers/*.json        # which line goes with which identity, scene and frame, and its alt text
 
-Every YAML file is versioned and reviewed like a template (``draft -> approved -> retired``,
+Every file is versioned and reviewed like a template (``draft -> approved -> retired``,
 ``catalogue.record_decision``), so only approved files make teasers (hard rule 2). A scene's
 prompt is fixed text written by the author and reviewed before anything renders from it; a
-teaser never takes a prompt (hard rule 1). ``teasers.json`` only links reviewed files: the
-image it leads to is reviewed as a draft, by the moderator and the owner.
+teaser never takes a prompt (hard rule 1). The teaser links are one JSON file per version
+(``teasers/<project>-v<n>.json``), reviewed like the rest; each image they lead to is reviewed
+again as a draft, by the moderator and the owner.
+
+Each file keeps SingGuard's verdicts on its own texts in a ``guard`` block: the field, the
+text's sha256, the policy and the outcome. Like ``status``, ``guard`` is left out of the file's
+hash. A verdict counts only while the text and the project's policy are what it judged
+(:func:`fresh_verdicts`), so a stored pass survives a restart but never an edit.
 
 Pure: reading the files and checking them, no network. :func:`problems` lists everything that
 is wrong with a project at once, for the author, rather than stopping at the first.
@@ -21,13 +27,14 @@ is wrong with a project at once, for the author, rather than stopping at the fir
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
-from typing import Literal, TypeVar
+from typing import ClassVar, Literal, TypeVar
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -36,6 +43,7 @@ from argus_mint._codec import canonical, keccak256
 from argus_mint.templates import LoraRef, Sampling, family
 
 __all__ = [
+    "GuardVerdict",
     "Identity",
     "Line",
     "Project",
@@ -46,6 +54,8 @@ __all__ = [
     "Scene",
     "TeaserLink",
     "TeaserLinks",
+    "REVIEW_KEYS",
+    "fresh_verdicts",
     "file_strings",
     "load_bundle",
     "load_identity",
@@ -54,6 +64,8 @@ __all__ = [
     "load_scene",
     "load_teasers",
     "problems",
+    "teaser_problems",
+    "text_sha256",
 ]
 
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
@@ -79,6 +91,27 @@ class Ref(BaseModel):
         return (self.id, self.version)
 
 
+def text_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class GuardVerdict(BaseModel):
+    """SingGuard's verdict on one text of a file, as stored in the file's ``guard`` block."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    field: str = Field(min_length=1, max_length=64)  # e.g. "prompt", or "T1.alt" in teaser links
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # of the text judged
+    policy: str = Field(min_length=1, max_length=64)
+    passed: bool
+    detail: str = Field(default="", max_length=500)  # the rule or reason when it didn't pass
+    checked_at: datetime
+
+
+# Written by the server, never by a client: a saved document may not carry them.
+REVIEW_KEYS = ("status", "approved_by", "approved_at", "guard")
+
+
 class _Reviewed(BaseModel):
     """Fields every reviewed project file has, with the approval rule templates use."""
 
@@ -89,6 +122,7 @@ class _Reviewed(BaseModel):
     status: Status
     approved_by: str | None = None
     approved_at: date | None = None
+    guard: tuple[GuardVerdict, ...] = ()  # SingGuard's verdicts on this file's texts; not hashed
 
     @model_validator(mode="after")
     def _approval_recorded(self) -> _Reviewed:
@@ -101,8 +135,15 @@ class _Reviewed(BaseModel):
         return (self.id, self.version)
 
     def hash(self) -> bytes:
-        """keccak256 of the file's canonical JSON, excluding ``status`` (as for templates)."""
-        return keccak256(canonical(self.model_dump(mode="json", exclude={"status"})))
+        """keccak256 of the file's canonical JSON, excluding ``status`` (as for templates) and ``guard``."""
+        return keccak256(canonical(self.model_dump(mode="json", exclude={"status", "guard"})))
+
+    def guarded_texts(self) -> list[tuple[str, str]]:
+        """(field, text) for every text SingGuard reads in this file (negative prompts are left out:
+        they name what to avoid)."""
+        return [(f, t) for f in self.GUARDED if isinstance(t := getattr(self, f), str) and t.strip()]
+
+    GUARDED: ClassVar[tuple[str, ...]] = ()
 
 
 class Project(_Reviewed):
@@ -112,9 +153,11 @@ class Project(_Reviewed):
     attribution: str | None = Field(default=None, max_length=120)  # a fixed line under each quote; None: unsigned
     generated_label: bool = True  # draw "generated image" (the frame's `label` slot) on each teaser
     frames: tuple[Ref, ...] = ()  # frames teasers may use (one per aspect, or one per voice)
-    policy: str = Field(default="safe", min_length=1, max_length=64)  # SingGuard policy for this project's text
+    policy: str = Field(default="default", min_length=1, max_length=64)  # SingGuard policy for this project's text
     family: str = Field(default="sdxl", min_length=1, max_length=32)  # checkpoint family (inpainting is SDXL-only)
     style_lora: LoraRef | None = None  # the project's look, trained once enough is approved
+
+    GUARDED = ("title", "attribution")
 
 
 class Reference(BaseModel):
@@ -157,6 +200,8 @@ class Identity(_Reviewed):
     lora: LoraRef | None = None  # pinned from proof's manifest once a training run passes
     proof_run: str | None = Field(default=None, min_length=1, max_length=128)  # the run that passed it
     references: tuple[Reference, ...] = ()
+
+    GUARDED = ("prompt",)
 
     @model_validator(mode="after")
     def _presence_fits(self) -> Identity:
@@ -205,6 +250,8 @@ class Scene(_Reviewed):
     character_area: Area | None = None  # None: no figure is painted into this scene
     max_attempts: int = Field(default=4, ge=1, le=16)
 
+    GUARDED = ("prompt",)
+
     @model_validator(mode="after")
     def _fits(self) -> Scene:
         if any(c in self.prompt + self.negative for c in "{}"):
@@ -230,6 +277,8 @@ class Line(_Reviewed):
     published: str | None = Field(default=None, min_length=1, max_length=600)
     source: str = Field(min_length=1, max_length=200)  # where it was written, e.g. a scene file
 
+    GUARDED = ("text", "published")
+
     @property
     def shown(self) -> str:
         return self.published or self.text
@@ -248,20 +297,38 @@ class TeaserLink(BaseModel):
     background: str | None = Field(default=None, min_length=1, max_length=64)  # the chosen render, once there is one
 
 
-class TeaserLinks(BaseModel):
-    """``teasers.json``: the project's teasers by number."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
+class TeaserLinks(_Reviewed):
+    """``teasers/<project>-v<n>.json``: the project's teasers by number. Its id is the project's."""
 
     project: str = Field(pattern=_ID_PATTERN)
     teasers: dict[str, TeaserLink] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _numbers(self) -> TeaserLinks:
+        if self.id != self.project:
+            raise ValueError(f"teaser links take their project's id ({self.project}), not {self.id!r}")
         bad = [k for k in self.teasers if not re.fullmatch(_TEASER_ID, k)]
         if bad:
             raise ValueError(f"teaser numbers are T1, T2…: {bad}")
         return self
+
+    def guarded_texts(self) -> list[tuple[str, str]]:
+        return [(f"{n}.alt", t.alt) for n, t in self.teasers.items()]
+
+
+def fresh_verdicts(obj: _Reviewed, policy: str) -> tuple[dict[str, GuardVerdict], list[tuple[str, str]]]:
+    """The file's stored verdicts that still hold, by field, and the (field, text) pairs that have
+    none: a verdict holds while the text and the policy are the ones it judged."""
+    stored = {(v.field, v.sha256, v.policy): v for v in obj.guard}
+    fresh: dict[str, GuardVerdict] = {}
+    missing: list[tuple[str, str]] = []
+    for f, text in obj.guarded_texts():
+        v = stored.get((f, text_sha256(text), policy))
+        if v is None:
+            missing.append((f, text))
+        else:
+            fresh[f] = v
+    return fresh, missing
 
 
 _M = TypeVar("_M", bound=BaseModel)
@@ -301,6 +368,7 @@ def load_line(path: Path) -> Line:
 
 
 def load_teasers(path: Path) -> TeaserLinks:
+    """One version of a project's teaser links (JSON)."""
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
@@ -320,11 +388,16 @@ class ProjectBundle:
     identities: dict[tuple[str, int], tuple[Identity, Path]] = field(default_factory=dict)
     scenes: dict[tuple[str, int], tuple[Scene, Path]] = field(default_factory=dict)
     lines: dict[tuple[str, int], tuple[Line, Path]] = field(default_factory=dict)
-    teasers: TeaserLinks | None = None
+    teasers: dict[tuple[str, int], tuple[TeaserLinks, Path]] = field(default_factory=dict)
 
     @property
     def id(self) -> str:
         return self.root.name
+
+    def current_teasers(self) -> TeaserLinks | None:
+        """The newest approved version of the teaser links: the one teasers are made from."""
+        approved = [t for t, _ in self.teasers.values() if t.status == "approved"]
+        return max(approved, key=lambda t: t.version, default=None)
 
 
 def _yaml_files(root: Path) -> list[Path]:
@@ -351,11 +424,13 @@ def load_bundle(root: Path) -> ProjectBundle:
     b.scenes = _collect(_yaml_files(root / "scenes"), load_scene, "scene")
     b.lines = _collect(_yaml_files(root / "lines"), load_line, "line")
     if (root / "teasers.json").is_file():
-        b.teasers = load_teasers(root / "teasers.json")
+        raise ProjectError(
+            f"{root}: teasers.json is now versioned and reviewed: move it to teasers/{b.id}-v1.json "
+            "and give it id, version and status"
+        )
+    tdir = root / "teasers"
+    b.teasers = _collect(sorted(tdir.glob("*.json")) if tdir.is_dir() else [], load_teasers, "teaser links")
     return b
-
-
-REVIEW_KEYS = ("status", "approved_by", "approved_at")
 
 
 def file_strings(value: object) -> list[str]:
@@ -396,31 +471,36 @@ def problems(b: ProjectBundle, frames: set[tuple[str, int]] | None = None) -> li
     for scene, path in b.scenes.values():
         if family(scene.model) != proj.family:
             out.append(f"{path.name}: checkpoint {scene.model} isn't in the project's family {proj.family!r}")
-    if b.teasers is not None:
-        if b.teasers.project != b.id:
-            out.append(f"teasers.json is for project {b.teasers.project!r}, not {b.id!r}")
-        allowed = {f.key for f in proj.frames}
-        for n, t in b.teasers.teasers.items():
-            line = b.lines.get(t.line.key)
-            ident = b.identities.get(t.identity.key)
-            scene = b.scenes.get(t.scene.key)
-            if line is None:
-                out.append(f"{n}: no line {t.line.id} v{t.line.version}")
-            if ident is None:
-                out.append(f"{n}: no identity {t.identity.id} v{t.identity.version}")
-            if scene is None:
-                out.append(f"{n}: no scene {t.scene.id} v{t.scene.version}")
-            if allowed and t.frame.key not in allowed:
-                out.append(f"{n}: frame {t.frame.id} v{t.frame.version} isn't one of the project's frames")
-            if line is not None and ident is not None and line[0].voice != ident[0].voice:
-                out.append(
-                    f"{n}: the line is in the {line[0].voice!r} voice but the identity speaks as {ident[0].voice!r}"
-                )
-            if ident is not None and scene is not None:
-                if ident[0].presence == "embodied" and scene[0].character_area is None:
-                    out.append(
-                        f"{n}: {ident[0].id} appears in the image, but scene {scene[0].id} has no character_area"
-                    )
-                if ident[0].presence == "viewpoint" and t.frame != ident[0].frame:
-                    out.append(f"{n}: a viewpoint teaser uses its identity's frame ({ident[0].frame.id})")  # type: ignore[union-attr]
+    for links, path in b.teasers.values():
+        if links.status != "retired":
+            out += [f"{path.name}: {p}" for p in teaser_problems(b, links)]
+    return out
+
+
+def teaser_problems(b: ProjectBundle, links: TeaserLinks) -> list[str]:
+    """What is wrong with one version of the teaser links: each must name files that exist and fit."""
+    out: list[str] = []
+    proj = b.project
+    if links.project != b.id:
+        out.append(f"the teaser links are for project {links.project!r}, not {b.id!r}")
+    allowed = {f.key for f in proj.frames}
+    for n, t in links.teasers.items():
+        line = b.lines.get(t.line.key)
+        ident = b.identities.get(t.identity.key)
+        scene = b.scenes.get(t.scene.key)
+        if line is None:
+            out.append(f"{n}: no line {t.line.id} v{t.line.version}")
+        if ident is None:
+            out.append(f"{n}: no identity {t.identity.id} v{t.identity.version}")
+        if scene is None:
+            out.append(f"{n}: no scene {t.scene.id} v{t.scene.version}")
+        if allowed and t.frame.key not in allowed:
+            out.append(f"{n}: frame {t.frame.id} v{t.frame.version} isn't one of the project's frames")
+        if line is not None and ident is not None and line[0].voice != ident[0].voice:
+            out.append(f"{n}: the line is in the {line[0].voice!r} voice but the identity speaks as {ident[0].voice!r}")
+        if ident is not None and scene is not None:
+            if ident[0].presence == "embodied" and scene[0].character_area is None:
+                out.append(f"{n}: {ident[0].id} appears in the image, but scene {scene[0].id} has no character_area")
+            if ident[0].presence == "viewpoint" and t.frame != ident[0].frame:
+                out.append(f"{n}: a viewpoint teaser uses its identity's frame ({ident[0].frame.id})")  # type: ignore[union-attr]
     return out

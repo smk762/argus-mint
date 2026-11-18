@@ -7,12 +7,15 @@ Authoring is the one place prompt text reaches argus-mint from a client, so it i
 - every save is checked: the file's schema, the project's cross-file problems, the private
   spoiler list (reported by rule number only) and SingGuard, through darkroom's text pre-flight
   under the project's own policy;
-- approval is refused while a spoiler rule matches or SingGuard hasn't passed the file's text,
-  and with no darkroom configured there is no SingGuard, so nothing is approved;
+- SingGuard's verdicts are stored in the file itself (its ``guard`` block, left out of its hash).
+  A verdict counts while the text and the policy are the ones it judged, so a restart keeps it
+  and an edit or a new policy drops it;
+- approval is refused while a spoiler rule matches, or while any of the file's texts lacks a
+  passing verdict; with no darkroom configured, a missing verdict can't be made, so that file
+  can't be approved;
+- teaser links (``teasers/<project>-v<n>.json``) are reviewed like the rest, and are approved
+  only when every file they link is approved and nothing in them is wrong;
 - nothing renders from a file until it is approved (hard rule 2); renders are another module's.
-
-``teasers.json`` only links reviewed files, so it is saved without review; the teaser images it
-leads to are reviewed as drafts.
 """
 
 from __future__ import annotations
@@ -32,22 +35,28 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ValidationError
 
 from argus_mint._codec import hex0x
-from argus_mint.catalogue import CatalogueError, record_decision
+from argus_mint.catalogue import CatalogueError, record_decision, record_guard
 from argus_mint.projects import (
     REVIEW_KEYS,
+    GuardVerdict,
     Identity,
     Line,
     Project,
     ProjectBundle,
     ProjectError,
     Scene,
+    TeaserLinks,
     file_strings,
+    fresh_verdicts,
     load_bundle,
     load_identity,
     load_line,
     load_project,
     load_scene,
+    load_teasers,
     problems,
+    teaser_problems,
+    text_sha256,
 )
 from argus_mint.spoilers import SpoilerList
 from argus_mint.wire import (
@@ -59,7 +68,6 @@ from argus_mint.wire import (
     ProjectSummary,
     SavedProjectFile,
     SaveProjectFile,
-    SaveTeasers,
     TextCheck,
 )
 
@@ -69,25 +77,34 @@ _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 class _Kind:
-    def __init__(
-        self, subdir: str | None, loader: Callable[[Path], Any], model: type[BaseModel], guarded: tuple[str, ...]
-    ):
+    def __init__(self, subdir: str | None, loader: Callable[[Path], Any], model: type[BaseModel], ext: str = "yaml"):
         self.subdir = subdir  # None: project.yaml at the project's root
         self.loader = loader
         self.model = model
-        self.guarded = guarded  # fields SingGuard reads (negative prompts are left out: they name what to avoid)
+        self.ext = ext
 
 
 KINDS: dict[str, _Kind] = {
-    "project": _Kind(None, load_project, Project, ("title", "attribution")),
-    "identity": _Kind("identities", load_identity, Identity, ("prompt",)),
-    "scene": _Kind("scenes", load_scene, Scene, ("prompt",)),
-    "line": _Kind("lines", load_line, Line, ("text", "published")),
+    "project": _Kind(None, load_project, Project),
+    "identity": _Kind("identities", load_identity, Identity),
+    "scene": _Kind("scenes", load_scene, Scene),
+    "line": _Kind("lines", load_line, Line),
+    "teasers": _Kind("teasers", load_teasers, TeaserLinks, ext="json"),
 }
+_OWN_ID = ("project", "teasers")  # kinds whose id is the project's own
 
 
 def _doc(obj: BaseModel) -> dict[str, Any]:
-    return obj.model_dump(mode="json")
+    doc = obj.model_dump(mode="json")
+    if not doc.get("guard"):
+        doc.pop("guard", None)
+    return doc
+
+
+def _file_text(path: Path, obj: BaseModel) -> str:
+    if path.suffix == ".json":
+        return json.dumps(_doc(obj), indent=2, ensure_ascii=False) + "\n"
+    return yaml.safe_dump(_doc(obj), sort_keys=False, allow_unicode=True, width=100)
 
 
 def add_project_routes(
@@ -100,7 +117,6 @@ def add_project_routes(
     lock: threading.Lock,
     frame_keys: Callable[[], set[tuple[str, int]]],
 ) -> None:
-    guarded: dict[tuple[str, str], tuple[bool, str]] = {}  # (policy, text) -> verdict, for this process's life
     can_guard = hasattr(darkroom, "check_text")
 
     def project_root(pid: str) -> Path:
@@ -120,7 +136,7 @@ def add_project_routes(
     def table(b: ProjectBundle, kind: str) -> dict[tuple[str, int], tuple[Any, Path]]:
         if kind == "project":
             return {b.project.key: (b.project, b.root / "project.yaml")}
-        return {"identity": b.identities, "scene": b.scenes, "line": b.lines}[kind]
+        return {"identity": b.identities, "scene": b.scenes, "line": b.lines, "teasers": b.teasers}[kind]
 
     def project_file(b: ProjectBundle, kind: str, obj: Any, path: Path) -> ProjectFile:
         return ProjectFile(
@@ -133,51 +149,47 @@ def add_project_routes(
             doc=_doc(obj),
         )
 
-    def guard_texts(kind: str, obj: Any) -> list[tuple[str, str]]:
-        label = f"{kind} {obj.id} v{obj.version}"
-        return [
-            (f"{label}: {f}", t) for f in KINDS[kind].guarded if isinstance(t := getattr(obj, f), str) and t.strip()
-        ]
-
-    def teaser_texts(b: ProjectBundle) -> list[tuple[str, str]]:
-        return [(f"teaser {n}: alt", t.alt) for n, t in (b.teasers.teasers.items() if b.teasers else [])]
-
-    def run_guard(policy: str, texts: list[tuple[str, str]], *, cached_only: bool) -> list[TextCheck]:
-        out: list[TextCheck] = []
-        for label, text in texts:
-            key = (policy, text)
-            if key not in guarded:
-                if cached_only or not can_guard:
-                    continue
-                guarded[key] = darkroom.check_text(text, policy=policy)
-            passed, detail = guarded[key]
-            out.append(TextCheck(field=label, passed=passed, detail=detail))
+    def judge(texts: list[tuple[str, str]], policy: str) -> list[GuardVerdict]:
+        """New verdicts on ``texts`` (darkroom's text pre-flight under ``policy``); none without a darkroom."""
+        if not can_guard:
+            return []
+        now = datetime.now(UTC)
+        out = []
+        for f, text in texts:
+            passed, detail = darkroom.check_text(text, policy=policy)
+            out.append(
+                GuardVerdict(
+                    field=f, sha256=text_sha256(text), policy=policy, passed=passed, detail=detail, checked_at=now
+                )
+            )
         return out
 
-    def checks(
-        b: ProjectBundle, texts: list[tuple[str, str]], strings: list[str], *, cached_only: bool
-    ) -> ProjectChecks:
+    def merged(obj: Any, new: list[GuardVerdict], policy: str) -> tuple[GuardVerdict, ...]:
+        """The file's verdicts that still hold, plus ``new``: stale ones are dropped."""
+        fresh, _ = fresh_verdicts(obj, policy)
+        by_field = {**fresh, **{v.field: v for v in new}}
+        return tuple(by_field[f] for f, _ in obj.guarded_texts() if f in by_field)
+
+    def text_checks(kind: str, obj: Any, policy: str) -> list[TextCheck]:
+        fresh, _ = fresh_verdicts(obj, policy)
+        label = f"{kind} {obj.id} v{obj.version}"
+        return [TextCheck(field=f"{label}: {f}", passed=v.passed, detail=v.detail) for f, v in fresh.items()]
+
+    def checks(b: ProjectBundle, files: list[tuple[str, Any]]) -> ProjectChecks:
         try:
             found = problems(b, frame_keys())
         except HTTPException as e:  # a broken frames directory: report it, don't hide the project's own
             found = [f"frames can't be listed: {e.detail}"]
+        policy = b.project.policy
         return ProjectChecks(
             problems=found,
-            spoiler_rules=spoilers.hits(*strings),
-            guard=run_guard(b.project.policy, texts, cached_only=cached_only),
+            spoiler_rules=spoilers.hits(*(s for _, obj in files for s in file_strings(_doc(obj)))),
+            guard=[c for kind, obj in files for c in text_checks(kind, obj, policy)],
             guard_ran=can_guard,
         )
 
-    def all_texts(b: ProjectBundle) -> tuple[list[tuple[str, str]], list[str]]:
-        texts: list[tuple[str, str]] = []
-        strings: list[str] = []
-        for kind in KINDS:
-            for obj, _ in table(b, kind).values():
-                texts += guard_texts(kind, obj)
-                strings += file_strings(_doc(obj))
-        texts += teaser_texts(b)
-        strings += file_strings(b.teasers.model_dump(mode="json")) if b.teasers else []
-        return texts, strings
+    def all_files(b: ProjectBundle) -> list[tuple[str, Any]]:
+        return [(kind, obj) for kind in KINDS for obj, _ in table(b, kind).values()]
 
     @app.get("/projects")
     def list_projects() -> ProjectList:
@@ -198,8 +210,7 @@ def add_project_routes(
     def get_project(pid: str) -> ProjectDetail:
         b = bundle(pid)
         files = [project_file(b, kind, obj, path) for kind in KINDS for obj, path in table(b, kind).values()]
-        texts, strings = all_texts(b)
-        return ProjectDetail(id=pid, files=files, teasers=b.teasers, checks=checks(b, texts, strings, cached_only=True))
+        return ProjectDetail(id=pid, files=files, checks=checks(b, all_files(b)))
 
     @app.post("/projects/{pid}/files/{kind}/{item_id}/{version}")
     def save_file(
@@ -216,11 +227,11 @@ def add_project_routes(
         root = project_root(pid)
         if not _ID.fullmatch(item_id) or version < 1:
             raise HTTPException(422, "an id is lower-case letters, digits and hyphens, and a version is 1 or more")
-        if kind == "project" and item_id != pid:
-            raise HTTPException(422, f"project.yaml's id is the project's own ({pid})")
+        if kind in _OWN_ID and item_id != pid:
+            raise HTTPException(422, f"a {kind} file's id is the project's own ({pid})")
         given = [k for k in REVIEW_KEYS if k in body.doc]
         if given:
-            raise HTTPException(422, f"a saved file is a draft: leave out {', '.join(given)}")
+            raise HTTPException(422, f"a saved file is a draft, checked here: leave out {', '.join(given)}")
         for key, want in (("id", item_id), ("version", version), *((("project", pid),) if kind != "project" else ())):
             if key in body.doc and body.doc[key] != want:
                 raise HTTPException(422, f"`{key}` is {body.doc[key]!r} in the file but {want!r} in the path")
@@ -236,10 +247,14 @@ def add_project_routes(
 
         if kind != "project" and not (root / "project.yaml").is_file():
             raise HTTPException(404, f"no project {pid}: save its project.yaml first")
+        existing = table(bundle(pid), kind).get((item_id, version)) if (root / "project.yaml").is_file() else None
+        if existing is not None and existing[0].status != "draft":
+            raise HTTPException(409, f"{kind} {item_id} v{version} is {existing[0].status}; save a new version")
+        # SingGuard judges the texts before anything is written (and outside the lock: it's a network call).
+        policy = obj.policy if kind == "project" else bundle(pid).project.policy
+        obj = obj.model_copy(update={"guard": tuple(judge(obj.guarded_texts(), policy))})
         with lock:
-            existing = None
-            if (root / "project.yaml").is_file():
-                existing = table(bundle(pid), kind).get((item_id, version))
+            existing = table(bundle(pid), kind).get((item_id, version)) if (root / "project.yaml").is_file() else None
             if existing is not None and existing[0].status != "draft":
                 raise HTTPException(409, f"{kind} {item_id} v{version} is {existing[0].status}; save a new version")
             if existing is not None:
@@ -247,12 +262,12 @@ def add_project_routes(
             elif spec.subdir is None:
                 path = root / "project.yaml"
             else:
-                path = root / spec.subdir / f"{item_id}-v{version}.yaml"
+                path = root / spec.subdir / f"{item_id}-v{version}.{spec.ext}"
             if path.exists() and not os.access(path, os.W_OK):
                 raise HTTPException(503, f"{path.relative_to(projects_dir)} is not writable on this server")
             original = path.read_text(encoding="utf-8") if path.exists() else None
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(yaml.safe_dump(_doc(obj), sort_keys=False, allow_unicode=True, width=100), encoding="utf-8")
+            path.write_text(_file_text(path, obj), encoding="utf-8")
             try:
                 b = load_bundle(root)
             except ProjectError as e:
@@ -262,34 +277,9 @@ def add_project_routes(
                     path.write_text(original, encoding="utf-8")
                 raise HTTPException(422, f"the project wouldn't load with this file, so it wasn't saved: {e}") from e
         saved_obj, saved_path = table(b, kind)[(item_id, version)]
-        result = checks(b, guard_texts(kind, saved_obj), file_strings(_doc(saved_obj)), cached_only=False)
-        return SavedProjectFile(file=project_file(b, kind, saved_obj, saved_path), checks=result)
-
-    @app.post("/projects/{pid}/teasers")
-    def save_teasers(
-        pid: str, body: SaveTeasers, authorization: Annotated[str | None, Header()] = None
-    ) -> SavedProjectFile:
-        require_token(authorization)
-        root = project_root(pid)
-        if body.teasers.project != pid:
-            raise HTTPException(422, f"teasers.json is for project {body.teasers.project!r}, not {pid!r}")
-        with lock:
-            bundle(pid)  # the project exists and loads
-            path = root / "teasers.json"
-            original = path.read_text(encoding="utf-8") if path.exists() else None
-            path.write_text(
-                json.dumps(body.teasers.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-            )
-            try:
-                b = load_bundle(root)
-            except ProjectError as e:  # pragma: no cover - the body was already validated as TeaserLinks
-                if original is None:
-                    path.unlink()
-                else:
-                    path.write_text(original, encoding="utf-8")
-                raise HTTPException(422, str(e)) from e
-        strings = file_strings(b.teasers.model_dump(mode="json")) if b.teasers else []
-        return SavedProjectFile(file=None, checks=checks(b, teaser_texts(b), strings, cached_only=False))
+        return SavedProjectFile(
+            file=project_file(b, kind, saved_obj, saved_path), checks=checks(b, [(kind, saved_obj)])
+        )
 
     @app.post("/projects/{pid}/files/{kind}/{item_id}/{version}/review")
     def review_file(
@@ -314,11 +304,40 @@ def add_project_routes(
             hits = spoilers.hits(*file_strings(_doc(obj)))
             if hits:
                 raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
-            if not can_guard:
+            if kind == "teasers":
+                wrong = teaser_problems(b, obj)
+                if wrong:
+                    raise HTTPException(409, "the teaser links have problems: " + "; ".join(wrong))
+                unapproved = sorted(
+                    {
+                        f"{k} {ref.id} v{ref.version}"
+                        for t in obj.teasers.values()
+                        for k, ref, tab in (
+                            ("line", t.line, b.lines),
+                            ("identity", t.identity, b.identities),
+                            ("scene", t.scene, b.scenes),
+                        )  # fmt: skip
+                        if ref.key not in tab or tab[ref.key][0].status != "approved"
+                    }
+                )
+                if unapproved:
+                    raise HTTPException(409, "teasers link files that aren't approved: " + ", ".join(unapproved))
+            policy = b.project.policy if kind != "project" else obj.policy
+            _fresh, missing = fresh_verdicts(obj, policy)
+            if missing and not can_guard:
                 raise HTTPException(
                     409, "no darkroom is configured, so SingGuard can't check this text and it can't be approved"
                 )
-            failed = [c for c in run_guard(b.project.policy, guard_texts(kind, obj), cached_only=False) if not c.passed]
+            new = judge(missing, policy)
+            if new:  # keep them in the file, whatever they say, so the next look needn't ask again
+                with lock:
+                    try:
+                        record_guard(path, [v.model_dump(mode="json") for v in merged(obj, new, policy)],
+                                     validate=KINDS[kind].loader)  # fmt: skip
+                    except CatalogueError as e:
+                        raise HTTPException(409, str(e)) from e
+                obj = KINDS[kind].loader(path)
+            failed = [c for c in text_checks(kind, obj, policy) if not c.passed]
             if failed:
                 raise HTTPException(409, "SingGuard refused: " + "; ".join(f"{c.field} ({c.detail})" for c in failed))
         with lock:

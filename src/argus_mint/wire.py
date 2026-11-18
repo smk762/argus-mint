@@ -18,7 +18,6 @@ from argus_mint.bios import BioTemplate
 from argus_mint.cards import CardDraft
 from argus_mint.frames import Frame
 from argus_mint.metadata import CardStyle
-from argus_mint.projects import TeaserLinks
 from argus_mint.templates import LoraChoice, Template
 
 __all__ = [
@@ -63,7 +62,6 @@ __all__ = [
     "ProjectList",
     "ProjectSummary",
     "SaveProjectFile",
-    "SaveTeasers",
     "SavedProjectFile",
     "TextCheck",
 ]
@@ -107,9 +105,7 @@ class Capabilities(_Wire):
     check_templates: bool = False  # darkroom can be asked whether it renders a template (GET .../check)
     author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
     backgrounds: bool = False  # scene backgrounds can be rendered: darkroom configured, token set, not read-only
-    teasers: bool = (
-        False  # teaser drafts can be made: moderator token set, not read-only (an embodied one needs darkroom)
-    )
+    teasers: bool = False  # teaser drafts: moderator token set, not read-only (embodied ones need darkroom too)
 
 
 class Health(_Wire):
@@ -417,11 +413,14 @@ class LibraryListing(_Wire):
 
 # -- teaser projects --------------------------------------------------------------------------------
 
-ProjectKind = Literal["project", "identity", "scene", "line"]
+ProjectKind = Literal["project", "identity", "scene", "line", "teasers"]
 
 
 class TextCheck(_Wire):
-    """SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight)."""
+    """SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).
+
+    The verdict is stored in the file's ``guard`` block and holds while the text and the policy
+    are the ones it judged."""
 
     field: str  # which file and field, e.g. "scene lamp-room v1: prompt"
     passed: bool
@@ -462,15 +461,14 @@ class ProjectList(_Wire):
 
 
 class ProjectDetail(_Wire):
-    """GET /projects/{id}: every file of a project, its teaser links and their checks.
+    """GET /projects/{id}: every file of a project (teaser links included, kind ``teasers``) and their checks.
 
-    ``checks.guard`` holds only verdicts already made (on save or approval); a text not yet
-    checked has none.
+    ``checks.guard`` holds the verdicts stored in the files that still hold; a text with none
+    hasn't been checked since it (or the project's policy) last changed.
     """
 
     id: str
     files: list[ProjectFile]
-    teasers: TeaserLinks | None
     checks: ProjectChecks
 
 
@@ -478,20 +476,15 @@ class SaveProjectFile(_Wire):
     """POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.
 
     ``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved
-    file is always a draft. An approved or retired file never changes; save a new version.
+    file is always a draft, and ``guard`` is written by the server alone. An approved or
+    retired file never changes; save a new version.
     """
 
     doc: dict[str, Any]
 
 
-class SaveTeasers(_Wire):
-    """POST /projects/{id}/teasers: replace teasers.json."""
-
-    teasers: TeaserLinks
-
-
 class SavedProjectFile(_Wire):
-    file: ProjectFile | None  # None for teasers.json
+    file: ProjectFile
     checks: ProjectChecks  # for the saved file's texts, and the project's cross-file problems
 
 
@@ -543,7 +536,6 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     ProjectList,
     ProjectDetail,
     SaveProjectFile,
-    SaveTeasers,
     SavedProjectFile,
     BackgroundSet,
     BackgroundSetList,

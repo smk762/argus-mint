@@ -51,7 +51,7 @@ Each draft also records what made it, in `made_with`: `{"argus-mint": <version>}
 | `library` | the library entry id, when the art came from one |
 | `asset_id`, `to` | the consumer's 32-byte asset id (`null` for a teaser), and the wallet the card is minted to (the owner, who signs the review) |
 | `name`, `description`, `external_url`, `consumer` | metadata text. `description` defaults to the bio. A teaser has no `consumer` and is named `<title> T<n>` |
-| `teaser` | for a teaser: its project and number, each linked file (project, line, identity, scene) by id, version and hash, `presence`, the background's id and sha256, and the alt text |
+| `teaser` | for a teaser: its project and number, each linked file (project, teaser links, line, identity, scene) by id, version and hash, `presence`, the background's id and sha256, and the alt text |
 | `frame` | the frame's id, version and hash, when framed |
 | `bio` | the bio template (id, version, hash, model), the text, every writing attempt, and `edited` if a person changed it |
 | `texts` | the consumer's display text by frame slot (class, stats…) |

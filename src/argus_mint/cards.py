@@ -144,6 +144,7 @@ class TeaserRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     project: TeaserFile
+    links: TeaserFile  # the version of the teaser links it was made from (id = the project's)
     number: str = Field(pattern=r"^T[1-9][0-9]{0,4}$")
     line: TeaserFile
     identity: TeaserFile

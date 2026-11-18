@@ -1,5 +1,5 @@
 {
-  "id": "6f6358ae60cb7f4e",
+  "id": "e9d0f58d7a94cf0f",
   "status": "published",
   "awaiting": [],
   "draft": {
@@ -43,7 +43,7 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
-    "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
+    "to": "0xfe345bD7bF0dAc770eF763827CfB588cE4236525",
     "name": "Emerald Wizard",
     "description": "Emerald Wizard mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
     "external_url": null,
@@ -85,21 +85,21 @@
     "auto_check": null,
     "art_sha256": "9fec142fce99f181d84ace6b513d30647e123e131407c0a2d6181750e1a4c56b",
     "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
-    "created_at": "2026-11-18T06:34:07.702662Z",
+    "created_at": "2026-11-18T06:37:56.881580Z",
     "reviews": [
       {
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-18T06:34:07.712382Z",
+        "at": "2026-11-18T06:37:56.889245Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
-        "at": "2026-11-18T06:34:07.738865Z",
+        "by": "0xfe345bD7bF0dAc770eF763827CfB588cE4236525",
+        "at": "2026-11-18T06:37:56.907070Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       }
@@ -127,15 +127,15 @@
         "role": "moderator",
         "decision": "approved",
         "by": "moderator-1",
-        "at": "2026-11-18T06:34:07.712382Z",
+        "at": "2026-11-18T06:37:56.889245Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       },
       {
         "role": "owner",
         "decision": "approved",
-        "by": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
-        "at": "2026-11-18T06:34:07.738865Z",
+        "by": "0xfe345bD7bF0dAc770eF763827CfB588cE4236525",
+        "at": "2026-11-18T06:37:56.907070Z",
         "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
         "note": ""
       }
@@ -177,13 +177,13 @@
     },
     "metadata_cid": "bafkreicp5gb5oyy7sv7brdsgrybkh6hrmbil36fcp3nsrhdsxlde7owx3a",
     "voucher": {
-      "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
+      "to": "0xfe345bD7bF0dAc770eF763827CfB588cE4236525",
       "asset_id": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
       "content_hash": "0xbf7a0cfaae71254a8f6109e89b4a199a2288681b14e65d9c941bacdd5fa1f874",
       "price": 0,
       "deadline": 1900000000
     },
-    "signature": "0x4cb0c997fb0554819e1eaa7ed2b51d3057df6de569e70b083873f02af55e0f5f65311c564e7af785e5b4d28880bbaf062ee709d6e9242c916a3549f0474ac8fb1c",
+    "signature": "0x23d57dca0b40dabc02748c806d95abdaa8246b2d8d3591dbdcc1b86eb83be45b687f66405f2f06dc562589ba915533a69f5ce7fea57f91fee10ba96b220dc0b81b",
     "typed_data": {
       "types": {
         "EIP712Domain": [
@@ -235,7 +235,7 @@
         "verifyingContract": "0xCAa3573b5550870A5e15C47c650b8700D70a8fA7"
       },
       "message": {
-        "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
+        "to": "0xfe345bD7bF0dAc770eF763827CfB588cE4236525",
         "assetId": "0x26e9840acf58ba86690e67c03e21cf541cefc52f8c6aee1d8fde5986f89180a2",
         "contentHash": "0xbf7a0cfaae71254a8f6109e89b4a199a2288681b14e65d9c941bacdd5fa1f874",
         "price": 0,

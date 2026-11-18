@@ -1,9 +1,10 @@
 """Composing a teaser: an approved background, the identity painted in (or its frame over it), the quote.
 
-A teaser draft is made from teaser ``T<n>`` in a project's ``teasers.json``, and only from
-reviewed parts (hard rule 2): the project, line, identity, scene and frame must be approved, and
-so must the chosen background. Nothing is made while the project has a cross-file problem or a
-spoiler rule matches any linked text.
+A teaser draft is made from teaser ``T<n>`` in the project's current teaser links (the newest
+approved version), and only from reviewed parts (hard rule 2): the links, project, line,
+identity, scene and frame must be approved, and so must the chosen background. Nothing is made
+while the project has a cross-file problem, a spoiler rule matches any linked text, or a linked
+text lacks a fresh passing SingGuard verdict (stored in its file).
 
 - **Embodied** identity: its ``prompt`` (with its ``lora`` once pinned, plus the project's
   ``style_lora``: darkroom takes at most :data:`MAX_LORAS`) is inpainted into the scene's
@@ -34,7 +35,17 @@ from argus_mint._codec import hex0x
 from argus_mint.backgrounds import Background
 from argus_mint.cards import CardDraft, TeaserBackground, TeaserFile, TeaserRecord, sha256_hex
 from argus_mint.frames import FrameError, LoadedFrame, compose
-from argus_mint.projects import Area, Identity, Line, Project, ProjectBundle, Scene, file_strings, problems
+from argus_mint.projects import (
+    Area,
+    Identity,
+    Line,
+    Project,
+    ProjectBundle,
+    Scene,
+    file_strings,
+    fresh_verdicts,
+    problems,
+)
 from argus_mint.render import InitImage, Inpainter, render_requests
 from argus_mint.spoilers import SpoilerList
 from argus_mint.templates import SEED_MAX, InitImageRef, LoraRef, RenderRequest
@@ -68,7 +79,7 @@ class TeaserError(ValueError):
 
 
 class TeaserNotFound(TeaserError):
-    """No such teaser in the project's teasers.json."""
+    """No such teaser in the project's current teaser links."""
 
 
 # -- the PNG ----------------------------------------------------------------------------------------
@@ -205,6 +216,14 @@ def teaser_texts(frame: LoadedFrame, project: Project, line: Line) -> dict[str, 
 # -- the draft --------------------------------------------------------------------------------------
 
 
+def _guard_gaps(obj: Any, policy: str) -> list[str]:
+    """Why ``obj``'s texts lack a fresh passing SingGuard verdict under ``policy`` (none: they all have one)."""
+    fresh, missing = fresh_verdicts(obj, policy)
+    return [f"{f} has no verdict for its text under policy {policy!r}" for f, _ in missing] + [
+        f"{f} was refused ({v.detail or 'no reason given'})" for f, v in fresh.items() if not v.passed
+    ]
+
+
 def _file(obj: Any) -> TeaserFile:
     return TeaserFile(id=obj.id, version=obj.version, hash=hex0x(obj.hash()))
 
@@ -227,17 +246,15 @@ def make_teaser(
     a spoiler rule matches, a problem stands, the frame can't take the text, darkroom can't
     inpaint), ``RenderError``/``RenderFailed`` from the inpainting, and ``FrameError``.
     """
-    links = bundle.teasers
-    if links is None or number not in links.teasers:
-        raise TeaserNotFound(f"project {bundle.id} has no teaser {number}")
+    links = bundle.current_teasers()
+    if links is None:
+        raise TeaserError(f"project {bundle.id} has no approved teaser links; only approved links make teasers")
+    if number not in links.teasers:
+        raise TeaserNotFound(f"project {bundle.id} has no teaser {number} in its teaser links v{links.version}")
     link = links.teasers[number]
     found = problems(bundle, frames)
     if found:
         raise TeaserError("the project has problems: " + "; ".join(found))
-    # teasers.json is reviewed once it has a status (argus-mint #55); until then it only links reviewed files.
-    links_status = getattr(links, "status", None)
-    if links_status is not None and links_status != "approved":
-        raise TeaserError(f"teasers.json is {links_status}; only approved teasers are made")
     project = bundle.project
     line = bundle.lines[link.line.key][0]
     identity = bundle.identities[link.identity.key][0]
@@ -251,7 +268,7 @@ def make_teaser(
         raise TeaserError(f"frame {frame.frame.id} v{frame.frame.version} is {frame.frame.status}")
 
     if link.background is None:
-        raise TeaserError(f"{number} has no background chosen yet (teasers.json `background`)")
+        raise TeaserError(f"{number} has no background chosen yet (its `background` in the teaser links)")
     if background.id != link.background:
         raise TeaserError(f"{number}'s background is {link.background}, not {background.id}")
     if (background.request.template_id, background.request.template_version) != link.scene.key:
@@ -263,11 +280,20 @@ def make_teaser(
     if sha256_hex(background_image) != background.sha256:
         raise TeaserError(f"background {background.id} on disk differs from the one approved")
 
-    linked = [project, line, identity, scene]
-    hits = spoilers.hits(*(s for obj in linked for s in file_strings(obj.model_dump(mode="json"))),
+    linked: list[tuple[str, Any]] = [
+        ("project", project), ("line", line), ("identity", identity), ("scene", scene), ("teaser links", links)
+    ]  # fmt: skip
+    hits = spoilers.hits(*(s for _, obj in linked[:-1] for s in file_strings(obj.model_dump(mode="json"))),
                          *file_strings(link.model_dump(mode="json")))  # fmt: skip
     if hits:
         raise TeaserError("held by spoiler rule " + ", ".join(map(str, hits)))
+    unguarded = [
+        f"{kind} {obj.id} v{obj.version}: {problem}"
+        for kind, obj in linked
+        for problem in _guard_gaps(obj, project.policy)
+    ]
+    if unguarded:
+        raise TeaserError("SingGuard hasn't passed every linked text: " + "; ".join(unguarded))
 
     texts = teaser_texts(frame, project, line)
     made_with = {"argus-mint": argus_mint.__version__}
@@ -319,6 +345,7 @@ def make_teaser(
         texts=texts,
         teaser=TeaserRecord(
             project=_file(project),
+            links=_file(links),
             number=number,
             line=_file(line),
             identity=_file(identity),

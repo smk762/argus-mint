@@ -33,7 +33,17 @@ from argus_mint.backgrounds import (
 from argus_mint.cards import CardDraft, DraftError
 from argus_mint.darkroom import DarkroomClient, DarkroomError, check_inpaint, request_body
 from argus_mint.frames import load_frame
-from argus_mint.projects import Area, load_bundle
+from argus_mint.projects import (
+    Area,
+    GuardVerdict,
+    Identity,
+    Line,
+    Project,
+    Scene,
+    TeaserLinks,
+    load_bundle,
+    text_sha256,
+)
 from argus_mint.render import GenResult, InitImage, Rendered, RenderFailed
 from argus_mint.server import Settings, create_app
 from argus_mint.spoilers import EMPTY, parse
@@ -70,14 +80,27 @@ def png(width: int, height: int, colour: tuple[int, int, int]) -> bytes:
     return out.getvalue()
 
 
-def approve(root: Path, *, skip: tuple[str, ...] = ()) -> None:
-    """Approve every YAML file of the copied example project (but the files named in ``skip``)."""
-    for f in [root / "project.yaml", *sorted(root.glob("*/*.yaml"))]:
-        if f.relative_to(root).as_posix() in skip:
+LINKS = Path("teasers") / f"{PID}-v1.json"
+MODELS = {"project": Project, "identities": Identity, "scenes": Scene, "lines": Line, "teasers": TeaserLinks}
+
+
+def approve(root: Path, *, skip: tuple[str, ...] = (), refuse: str | None = None) -> None:
+    """Approve every file of the copied example project (but those named in ``skip``), with a passing
+    SingGuard verdict stored for each text (refused for any text containing ``refuse``)."""
+    for f in [root / "project.yaml", *sorted(root.glob("*/*.yaml")), root / LINKS]:
+        rel = f.relative_to(root).as_posix()
+        if rel in skip:
             continue
-        doc = yaml.safe_load(f.read_text())
-        doc |= {"status": "approved", "approved_by": "tester", "approved_at": "2026-11-18"}
-        f.write_text(yaml.safe_dump(doc, sort_keys=False))
+        doc = json.loads(f.read_text()) if f.suffix == ".json" else yaml.safe_load(f.read_text())
+        doc |= {"status": "approved", "approved_by": "tester", "approved_at": "2026-11-18", "guard": []}
+        obj = MODELS["project" if rel == "project.yaml" else rel.split("/")[0]].model_validate(doc)
+        doc["guard"] = [
+            GuardVerdict(field=k, sha256=text_sha256(t), policy="default", passed=not (refuse and refuse in t),
+                         detail="rule-7" if refuse and refuse in t else "", checked_at=datetime.now(UTC),
+                         ).model_dump(mode="json")
+            for k, t in obj.guarded_texts()
+        ]  # fmt: skip
+        f.write_text(json.dumps(doc) if f.suffix == ".json" else yaml.safe_dump(doc, sort_keys=False))
 
 
 def approve_frame(frames: Path) -> Path:
@@ -92,9 +115,10 @@ def approve_frame(frames: Path) -> Path:
 
 
 def choose(root: Path, number: str, bg: str | None) -> None:
-    doc = json.loads((root / "teasers.json").read_text())
+    """Choose a background (in tests, by editing the approved links in place; really, a new version)."""
+    doc = json.loads((root / LINKS).read_text())
     doc["teasers"][number]["background"] = bg
-    (root / "teasers.json").write_text(json.dumps(doc))
+    (root / LINKS).write_text(json.dumps(doc))
 
 
 class Stub:
@@ -371,9 +395,7 @@ def test_check_inpaint_reads_darkrooms_inpainting_workflows():
 
 def _make(root, frames, store, number="T1", *, bg=None, renderer=None, spoilers=EMPTY):
     b = load_bundle(root)
-    _s, background = store.find(
-        PID, bg or json.loads((root / "teasers.json").read_text())["teasers"][number]["background"]
-    )
+    _s, background = store.find(PID, bg or json.loads((root / LINKS).read_text())["teasers"][number]["background"])
     return make_teaser(
         bundle=b, number=number, frame=load_frame(frames / "example-teaser-v1.yaml"), background=background,
         background_image=store.image(PID, background.id), to=OWNER, renderer=renderer, spoilers=spoilers,
@@ -457,9 +479,9 @@ def test_refusals(world):
     with pytest.raises(TeaserError, match="line keep-it-lit v1 is draft"):
         _make(root, frames, store, renderer=Stub())
     approve(root)
-    teasers = json.loads((root / "teasers.json").read_text())
+    teasers = json.loads((root / LINKS).read_text())
     teasers["teasers"]["T1"]["line"] = {"id": "every-boat", "version": 1}  # the lamp's voice, not the keeper's
-    (root / "teasers.json").write_text(json.dumps(teasers))
+    (root / LINKS).write_text(json.dumps(teasers))
     with pytest.raises(TeaserError, match="the project has problems"):
         _make(root, frames, store, renderer=Stub())
 
@@ -649,3 +671,35 @@ def test_background_model_keeps_status_and_review_together(world):
         Background.model_validate(bg.model_dump() | {"status": "approved"})
     with pytest.raises(ValueError, match="file is"):
         Background.model_validate(bg.model_dump() | {"file": "../../x.png"})
+
+
+def test_only_approved_teaser_links_with_fresh_singguard_verdicts_make_teasers(world):
+    root, frames, store = world
+    bg, _ = rendered_background(store, root, "lamp-room")
+    choose(root, "T1", bg.id)
+    made = _make(root, frames, store, renderer=Stub())
+    links = load_bundle(root).current_teasers()
+    assert links is not None and made.draft.teaser.links.hash == "0x" + links.hash().hex()  # type: ignore[union-attr]
+
+    approve(root, refuse="lighthouse keeper")  # the keeper's prompt was refused
+    choose(root, "T1", bg.id)
+    with pytest.raises(TeaserError, match="identity keeper v1: prompt was refused"):
+        _make(root, frames, store, renderer=Stub())
+
+    approve(root)
+    line = root / "lines" / "keep-it-lit-v1.yaml"
+    doc = yaml.safe_load(line.read_text())
+    doc["guard"] = [v for v in doc["guard"] if v["field"] != "published"]  # never judged
+    line.write_text(yaml.safe_dump(doc, sort_keys=False))
+    with pytest.raises(TeaserError, match="published has no verdict"):
+        _make(root, frames, store, renderer=Stub())
+
+    approve(root, skip=(LINKS.as_posix(),))
+    links_file = root / LINKS
+    doc = json.loads(links_file.read_text())
+    doc["status"] = "draft"
+    doc.pop("approved_by", None)
+    doc.pop("approved_at", None)
+    links_file.write_text(json.dumps(doc))
+    with pytest.raises(TeaserError, match="no approved teaser links"):
+        _make(root, frames, store, bg=bg.id, renderer=Stub())

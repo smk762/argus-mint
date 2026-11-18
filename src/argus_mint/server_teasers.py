@@ -267,15 +267,18 @@ def add_teaser_routes(
         except ValueError as e:
             raise HTTPException(422, str(e)) from e
         b = bundle(pid)
-        link = b.teasers.teasers.get(number) if b.teasers else None
+        links = b.current_teasers()
+        if links is None:
+            raise HTTPException(409, f"project {pid} has no approved teaser links")
+        link = links.teasers.get(number)
         if link is None:
-            raise HTTPException(404, f"project {pid} has no teaser {number}")
+            raise HTTPException(404, f"project {pid} has no teaser {number} in its teaser links v{links.version}")
         table = frames()
         lf = table.get(link.frame.key)
         if lf is None:
             raise HTTPException(409, f"frame {link.frame.id} v{link.frame.version} isn't served here")
         if link.background is None:
-            raise HTTPException(409, f"{number} has no background chosen yet (teasers.json `background`)")
+            raise HTTPException(409, f"{number} has no background chosen yet (its `background` in the teaser links)")
         try:
             _s, bg = store.find(pid, link.background)
             bg_image = store.image(pid, link.background)
