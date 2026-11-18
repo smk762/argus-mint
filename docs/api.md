@@ -48,6 +48,7 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 | `library` | a pre-rendered library is served |
 | `check_templates` | a darkroom is configured to check templates against |
 | `auto_moderate` | auto-moderation is on |
+| `author_catalogue` | moderator token set, projects directory writable, not read-only |
 
 ## Catalogue
 
@@ -63,6 +64,10 @@ See [catalogue.md](catalogue.md).
 | `POST /templates/{id}/{version}/review` | moderator | `{decision: "approve" \| "retire", by}`; writes it into the YAML. A template darkroom can't render isn't approved (409) |
 | `POST /frames/{id}/{version}/review` | moderator | the same, for a frame |
 | `POST /bios/{id}/{version}/review` | moderator | the same, for a bio template |
+
+## Teaser projects
+
+See [projects.md](projects.md): `GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/files/{kind}/{item}/{version}` (save a draft, teaser links included), and `POST /projects/{id}/files/{kind}/{item}/{version}/review`. Writes need the moderator token.
 
 ## Library
 

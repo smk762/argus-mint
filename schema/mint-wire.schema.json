@@ -283,6 +283,11 @@
       "additionalProperties": false,
       "description": "What this server will do. A client disables a control whose capability is false.",
       "properties": {
+        "author_catalogue": {
+          "default": false,
+          "title": "Author Catalogue",
+          "type": "boolean"
+        },
         "auto_moderate": {
           "default": false,
           "title": "Auto Moderate",
@@ -1392,7 +1397,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.10",
+          "default": "1.11",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1634,6 +1639,175 @@
         "name"
       ],
       "title": "LoraRef",
+      "type": "object"
+    },
+    "ProjectChecks": {
+      "additionalProperties": false,
+      "description": "What stands between a project's files and approval.\n\n``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is\nfalse when no darkroom is configured: then nothing can be approved.",
+      "properties": {
+        "guard": {
+          "items": {
+            "$ref": "#/$defs/TextCheck"
+          },
+          "title": "Guard",
+          "type": "array"
+        },
+        "guard_ran": {
+          "title": "Guard Ran",
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "spoiler_rules": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Spoiler Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "problems",
+        "spoiler_rules",
+        "guard",
+        "guard_ran"
+      ],
+      "title": "ProjectChecks",
+      "type": "object"
+    },
+    "ProjectDetail": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}: every file of a project (teaser links included, kind ``teasers``) and their checks.\n\n``checks.guard`` holds the verdicts stored in the files that still hold; a text with none\nhasn't been checked since it (or the project's policy) last changed.",
+      "properties": {
+        "checks": {
+          "$ref": "#/$defs/ProjectChecks"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/ProjectFile"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "files",
+        "checks"
+      ],
+      "title": "ProjectDetail",
+      "type": "object"
+    },
+    "ProjectFile": {
+      "additionalProperties": false,
+      "properties": {
+        "doc": {
+          "additionalProperties": true,
+          "title": "Doc",
+          "type": "object"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "project",
+            "identity",
+            "scene",
+            "line",
+            "teasers"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "status",
+        "hash",
+        "file",
+        "doc"
+      ],
+      "title": "ProjectFile",
+      "type": "object"
+    },
+    "ProjectList": {
+      "additionalProperties": false,
+      "properties": {
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/ProjectSummary"
+          },
+          "title": "Projects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "projects"
+      ],
+      "title": "ProjectList",
+      "type": "object"
+    },
+    "ProjectSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "title": "ProjectSummary",
       "type": "object"
     },
     "PublishRequest": {
@@ -2333,6 +2507,39 @@
       "title": "Sampling",
       "type": "object"
     },
+    "SaveProjectFile": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.\n\n``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved\nfile is always a draft, and ``guard`` is written by the server alone. An approved or\nretired file never changes; save a new version.",
+      "properties": {
+        "doc": {
+          "additionalProperties": true,
+          "title": "Doc",
+          "type": "object"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "SaveProjectFile",
+      "type": "object"
+    },
+    "SavedProjectFile": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "$ref": "#/$defs/ProjectChecks"
+        },
+        "file": {
+          "$ref": "#/$defs/ProjectFile"
+        }
+      },
+      "required": [
+        "file",
+        "checks"
+      ],
+      "title": "SavedProjectFile",
+      "type": "object"
+    },
     "SlotBackground": {
       "additionalProperties": false,
       "description": "A filled, rounded box behind a text slot.",
@@ -2699,6 +2906,31 @@
       "title": "TemplateInfo",
       "type": "object"
     },
+    "TextCheck": {
+      "additionalProperties": false,
+      "description": "SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).\n\nThe verdict is stored in the file's ``guard`` block and holds while the text and the policy\nare the ones it judged.",
+      "properties": {
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field",
+        "passed"
+      ],
+      "title": "TextCheck",
+      "type": "object"
+    },
     "TextEdit": {
       "additionalProperties": false,
       "description": "The owner's change to the card: text and style. ``None`` leaves a field as it is; an empty\nslot text clears it; ``style`` replaces the whole style (an empty one clears it).",
@@ -2888,5 +3120,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.10"
+  "title": "argus-mint wire 1.11"
 }

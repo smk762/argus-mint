@@ -1,0 +1,10 @@
+# Embodied: painted into a scene's character_area. Once a LoRA trained on approved references
+# passes argus-proof, `lora` and `proof_run` are pinned here (from GET /report/<run>/manifest).
+id: keeper
+version: 1
+status: draft
+project: example-teasers
+voice: keeper
+presence: embodied
+prompt: "an elderly lighthouse keeper, weathered face, short grey beard, dark oilskin coat, knitted cap"
+negative: "nude, nudity, text, letters, watermark, signature"

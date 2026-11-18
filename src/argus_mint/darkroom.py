@@ -264,16 +264,17 @@ class DarkroomClient:
         resp.raise_for_status()
         return resp.json()
 
-    def check_text(self, text: str) -> tuple[bool, str]:
-        """Screen card text (a bio) with darkroom's text pre-flight under this client's policy.
+    def check_text(self, text: str, policy: str | None = None) -> tuple[bool, str]:
+        """Screen text (a bio, or a teaser project's prompt or quote) with darkroom's text pre-flight.
 
-        Implements :class:`argus_mint.bios.TextGuard`: ``(passes, detail)``.
+        Under ``policy`` (a teaser project's own), else this client's. Implements
+        :class:`argus_mint.bios.TextGuard`: ``(passes, detail)``.
         """
         body = {
             "user_prompt": text,
             "negative_prompt": "",
             "expand": False,
-            "enforcing_policy": self.policy,
+            "enforcing_policy": policy or self.policy,
             "advisory_policies": list(self.advisory_policies),
         }
         try:

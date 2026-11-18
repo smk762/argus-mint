@@ -46,7 +46,7 @@ Each row names what catches it. **UNENFORCED** rows need a check, not more prose
 | A consumer's deterministic code reads the chain | 6 | **UNENFORCED** here: consumer-side. Follow-up: #53 |
 | The same template version + variables + seed give a different request, or metadata hashes differently | 7 | `test_templates::test_fill_is_reproducible`, `test_metadata::test_canonical_is_byte_stable`, `::test_canonical_known_bytes` |
 | A change alters the hash of a card already minted | 7 | `test_frames::test_existing_demo_metadata_still_hashes_to_its_voucher`, `test_metadata::test_unset_render_choices_leave_the_content_hash_as_it_was`, `test_templates::test_hash_ignores_status_but_not_content`, `test_library::test_models_are_a_reviewed_choice_and_old_hashes_hold` |
-| The pure core (`_codec templates metadata merkle vouchers siwe`) imports a network client | 8 | `must_never::test_the_pure_core_imports_no_network_client` |
+| The pure core (`_codec templates metadata merkle vouchers siwe`, and `projects spoilers`) imports a network client | 8 | `must_never::test_the_pure_core_imports_no_network_client` |
 | An image reaches IPFS or a voucher without the moderator's and the owner's approval of that exact image | 9 | `test_cli::test_publish_needs_both_approvals`, `::test_publish_refuses_a_changed_image`, `::test_rejection_closes_the_draft` |
 | Placeholder art, or a dry run's voucher, goes on-chain | 9 | `test_cli::test_live_publish_refuses_placeholder_art_and_needs_ipfs_and_signer`, `test_cli_chain::test_submit_refuses_dry_runs_wrong_chain_and_bad_signers` |
 | A darkroom request sets `expand` or leaves the policy to darkroom (whose default is NSFW) | | `test_darkroom::test_request_body` |
@@ -57,6 +57,11 @@ Each row names what catches it. **UNENFORCED** rows need a check, not more prose
 | `tests/fixtures/merkle.json` is edited or regenerated some other way to make a test pass | | CI `verifier` job: rebuilds it with `@openzeppelin/merkle-tree` and fails on any diff |
 | OpenZeppelin and `evm_version` are bumped separately | | `must_never::test_openzeppelin_and_evm_version_move_together` |
 | The Kubo RPC (5001, admin-level) is exposed | | Partial: `must_never::test_kubo_rpc_is_published_on_localhost_only_by_default`; `IPFS_API_PUBLISH` can still override it |
+| A teaser project file is approved while a spoiler rule matches it | 2 | `test_server_projects::test_spoiler_holds_approval_by_rule_number`, `::test_teaser_links_are_reviewed_and_only_link_approved_files` |
+| A spoiler's text appears in a response, draft, fixture or log | | Partial: `test_server_projects::test_example_project_trips_the_spoiler_rule_by_number_only` (responses name rule numbers only) |
+| A project file is approved without a passing SingGuard verdict on its current text, under the project's current policy | 2 | `test_server_projects::test_singguard_refusal_holds_approval`, `::test_no_darkroom_means_no_approval`, `::test_stored_verdicts_outlive_the_server_and_an_edit_drops_them`, `test_projects::test_a_stored_verdict_holds_only_for_the_text_and_policy_it_judged` |
+| A client supplies a file's status, approval or SingGuard verdicts | 2 | `test_server_projects::test_save_needs_the_token_and_refuses_review_fields` |
+| An approved project file changes, or teaser links are approved while they name an unapproved line, identity or scene | 2 | `test_server_projects::test_approved_files_never_change`, `::test_teaser_links_are_reviewed_and_only_link_approved_files` |
 | Committed generated files go stale: ABIs, `docs/cli.md`, the wire schema, Python-built fixtures | | CI `contracts` job (`git diff --exit-code src/argus_mint/abi/`), `test_cli_docs::test_cli_docs_are_current`, `test_server::test_wire_schema_is_committed`, `test_fixtures` |
 
 ## Settled decisions (beyond the spec)
@@ -75,7 +80,7 @@ Each row names what catches it. **UNENFORCED** rows need a check, not more prose
 
 ## Layout
 
-`src/argus_mint/`: the pure core (above), then thin clients behind `Protocol`s (`render`, `pin`, `indexer`, `darkroom`, `bios`), web3 clients (`chain`, `ledger`; the `chain` extra), and `workflow` (`create_draft`/`publish`, shared by `cli` and `server`). `abi/` holds committed ABIs so pip users never need Foundry. `contracts/` is Foundry (OZ and forge-std as submodules); `verifier/` is the JS verifier; `templates/`, `frames/`, `bios/` hold example catalogue files; `docs/` is served by argus-assay at /docs. Generated and committed: `docs/cli.md` (`make cli-docs`), `schema/mint-wire.schema.json` (`make schema`), `fixtures/api/` (`scripts/api_fixture.py`, the UIs' demo mode), `tests/fixtures/`.
+`src/argus_mint/`: the pure core (above), then thin clients behind `Protocol`s (`render`, `pin`, `indexer`, `darkroom`, `bios`), web3 clients (`chain`, `ledger`; the `chain` extra), and `workflow` (`create_draft`/`publish`, shared by `cli` and `server`). Teaser projects: `projects` and `spoilers` (pure), served by `server_projects`; `projects/example-teasers` is a neutral example, and real projects live outside the repo (`ARGUS_MINT_PROJECTS_DIR`). `abi/` holds committed ABIs so pip users never need Foundry. `contracts/` is Foundry (OZ and forge-std as submodules); `verifier/` is the JS verifier; `templates/`, `frames/`, `bios/` hold example catalogue files; `docs/` is served by argus-assay at /docs. Generated and committed: `docs/cli.md` (`make cli-docs`), `schema/mint-wire.schema.json` (`make schema`), `fixtures/api/` (`scripts/api_fixture.py`, the UIs' demo mode), `tests/fixtures/`.
 
 Extras: base install = pure Python (no web3); `chain` = web3; `cli` = Typer; `frames` = Pillow; `server` = FastAPI + uvicorn + argus-cortex[server,remote] (implies cli, frames); `dev` = tests.
 

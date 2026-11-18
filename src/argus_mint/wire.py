@@ -52,13 +52,22 @@ __all__ = [
     "SampleJob",
     "SampleJobList",
     "SampleRequest",
+    "ProjectChecks",
+    "ProjectDetail",
+    "ProjectFile",
+    "ProjectList",
+    "ProjectSummary",
+    "SaveProjectFile",
+    "SavedProjectFile",
+    "TextCheck",
 ]
 
 # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
-# 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts)
-WIRE_VERSION = "1.10"
+# 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts);
+# 1.11 teaser projects (authoring, checks, review)
+WIRE_VERSION = "1.11"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -90,6 +99,7 @@ class Capabilities(_Wire):
     edit_text: bool = False  # owner edits of text and style: not read-only, and owner sign-in is set up
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
     check_templates: bool = False  # darkroom can be asked whether it renders a template (GET .../check)
+    author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
 
 
 class Health(_Wire):
@@ -388,6 +398,83 @@ class LibraryListing(_Wire):
     items: list[LibraryItem]
 
 
+# -- teaser projects --------------------------------------------------------------------------------
+
+ProjectKind = Literal["project", "identity", "scene", "line", "teasers"]
+
+
+class TextCheck(_Wire):
+    """SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).
+
+    The verdict is stored in the file's ``guard`` block and holds while the text and the policy
+    are the ones it judged."""
+
+    field: str  # which file and field, e.g. "scene lamp-room v1: prompt"
+    passed: bool
+    detail: str = ""  # the rule or reason when it didn't pass
+
+
+class ProjectChecks(_Wire):
+    """What stands between a project's files and approval.
+
+    ``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is
+    false when no darkroom is configured: then nothing can be approved.
+    """
+
+    problems: list[str]  # schema and cross-file problems, as sentences
+    spoiler_rules: list[int]
+    guard: list[TextCheck]
+    guard_ran: bool
+
+
+class ProjectFile(_Wire):
+    kind: ProjectKind
+    id: str
+    version: int
+    status: Literal["draft", "approved", "retired"]
+    hash: str
+    file: str  # relative to the project's directory
+    doc: dict[str, Any]  # the file's content
+
+
+class ProjectSummary(_Wire):
+    id: str
+    title: str
+    status: Literal["draft", "approved", "retired"]
+
+
+class ProjectList(_Wire):
+    projects: list[ProjectSummary]
+
+
+class ProjectDetail(_Wire):
+    """GET /projects/{id}: every file of a project (teaser links included, kind ``teasers``) and their checks.
+
+    ``checks.guard`` holds the verdicts stored in the files that still hold; a text with none
+    hasn't been checked since it (or the project's policy) last changed.
+    """
+
+    id: str
+    files: list[ProjectFile]
+    checks: ProjectChecks
+
+
+class SaveProjectFile(_Wire):
+    """POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.
+
+    ``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved
+    file is always a draft, and ``guard`` is written by the server alone. An approved or
+    retired file never changes; save a new version.
+    """
+
+    doc: dict[str, Any]
+
+
+class SavedProjectFile(_Wire):
+    file: ProjectFile
+    checks: ProjectChecks  # for the saved file's texts, and the project's cross-file problems
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -413,4 +500,8 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     LayoutRequest,
     FrameLayout,
     LibraryListing,
+    ProjectList,
+    ProjectDetail,
+    SaveProjectFile,
+    SavedProjectFile,
 )
