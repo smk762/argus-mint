@@ -276,3 +276,25 @@ def test_read_only_server_does_not_author(make):
     c, _, _ = make(read_only=True)
     assert c.get("/health").json()["capabilities"]["author_catalogue"] is False
     assert _save(c, "line", "tide", 1, LINE).status_code == 403
+
+
+def test_an_identity_with_an_unconsented_reference_is_not_approved(make, tmp_path):
+    from tests.test_references import CONSENTED, IMAGE, RELEASE, SUBJECT, _record
+
+    consent_dir = tmp_path / "consent"
+    consent_dir.mkdir()
+    c, _, _ = make(consent_dir=consent_dir)
+    doc = {
+        "voice": "keeper",
+        "presence": "embodied",
+        "prompt": "an old keeper in an oilskin coat",
+        "references": [{"file": "refs/jo.png", "sha256": IMAGE, "provenance": CONSENTED}],
+    }
+    r = _save(c, "identity", "jo", 1, doc)
+    assert r.status_code == 200, r.text
+    problems = r.json()["checks"]["problems"]
+    assert any("no consent record" in p for p in problems) and not any(SUBJECT in p for p in problems)
+    r = _approve(c, "identity", "jo", 1)
+    assert r.status_code == 409 and "references can't be approved" in r.json()["detail"]
+    (consent_dir / f"{RELEASE}.json").write_text(json.dumps(_record()))
+    assert _approve(c, "identity", "jo", 1).status_code == 200
