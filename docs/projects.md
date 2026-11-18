@@ -131,6 +131,41 @@ Then the layers:
 
 The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash, `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Once both approve, it can be [posted](#posting), [minted](#minting), both or neither.
 
+Before it is saved, it gets its [identity check](#the-identity-check) and auto-moderation's checks, which are recorded in its `auto_check` whether auto-moderation is on or not.
+
+## The identity check
+
+Does the figure painted in look like the identity it is meant to be? For a teaser of an **embodied** identity, argus-mint asks argus-proof (`POST /score`, `ARGUS_MINT_PROOF_URL`) to score it:
+
+- **the image:** the draft's unframed art (`art.png`), before the frame and text go on;
+- **the crop:** the scene's `character_area`, so the background isn't scored;
+- **the references:** the identity's `proof_export` (the held-out references its LoRA passed proof against);
+- **the scorer:** its `check_metric` (`identity`: ArcFace, a face; `likeness`: DINOv2, anything else), with proof's `target_category` `identity`.
+
+`character_area` is in the scene's render pixels, and that is the art's own pixel space: the background is rendered at the scene's `width` x `height`, the inpainting mask is drawn at that size over that area, and darkroom answers at its input's size. mint checks this rather than assuming it: art of another size, or with an EXIF orientation (proof crops after applying one), isn't sent, and proof's echo of the crop must be the crop sent.
+
+The result is `auto_check.identity`:
+
+| Field | |
+|---|---|
+| `outcome` | `passed` (`score` ≥ `min_score`), `below`, `uncalibrated` (scored; the identity has no `min_score` yet), `skipped`, `unavailable` or `error` |
+| `reason` | the outcome in words, e.g. `likeness 0.412 is under identity keeper v2's min_score 0.6` |
+| `presence`, `metric`, `score`, `min_score`, `export`, `crop` | what was asked and what came back |
+| `proof_version`, `scorer`, `scorer_version`, `model_file` | proof's provenance: its wire version, and the scorer's name, version and weights (`{name, sha256}`) |
+| `at`, `art_sha256` | when, and the art that was scored |
+
+What each outcome does:
+
+- **`passed`** is one of auto-moderation's passing checks.
+- **`below`** holds the draft, with the reason in `auto_check.held`. The moderator still decides.
+- **`uncalibrated`** records the score and says so, and holds nothing on it: the pilot sets `min_score` from these scores. It can't stand in for the moderator either, so with auto-moderation on the draft waits for a person.
+- **`skipped`**: a viewpoint identity has nobody painted in, so there's nothing to score, and that passes. An embodied identity with no `proof_export` yet (no LoRA has passed proof) has no references to score against, so it is held.
+- **`unavailable`**: proof didn't answer, answered 503 (its scorer isn't installed, or the GPU lease was refused), or isn't configured. **`error`**: proof refused the request (an unknown export, references that overlap the training images, a bad crop), or its answer can't be read. Both hold the draft: a teaser is never let through unchecked.
+
+When proof was down, the moderator runs the check again with `POST /drafts/{id}/identity-check` (moderator token; a pending teaser only, 409 otherwise). It scores the same art against the same identity and scene files the draft was made from (409 if they've changed), and records auto-moderation's checks again; with auto-moderation on and every check passing, that records the moderator's approval. The route is a sub-resource of the draft like `/review` and `/edit`, named for the record it rewrites and for the `identity_check` capability. It reruns the check rather than being a special retry, so it works whatever the last outcome was.
+
+The check never approves on its own. Auto-moderation records the moderator's approval only when it is on and every check passed, the identity check's included, and the owner always reviews.
+
 ## The tracker
 
 `GET /projects/{id}/tracker` reports, for each teaser of the newest approved links, the stages argus-mint works out, so a UI shows them rather than deciding them:
@@ -316,3 +351,5 @@ Publishing is optional for any approved draft, a card or a teaser: `POST /drafts
 `capabilities.author_catalogue` is true when the moderator token is set, the projects directory is writable, and the server isn't read-only.
 
 `capabilities.identity_training`: see [Training an identity](#training-an-identity).
+
+`capabilities.identity_check` is true when `ARGUS_MINT_PROOF_URL` is set and the server isn't read-only: an embodied identity's teasers are scored ([The identity check](#the-identity-check)). Without it they are held as unchecked.

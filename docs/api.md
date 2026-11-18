@@ -54,6 +54,7 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 | `teasers` | moderator token set, not read-only (painting an embodied identity in also needs darkroom) |
 | `post` | a poster or moderator token set, not read-only |
 | `identity_training` | moderator token, darkroom, curator, lens, forge and proof, the shared exports and LoRA directories, not read-only |
+| `identity_check` | proof configured, not read-only: an embodied identity's teasers are scored against its references |
 
 ## Catalogue
 
@@ -83,7 +84,8 @@ Backgrounds and teaser drafts ([projects.md](projects.md#backgrounds)):
 | `GET /projects/{id}/scenes/{scene}/{version}/backgrounds` | | one set: `{project, scene, scene_version, scene_hash, wanted, backgrounds, failed, job}` |
 | `GET /projects/{id}/backgrounds/{bg}/image` | | the background's PNG |
 | `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}`; once per background |
-| `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft from `T<n>` (201, `{id, status, awaiting, draft}`), reviewed like any draft |
+| `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft from `T<n>` (201, `{id, status, awaiting, draft}`), reviewed like any draft; its identity check is in `draft.auto_check.identity` |
+| `POST /drafts/{id}/identity-check` | moderator | run a pending teaser's [identity check](projects.md#the-identity-check) again (proof was down, say): `{id, status, awaiting, draft}`. 409 for a card, or a teaser that is decided or published |
 | `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: per teaser, its `stages` (`quote_final`, `concept_chosen`, `image_made`, `posted`, `minted`), `background` and `drafts` |
 
 Training an embodied identity's LoRA ([projects.md](projects.md#training-an-identity)):

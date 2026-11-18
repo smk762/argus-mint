@@ -1,0 +1,110 @@
+{
+  "id": "b555ad73add54b06",
+  "status": "approved",
+  "awaiting": [],
+  "draft": {
+    "format": 1,
+    "kind": "card",
+    "request": {
+      "template_id": "example-portrait",
+      "template_version": 3,
+      "template_hash": "0x9d2f4915b9d7d861d6d199690396e79a335a9709d67d61909e77f41afde575f1",
+      "model": "sdxl/aureanuanceXL_v2/aureanuanceXL_v2.safetensors",
+      "loras": [],
+      "sampling": {
+        "sampler": "euler",
+        "scheduler": "normal",
+        "steps": 25,
+        "cfg": 6.0,
+        "clip_skip": 1,
+        "guidance": null
+      },
+      "width": 1152,
+      "height": 896,
+      "prompt": "waist-up portrait of a single male wizard, centered and facing the viewer, fully clothed in a tunic bearing azure heraldry, casting a spell, background: temple, painted fantasy illustration, full bleed, detailed face, no lettering or writing anywhere in the image",
+      "negative": "nude, nudity, bare chest, topless, cleavage, text, letters, words, handwriting, script, caption, title, label, logo, watermark, signature, border, frame, card frame, trading card, playing card, game ui, icons, badges, numbers, multiple people, crowd, empty scene, landscape, gore",
+      "variables": {
+        "background": "temple",
+        "colour": "azure",
+        "gender": "male",
+        "pose": "casting a spell",
+        "role": "wizard"
+      },
+      "seed": 8455,
+      "init_image": null
+    },
+    "attempts": [
+      {
+        "seed": 8455,
+        "outcome": "ok",
+        "ref": "fixture-2",
+        "detail": ""
+      }
+    ],
+    "renderer": "darkroom",
+    "asset_id": "0x89964876bb9e20b0262233b1c023a63554302b2f1653191a12c0e63e3fdc0608",
+    "to": "0x67aa0a5E28798bEf676FF01e86e379f6E01aeDAd",
+    "name": "Azure Stormcaller",
+    "description": "Azure Stormcaller mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+    "external_url": null,
+    "consumer": "argus-mint",
+    "teaser": null,
+    "frame": {
+      "id": "card-green",
+      "version": 1,
+      "hash": "0xce228a909cac0cb1ebd113b574a63379bb3e839a5ec413eb39d2597d3913b903"
+    },
+    "bio": {
+      "ref": {
+        "id": "example-bio",
+        "version": 1,
+        "hash": "0xc2f770235c2f1ba0ec4fef196b7525f148b0033a08259fdd508cf9fdfc22ac82",
+        "model": "mistral-nemo:12b-instruct-2407-q4_K_M"
+      },
+      "text": "Azure Stormcaller mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards.",
+      "attempts": [
+        {
+          "outcome": "ok",
+          "detail": "",
+          "text": "{name} mends the hearts of broken engines with patient hands, and every gear purrs a little warmer afterwards."
+        }
+      ],
+      "edited": false
+    },
+    "texts": {
+      "class": "Wizard · Azure",
+      "stats": "No. 3"
+    },
+    "style": null,
+    "library": null,
+    "made_with": {
+      "argus-mint": "0.2.3.dev36+gdc9ba8a28.d20261118",
+      "darkroom": "0.1.3"
+    },
+    "edits": [],
+    "auto_check": null,
+    "art_sha256": "0a103ed55b3bd60f17dba5d867666628d82525350c3f849d08c389ee4e40908f",
+    "image_sha256": "b37668924c86ec203158a838438f62ebb36a97e2e5cfb7c591d91f1426e8fbf3",
+    "created_at": "2026-11-18T07:18:57.693893Z",
+    "reviews": [
+      {
+        "role": "moderator",
+        "decision": "approved",
+        "by": "moderator-1",
+        "at": "2026-11-18T07:18:57.701267Z",
+        "image_sha256": "b37668924c86ec203158a838438f62ebb36a97e2e5cfb7c591d91f1426e8fbf3",
+        "note": ""
+      },
+      {
+        "role": "owner",
+        "decision": "approved",
+        "by": "0x67aa0a5E28798bEf676FF01e86e379f6E01aeDAd",
+        "at": "2026-11-18T07:18:57.720077Z",
+        "image_sha256": "b37668924c86ec203158a838438f62ebb36a97e2e5cfb7c591d91f1426e8fbf3",
+        "note": ""
+      }
+    ]
+  },
+  "published": null,
+  "posts": []
+}

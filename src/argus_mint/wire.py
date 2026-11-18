@@ -83,7 +83,8 @@ __all__ = [
 # 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker;
 # 1.13 posting (POST /drafts/{id}/posted, GET /posts/ready, the poster token), teasers publish, tracker posted/minted
 # 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
-WIRE_VERSION = "1.14"
+# 1.15 the identity check on a teaser (AutoCheck.identity, POST /drafts/{id}/identity-check, identity_check)
+WIRE_VERSION = "1.15"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -122,6 +123,9 @@ class Capabilities(_Wire):
     # an embodied identity's LoRA can be trained here: darkroom, curator, lens, forge and proof configured,
     # the shared exports and LoRA directories set, moderator token set, not read-only
     identity_training: bool = False
+    # a teaser of an embodied identity is scored by argus-proof (POST /score) against its references:
+    # proof configured (ARGUS_MINT_PROOF_URL), not read-only. Without it, such a teaser is held as unchecked.
+    identity_check: bool = False
 
 
 class Health(_Wire):

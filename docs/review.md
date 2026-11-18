@@ -65,8 +65,11 @@ After a draft is created, and again after each edit, the server runs the checks 
 | Art | darkroom rendered it (or it came from the library) and its final attempt passed darkroom's image guards outright. Supplied or placeholder art, or an image darkroom sent to `review`, is held. |
 | Bio | the model wrote it and darkroom's text check passed it. A bio a person edited goes through the word filter instead. |
 | Free text | the name, an edited bio, the description and each display text pass the word filter: better-profanity's list (which catches letter swaps) plus the terms in `ARGUS_MINT_BLOCKLIST`, one per line. |
+| Identity (a teaser) | argus-proof scored the painted-in figure at least the identity's `min_score` (`auto_check.identity`, [projects.md](projects.md#the-identity-check)), or the identity is a viewpoint with nobody painted in. A score under the threshold or not yet calibrated, an embodied identity with nothing to score against, or proof unavailable is held. |
 
 If every check passes, a moderator approval is recorded with `by: "auto: platform checks"` and the checks as its note. If anything is held, the draft waits for a human moderator, and `auto_check.held` says why. Auto-moderation never overrides a decision the moderator already made on that image.
+
+A teaser's checks are recorded even with auto-moderation off, so its identity check is on record. Then `passed` is false and `held` ends with "auto-moderation is off: the moderator decides"; an uncalibrated identity score is only recorded, in `checks`.
 
 The checks judge safety, not quality. A missing figure or garbled lettering is the owner's to catch.
 

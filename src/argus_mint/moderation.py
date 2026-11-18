@@ -14,6 +14,13 @@ The checks:
 - **Free text:** the name, an edited bio, the description and the consumer's display text are
   never sent to a model (hard rule 1). They pass a word filter: better-profanity's list, which
   catches letter swaps like "5h1t", plus any terms in ``ARGUS_MINT_BLOCKLIST`` (one per line).
+- **Identity** (a teaser): argus-proof scored the painted-in figure at least the identity's
+  ``min_score`` (``identity_check.py``), or the identity is a viewpoint with nobody painted in.
+  A teaser with no identity check, a score under the threshold or not yet calibrated, a skipped
+  embodied identity, or proof unavailable is held.
+
+A teaser's checks are recorded whether or not auto-moderation is on (``approve``): with it off,
+they are held for a person with that reason, and an uncalibrated score is only recorded.
 
 SingGuard judges safety, not quality: a missing figure or garbled lettering is the owner's to
 catch.
@@ -25,11 +32,12 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from argus_mint.cards import AutoCheck, CardDraft, Review, sha256_hex
+from argus_mint.cards import AutoCheck, CardDraft, IdentityCheck, Review, sha256_hex
 
-__all__ = ["AUTO_REVIEWER", "WordFilter", "auto_check", "auto_review"]
+__all__ = ["AUTO_OFF", "AUTO_REVIEWER", "WordFilter", "auto_check", "auto_review"]
 
 AUTO_REVIEWER = "auto: platform checks"
+AUTO_OFF = "auto-moderation is off: the moderator decides"
 
 
 class WordFilter:
@@ -56,8 +64,14 @@ class WordFilter:
         return bool(text) and self._filter.contains_profanity(re.sub(r"\s+", " ", text))
 
 
-def auto_check(draft: CardDraft, words: WordFilter) -> AutoCheck:
-    """Check the current image's draft; ``passed`` means nothing needs a human moderator."""
+def auto_check(
+    draft: CardDraft, words: WordFilter, *, identity: IdentityCheck | None = None, approve: bool = True
+) -> AutoCheck:
+    """Check the current image's draft; ``passed`` means nothing needs a human moderator.
+
+    ``identity`` is a teaser's identity check (ignored for a card). ``approve`` False (auto-moderation
+    off) records the checks but holds the draft for the moderator, so ``passed`` is false.
+    """
     checks: list[str] = []
     held: list[str] = []
 
@@ -89,25 +103,46 @@ def auto_check(draft: CardDraft, words: WordFilter) -> AutoCheck:
     else:
         checks.append(f"word filter: {', '.join(free)} clean")
 
+    if draft.kind == "teaser":
+        assert draft.teaser is not None
+        if identity is None:
+            held.append("identity: no identity check was run on this teaser")
+        elif identity.art_sha256 != draft.art_sha256:
+            held.append("identity: the check scored other art than this draft's")
+        elif identity.presence != draft.teaser.presence:
+            held.append(f"identity: the check was for a {identity.presence} identity, not {draft.teaser.presence}")
+        elif identity.held:
+            held.append(f"identity: {identity.reason}")
+        elif identity.outcome == "uncalibrated" and approve:
+            held.append(f"identity: {identity.reason}; without a min_score it can't stand in for the moderator")
+        else:  # passed, a viewpoint's skip, or (auto-moderation off) an uncalibrated score
+            checks.append(f"identity: {identity.reason}")
+        if not approve:
+            held.append(AUTO_OFF)
+
     return AutoCheck(
         at=datetime.now(UTC),
         image_sha256=draft.image_sha256,
         passed=not held,
         checks=tuple(checks),
         held=tuple(held),
+        identity=identity if draft.kind == "teaser" else None,
     )
 
 
-def auto_review(draft: CardDraft, image: bytes, words: WordFilter) -> CardDraft:
-    """Run :func:`auto_check`; record it, and the moderator's approval if it passed.
+def auto_review(
+    draft: CardDraft, image: bytes, words: WordFilter, *, identity: IdentityCheck | None = None, approve: bool = True
+) -> CardDraft:
+    """Run :func:`auto_check`; record it, and the moderator's approval if it passed (never with
+    ``approve`` False: auto-moderation is off).
 
     Does nothing to the reviews if the moderator already decided on this image.
     """
     if sha256_hex(image) != draft.image_sha256:
         raise ValueError("the image doesn't match the draft")
-    result = auto_check(draft, words)
+    result = auto_check(draft, words, identity=identity, approve=approve)
     draft = draft.model_copy(update={"auto_check": result})
-    if not result.passed or "moderator" not in draft.awaiting() or draft.status != "pending":
+    if not approve or not result.passed or "moderator" not in draft.awaiting() or draft.status != "pending":
         return draft
     approval = Review(
         role="moderator",

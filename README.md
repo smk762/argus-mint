@@ -183,6 +183,7 @@ An entry can make a card only if the approved template renders exactly the reque
 **Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`, off by default): the platform gates on safety, the owner on quality.
 - **When it approves:** if darkroom's image guards passed the art, its text check passed the bio, and the name and display text pass a word filter, the moderator's approval is recorded as `auto: platform checks`.
 - **When it holds:** anything else waits for a human moderator, with the reason in `auto_check.held`.
+- **A teaser** of an embodied identity also needs argus-proof to score its figure at least the identity's `min_score` ([the identity check](docs/projects.md#the-identity-check)). Below it, or with proof down, it is held.
 - **The word filter:** better-profanity's list, which catches letter swaps, plus your own terms in `ARGUS_MINT_BLOCKLIST`, one per line.
 - **The owner** always reviews.
 
@@ -197,7 +198,7 @@ The browser previews a restyle as SVG from `/layout` and the fonts, using the sa
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
 - **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`, `PROJECTS_DIR` (teaser projects, [docs/projects.md](docs/projects.md)), `BACKGROUNDS_DIR` (their rendered scene backgrounds), `ANCHORS_DIR` (each project's anchors of posted teasers, for `argus-mint teasers anchor` and `export`), `TRAINING_DIR` (identity training records and candidates).
 - **Backends:** `DARKROOM_URL`, `POLICY` (darkroom's enforcing policy, default `default`, the SFW one), `WRITER_URL`, `WRITER_KEY` (its bearer token), `IPFS_API`.
-- **Identity training** ([docs/projects.md](docs/projects.md#training-an-identity)): `CURATOR_URL`, `LENS_URL`, `FORGE_URL`, `PROOF_URL`, plus `TRAINING_EXPORTS_DIR` (the exports volume curator, forge and proof share, as argus-mint sees it) and `LORAS_DIR` (the LoRA directory darkroom and proof load from). All six set, with darkroom and the moderator token, turn on `capabilities.identity_training`.
+- **Identity training** ([docs/projects.md](docs/projects.md#training-an-identity)): `CURATOR_URL`, `LENS_URL`, `FORGE_URL`, `PROOF_URL`, plus `TRAINING_EXPORTS_DIR` (the exports volume curator, forge and proof share, as argus-mint sees it) and `LORAS_DIR` (the LoRA directory darkroom and proof load from). All six set, with darkroom and the moderator token, turn on `capabilities.identity_training`. `PROOF_URL` alone turns on `capabilities.identity_check`: each embodied teaser is scored against its identity's references.
 - **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`. Keystores are looked up in `KEYSTORE_DIR` (default `~/.foundry/keystores`).
 - **Chain and metadata:** `NETWORK`, `CARD`, `CONSUMER` (the consumer named in card metadata, default `argus-mint`), `VOUCHER_TTL` (seconds a signed voucher stays valid, default 3600).
 - **Access:** `MODERATOR_TOKEN`, `POSTER_TOKEN` (argus-herald's: records posts of approved teasers and nothing else), `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.

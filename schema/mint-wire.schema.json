@@ -46,7 +46,7 @@
     },
     "AutoCheck": {
       "additionalProperties": false,
-      "description": "What auto-moderation found for the current image. ``passed`` recorded the moderator's approval.",
+      "description": "What the platform's checks found for the current image. ``passed`` recorded the moderator's approval.\n\n``passed`` is only ever true with auto-moderation on: with it off, a teaser's checks (and its\n``identity`` check) are still recorded, held for a person with the reason that it is off.",
       "properties": {
         "at": {
           "format": "date-time",
@@ -67,6 +67,17 @@
           },
           "title": "Held",
           "type": "array"
+        },
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IdentityCheck"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "image_sha256": {
           "pattern": "^[0-9a-f]{64}$",
@@ -676,6 +687,11 @@
         "edit_text": {
           "default": false,
           "title": "Edit Text",
+          "type": "boolean"
+        },
+        "identity_check": {
+          "default": false,
+          "title": "Identity Check",
           "type": "boolean"
         },
         "identity_training": {
@@ -2056,7 +2072,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.14",
+          "default": "1.15",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2074,6 +2090,166 @@
         "backends"
       ],
       "title": "Health",
+      "type": "object"
+    },
+    "IdentityCheck": {
+      "additionalProperties": false,
+      "description": "argus-proof's score of a teaser's figure against its identity's held-out references (#51).\n\n``outcome``: ``passed`` (``score`` >= ``min_score``), ``below`` (under it), ``uncalibrated``\n(scored, but the identity has no ``min_score`` yet), ``skipped`` (nothing to score: a\nviewpoint identity, or an embodied one with no ``proof_export`` yet), ``unavailable`` (proof\nis unreachable, answered 503, or isn't configured) or ``error`` (proof refused the request,\nor its answer can't be read). ``reason`` says it in words. Only ``passed`` (or a viewpoint's\n``skipped``) lets auto-moderation stand in for the moderator; ``below``, ``unavailable``,\n``error`` and an embodied ``skipped`` hold the draft.\n\n``art_sha256`` is the unframed art that was scored, ``crop`` the scene's ``character_area``\nin its pixels; ``scorer``, ``scorer_version`` and ``model_file`` are proof's provenance for\n``metric``'s scorer, and ``proof_version`` its wire version.",
+      "properties": {
+        "art_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Art Sha256",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "crop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScoreBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "export": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Export"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "enum": [
+                "identity",
+                "likeness"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "min_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Score"
+        },
+        "model_file": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScorerFile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "below",
+            "uncalibrated",
+            "skipped",
+            "unavailable",
+            "error"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "presence": {
+          "enum": [
+            "embodied",
+            "viewpoint"
+          ],
+          "title": "Presence",
+          "type": "string"
+        },
+        "proof_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proof Version"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "scorer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorer"
+        },
+        "scorer_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorer Version"
+        }
+      },
+      "required": [
+        "at",
+        "art_sha256",
+        "presence",
+        "outcome",
+        "reason"
+      ],
+      "title": "IdentityCheck",
       "type": "object"
     },
     "IdentityTrainingView": {
@@ -3629,6 +3805,63 @@
       "title": "SavedProjectFile",
       "type": "object"
     },
+    "ScoreBox": {
+      "additionalProperties": false,
+      "description": "The part of an image proof scored, in the image's own pixels.",
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        },
+        "x": {
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "ScoreBox",
+      "type": "object"
+    },
+    "ScorerFile": {
+      "additionalProperties": false,
+      "description": "The weights a proof scorer loaded, pinned by sha256 (proof's ``ModelRef``).",
+      "properties": {
+        "name": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "title": "ScorerFile",
+      "type": "object"
+    },
     "Selection": {
       "additionalProperties": false,
       "description": "Curator's pick, split by mint. Files are candidate files; the two sets never share one.",
@@ -4776,5 +5009,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.14"
+  "title": "argus-mint wire 1.15"
 }

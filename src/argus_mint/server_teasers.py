@@ -7,12 +7,21 @@
 ``GET  /projects/{id}/backgrounds/{bg}/image``                    a background's PNG
 ``POST /projects/{id}/backgrounds/{bg}/review``                   the moderator approves or rejects one
 ``POST /projects/{id}/teasers/{n}/draft``                         a teaser draft from ``T<n>`` (then reviewed as usual)
+``POST /drafts/{id}/identity-check``                              run a teaser's identity check again
 ``GET  /projects/{id}/tracker``                                   each teaser's stages, as mint works them out
 =================================================================  ===================================================
 
 Every write needs the moderator token. Background jobs run one at a time on a background
 thread, like samples, and ask darkroom for the GPU at ``batch`` priority; a teaser's inpainting
 is a person waiting, so it asks at darkroom's default.
+
+A new teaser draft gets its identity check (``identity_check.py``: argus-proof scores the figure
+against the identity's references) and auto-moderation's checks before it is saved. When proof
+was down the draft is held, and the moderator runs the check again with
+``POST /drafts/{id}/identity-check``: a sub-resource of the draft like ``/review`` and ``/edit``,
+named for the record it rewrites (``auto_check.identity``) and the capability
+(``identity_check``). It reruns the same check, so it isn't called a retry; it changes no image
+and no review except the approval auto-moderation records when it is on and every check passes.
 """
 
 from __future__ import annotations
@@ -33,6 +42,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
 
 import argus_mint
+from argus_mint._codec import hex0x
 from argus_mint.backgrounds import (
     Background,
     BackgroundError,
@@ -42,11 +52,20 @@ from argus_mint.backgrounds import (
     background_loras,
     render_background,
 )
-from argus_mint.cards import CardDraft, DraftError, DraftStore
+from argus_mint.cards import CardDraft, DraftError, DraftNotFound, DraftStore, IdentityCheck, sha256_hex
 from argus_mint.darkroom import DarkroomError
 from argus_mint.frames import FrameError, LoadedFrame
+from argus_mint.identity_check import Scorer, check_identity
 from argus_mint.posting import is_current
-from argus_mint.projects import ProjectBundle, ProjectError, Scene, file_strings, load_bundle, load_project
+from argus_mint.projects import (
+    Identity,
+    ProjectBundle,
+    ProjectError,
+    Scene,
+    file_strings,
+    load_bundle,
+    load_project,
+)
 from argus_mint.render import RenderError, RenderFailed
 from argus_mint.spoilers import SpoilerList
 from argus_mint.teasers import TeaserError, TeaserNotFound, make_teaser
@@ -173,8 +192,9 @@ def add_teaser_routes(
     lock: threading.Lock,
     frames: Callable[[], dict[tuple[str, int], LoadedFrame]],
     drafts: DraftStore,
-    moderate: Callable[[CardDraft, bytes], CardDraft],
+    moderate: Callable[[CardDraft, bytes, IdentityCheck | None], CardDraft],
     detail: Callable[[str], DraftDetail],
+    proof: Scorer | None = None,
     status_of: Callable[[str, CardDraft], str],
 ) -> BackgroundRunner:
     store = BackgroundStore(backgrounds_dir)
@@ -323,9 +343,60 @@ def add_teaser_routes(
             raise HTTPException(502, str(e)) from e
         except FrameError as e:
             raise HTTPException(422, str(e)) from e
+        # Scored before the lock: proof may wait for the GPU. A teaser is never saved unchecked.
+        checked = check_identity(
+            art=made.art, identity=b.identities[link.identity.key][0], scene=b.scenes[link.scene.key][0], proof=proof
+        )
         with lock:
             draft_id = drafts.new_id()
-            drafts.save(draft_id, moderate(made.draft, made.image), made.art, made.image)
+            drafts.save(draft_id, moderate(made.draft, made.image, checked), made.art, made.image)
+        return detail(draft_id)
+
+    def made_from(d: CardDraft) -> tuple[Identity, Scene]:
+        """The identity and scene files a teaser draft names, as they were when it was made."""
+        t = d.teaser
+        assert t is not None
+        b = bundle(t.project.id)
+        found = []
+        for kind, ref, table in (("identity", t.identity, b.identities), ("scene", t.scene, b.scenes)):
+            entry = table.get((ref.id, ref.version))
+            if entry is None or hex0x(entry[0].hash()) != ref.hash:
+                raise HTTPException(409, f"{kind} {ref.id} v{ref.version} isn't the file this teaser was made from")
+            found.append(entry[0])
+        return found[0], found[1]
+
+    @app.post("/drafts/{draft_id}/identity-check")
+    def post_identity_check(draft_id: str, authorization: Annotated[str | None, Header()] = None) -> DraftDetail:
+        """Run a pending teaser's identity check again (proof was down, say), and auto-moderation's checks with it."""
+        require_token(authorization)
+
+        def pending() -> tuple[CardDraft, bytes, bytes]:
+            try:
+                d, art, image = drafts.load(draft_id)
+            except DraftNotFound as e:
+                raise HTTPException(404, str(e)) from e
+            except DraftError as e:
+                raise HTTPException(409, str(e)) from e
+            if d.kind != "teaser":
+                raise HTTPException(409, "only a teaser has an identity check")
+            if drafts.published(draft_id):
+                raise HTTPException(409, "this draft is already published")
+            if d.status != "pending":
+                raise HTTPException(409, f"this draft is already {d.status}")
+            if sha256_hex(art) != d.art_sha256 or sha256_hex(image) != d.image_sha256:
+                raise HTTPException(409, "the images on disk differ from the ones made for this draft")
+            return d, art, image
+
+        d, art, _image = pending()
+        identity, scene = made_from(d)
+        checked = check_identity(art=art, identity=identity, scene=scene, proof=proof)
+        with lock:
+            now, _art, image = pending()
+            if (
+                now.art_sha256 != d.art_sha256 or now.image_sha256 != d.image_sha256
+            ):  # pragma: no cover - teasers aren't redrawn
+                raise HTTPException(409, "the draft changed while it was being checked")
+            drafts.save(draft_id, moderate(now, image, checked))
         return detail(draft_id)
 
     @app.get("/projects/{pid}/tracker")
