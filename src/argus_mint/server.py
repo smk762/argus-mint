@@ -78,6 +78,8 @@ from argus_mint.library import Library, LibraryError
 from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
+from argus_mint.server_projects import add_project_routes
+from argus_mint.spoilers import load_spoilers
 from argus_mint.templates import Template, TemplateError, combinations, load_template
 from argus_mint.wire import (
     BioInfo,
@@ -151,6 +153,8 @@ class Settings:
     read_only: bool = False
     auto_moderate: bool = False  # the platform's checks stand in for the moderator when they all pass
     blocklist: Path | None = None  # extra word-filter terms, one per line
+    projects_dir: Path = Path("projects")  # teaser projects, one directory each
+    spoilers: Path | None = None  # the private spoiler list (outside any repository; chmod 600)
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -184,6 +188,8 @@ class Settings:
             read_only=get("READ_ONLY").lower() in ("1", "true", "yes"),
             auto_moderate=get("AUTO_MODERATE").lower() in ("1", "true", "yes"),
             blocklist=Path(get("BLOCKLIST")) if get("BLOCKLIST") else None,
+            projects_dir=Path(get("PROJECTS_DIR", "projects")),
+            spoilers=Path(get("SPOILERS")) if get("SPOILERS") else None,
         )
 
 
@@ -263,6 +269,7 @@ def create_app(
     )
     pinner = pinner or (KuboPinner(cfg.ipfs_api) if cfg.ipfs_api else None)
     signer_box: dict[str, Any] = {"signer": signer}
+    spoiler_list = load_spoilers(cfg.spoilers)  # fail at start, not on the first save, if it can't be read
 
     def get_signer() -> Any:
         if signer_box["signer"] is None:
@@ -301,6 +308,10 @@ def create_app(
             review_catalogue=writable
             and has_token
             and all(d.is_dir() and os.access(d, os.W_OK) for d in (cfg.templates_dir, cfg.frames_dir, cfg.bios_dir)),
+            author_catalogue=writable
+            and has_token
+            and cfg.projects_dir.is_dir()
+            and os.access(cfg.projects_dir, os.W_OK),
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -915,6 +926,15 @@ def create_app(
         media = "font/otf" if font.lower().endswith(".otf") else "font/ttf"
         return Response(lf.fonts[font], media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
+    add_project_routes(
+        app,
+        projects_dir=cfg.projects_dir,
+        spoilers=spoiler_list,
+        darkroom=darkroom,
+        require_token=require_token,
+        lock=lock,
+        frame_keys=lambda: set(frames()),
+    )
     return app
 
 

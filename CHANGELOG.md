@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Added
 
+- **Teaser projects: files, checks and review (wire 1.10, #48, epic #47).** A project directory under `ARGUS_MINT_PROJECTS_DIR` holds `project.yaml`, `identities/`, `scenes/`, `lines/` (one quote per file, verbatim `text` plus `published`) and `teasers.json`, which links them (`projects.py`, pure). Each YAML file is reviewed like a template (`catalogue.record_decision`). `GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/files/{kind}/{item}/{version}` (save a draft; approved and retired files never change) and `POST /projects/{id}/teasers` report cross-file problems, private spoiler-list hits (by rule number only, `ARGUS_MINT_SPOILERS`, `spoilers.py`) and SingGuard verdicts from darkroom's text pre-flight under the project's own `policy`. `POST /projects/{id}/files/…/review` refuses to approve while a spoiler rule matches or SingGuard hasn't passed the text, and refuses with no darkroom configured. New capability `author_catalogue`. `DarkroomClient.check_text` takes a `policy`. Example: `projects/example-teasers` (neutral content). [docs/projects.md](docs/projects.md).
+
 - **`requirements-test.txt`**: the test dependencies for a plain pip venv (`pip install -r requirements-test.txt && pytest`, no install of argus-mint needed: pytest gets `pythonpath = ["src"]`). ai-code-auditor's `validate_patch` builds its test environment from it, so fixes here are proven by pytest rather than lint only (cf. agent-composer#61). Pins match `uv.lock`; `tests/test_requirements_test.py` fails if they drift or a dependency is missing.
 
 ### Changed

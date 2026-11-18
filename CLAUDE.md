@@ -36,20 +36,23 @@ Not checked out? Read https://github.com/smk762/argus-cortex/blob/main/SUITE.md
 src/argus_mint/   templates metadata merkle vouchers siwe     # pure core (_codec: keccak, canonical JSON, field types)
                   library                                  # pre-rendered portraits (library build; drafts from entries without a GPU)
                   frames cards bios                        # frame overlays + text slots (Pillow, `frames` extra); card drafts + image review; LLM bios
+                  projects spoilers                        # teaser projects (identities, scenes, lines, teasers.json; pure) and the private spoiler list (hits by rule number only)
                   render pin indexer                       # clients behind Protocols (no web3 needed)
                   chain ledger                             # web3 clients (`chain` extra)
                   gpu                                      # GPU leases (argus-cortex coordinator, argus-iris broker) for the bio writer
                   keys                                     # signers: Foundry keystore (password file/prompt) or $ARGUS_MINT_SIGNER_KEY
                   workflow                                 # create_draft / publish, shared by the CLI and the server
                   server wire                              # `argus-mint serve` (FastAPI, `server` extra) and its wire models
+                  server_projects                          # /projects routes: author draft files, checks (problems, spoilers, SingGuard), review
                   cli                                      # Typer: templates, frames, preflight, sample, draft, review, publish, submit, freeze, anchor, serve, schema
                   abi/   # committed contract ABIs (`make abi`, abi.load(name)), so pip users never need Foundry
 contracts/        Foundry: src/{Card,Deed,Ledger}.sol, test/, script/Deploy.s.sol, lib/ (submodules)
 verifier/         ES module: Merkle proofs, Ledger reads, drand quicknet signature checks
 templates/        example template YAML (example-portrait v1: approved; v2: draft, clean full-bleed art for framing, seven SDXL checkpoints + Flux dev; v3: draft, v2 reworded for clothing, described roles and no lettering, plus Flux schnell, FLUX.2 Klein 9B and SD3.5 Large)
 bios/             example bio template (draft; mistral-nemo, fruity flavour text)
+projects/         example-teasers: a neutral teaser project (tests and demo); real projects live outside the repo (ARGUS_MINT_PROJECTS_DIR)
 frames/           card-green v1 (the card frame, draft; ~4:3 window) and example-plain v1 (placeholder, square window, drawn by scripts/make_example_frame.py)
-docs/             one topic per file (review, drafts, catalogue, customise, api, deploy; argus-assay serves them at /docs). cli.md is generated (`make cli-docs`, src/argus_mint/_cli_docs.py; a test fails if stale)
+docs/             one topic per file (review, drafts, catalogue, customise, projects, api, deploy; argus-assay serves them at /docs). cli.md is generated (`make cli-docs`, src/argus_mint/_cli_docs.py; a test fails if stale)
 schema/           mint-wire.schema.json: the HTTP wire contract (`argus-mint schema`; a test fails if stale)
 fixtures/api/     recorded API responses for the UIs' demo mode, incl. a library subset (scripts/api_fixture.py --library library-v3; the template version comes from the library)
 scripts/          export_abi.py; fixtures/ (JS generator for @openzeppelin/merkle-tree fixtures)

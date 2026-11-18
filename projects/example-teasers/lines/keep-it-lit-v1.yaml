@@ -1,0 +1,9 @@
+# A quote as the author wrote it (`text`, never edited) and as it is shown (`published`).
+id: keep-it-lit
+version: 1
+status: draft
+project: example-teasers
+voice: keeper
+text: "Fourty years I've kept it lit, and not once has the sea said thank you."
+published: "Forty years I've kept it lit, and not once has the sea said thank you."
+source: scenes/the-long-night.md

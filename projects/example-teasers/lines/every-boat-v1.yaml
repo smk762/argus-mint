@@ -1,0 +1,7 @@
+id: every-boat
+version: 1
+status: draft
+project: example-teasers
+voice: lamp
+text: "I see every boat. None of them see me until they need to."
+source: lines.md

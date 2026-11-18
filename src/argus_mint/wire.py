@@ -17,6 +17,7 @@ from argus_mint.bios import BioTemplate
 from argus_mint.cards import CardDraft
 from argus_mint.frames import Frame
 from argus_mint.metadata import CardStyle
+from argus_mint.projects import TeaserLinks
 from argus_mint.templates import LoraChoice, Template
 
 __all__ = [
@@ -52,13 +53,22 @@ __all__ = [
     "SampleJob",
     "SampleJobList",
     "SampleRequest",
+    "ProjectChecks",
+    "ProjectDetail",
+    "ProjectFile",
+    "ProjectList",
+    "ProjectSummary",
+    "SaveProjectFile",
+    "SaveTeasers",
+    "SavedProjectFile",
+    "TextCheck",
 ]
 
 # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
-# 1.9 drafts record what made them (made_with)
-WIRE_VERSION = "1.9"
+# 1.9 drafts record what made them (made_with); 1.10 teaser projects (authoring, checks, review)
+WIRE_VERSION = "1.10"
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -80,6 +90,7 @@ class Capabilities(_Wire):
     edit_text: bool = False  # owner edits of text and style: not read-only, and owner sign-in is set up
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
     check_templates: bool = False  # darkroom can be asked whether it renders a template (GET .../check)
+    author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
 
 
 class Health(_Wire):
@@ -378,6 +389,86 @@ class LibraryListing(_Wire):
     items: list[LibraryItem]
 
 
+# -- teaser projects --------------------------------------------------------------------------------
+
+ProjectKind = Literal["project", "identity", "scene", "line"]
+
+
+class TextCheck(_Wire):
+    """SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight)."""
+
+    field: str  # which file and field, e.g. "scene lamp-room v1: prompt"
+    passed: bool
+    detail: str = ""  # the rule or reason when it didn't pass
+
+
+class ProjectChecks(_Wire):
+    """What stands between a project's files and approval.
+
+    ``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is
+    false when no darkroom is configured: then nothing can be approved.
+    """
+
+    problems: list[str]  # schema and cross-file problems, as sentences
+    spoiler_rules: list[int]
+    guard: list[TextCheck]
+    guard_ran: bool
+
+
+class ProjectFile(_Wire):
+    kind: ProjectKind
+    id: str
+    version: int
+    status: Literal["draft", "approved", "retired"]
+    hash: str
+    file: str  # relative to the project's directory
+    doc: dict[str, Any]  # the file's content
+
+
+class ProjectSummary(_Wire):
+    id: str
+    title: str
+    status: Literal["draft", "approved", "retired"]
+
+
+class ProjectList(_Wire):
+    projects: list[ProjectSummary]
+
+
+class ProjectDetail(_Wire):
+    """GET /projects/{id}: every file of a project, its teaser links and their checks.
+
+    ``checks.guard`` holds only verdicts already made (on save or approval); a text not yet
+    checked has none.
+    """
+
+    id: str
+    files: list[ProjectFile]
+    teasers: TeaserLinks | None
+    checks: ProjectChecks
+
+
+class SaveProjectFile(_Wire):
+    """POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.
+
+    ``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved
+    file is always a draft. An approved or retired file never changes; save a new version.
+    """
+
+    doc: dict[str, Any]
+
+
+class SaveTeasers(_Wire):
+    """POST /projects/{id}/teasers: replace teasers.json."""
+
+    teasers: TeaserLinks
+
+
+class SavedProjectFile(_Wire):
+    file: ProjectFile | None  # None for teasers.json
+    checks: ProjectChecks  # for the saved file's texts, and the project's cross-file problems
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -403,4 +494,9 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     LayoutRequest,
     FrameLayout,
     LibraryListing,
+    ProjectList,
+    ProjectDetail,
+    SaveProjectFile,
+    SaveTeasers,
+    SavedProjectFile,
 )

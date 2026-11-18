@@ -36,6 +36,7 @@ RUN uv pip install --system --no-cache "certifi>=2026.10.19" ".[server]"
 ENV ARGUS_MINT_TEMPLATES_DIR=/app/templates \
     ARGUS_MINT_FRAMES_DIR=/app/frames \
     ARGUS_MINT_BIOS_DIR=/app/bios \
+    ARGUS_MINT_PROJECTS_DIR=/app/projects \
     ARGUS_MINT_DRAFTS_DIR=/data/drafts \
     ARGUS_MINT_SAMPLES_DIR=/data/samples \
     ARGUS_GPU_TENANT_MANIFEST=/app/gpu-tenant.yaml

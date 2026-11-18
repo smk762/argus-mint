@@ -1,0 +1,11 @@
+id: shoreline
+version: 1
+status: draft
+project: example-teasers
+model: sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors
+sampling: {sampler: euler, scheduler: normal, steps: 25, cfg: 6.0}
+width: 1024
+height: 1024
+prompt: "a rocky shoreline at dusk seen from high above, waves breaking, a small boat far out, painted illustration, no people, no lettering"
+negative: "people, person, text, letters, watermark, signature"
+backgrounds: 3

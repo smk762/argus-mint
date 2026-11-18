@@ -283,6 +283,11 @@
       "additionalProperties": false,
       "description": "What this server will do. A client disables a control whose capability is false.",
       "properties": {
+        "author_catalogue": {
+          "default": false,
+          "title": "Author Catalogue",
+          "type": "boolean"
+        },
         "auto_moderate": {
           "default": false,
           "title": "Auto Moderate",
@@ -714,7 +719,7 @@
         "bio": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Ref"
+              "$ref": "#/$defs/argus_mint__wire__Ref"
             },
             {
               "type": "null"
@@ -743,7 +748,7 @@
         "frame": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Ref"
+              "$ref": "#/$defs/argus_mint__wire__Ref"
             },
             {
               "type": "null"
@@ -807,7 +812,7 @@
           "default": null
         },
         "template": {
-          "$ref": "#/$defs/Ref"
+          "$ref": "#/$defs/argus_mint__wire__Ref"
         },
         "texts": {
           "additionalProperties": {
@@ -924,7 +929,7 @@
         "frame": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Ref"
+              "$ref": "#/$defs/argus_mint__wire__Ref"
             },
             {
               "type": "null"
@@ -954,7 +959,7 @@
           "type": "string"
         },
         "template": {
-          "$ref": "#/$defs/Ref"
+          "$ref": "#/$defs/argus_mint__wire__Ref"
         },
         "to": {
           "title": "To",
@@ -1380,7 +1385,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.9",
+          "default": "1.10",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1483,7 +1488,7 @@
           "type": "array"
         },
         "template": {
-          "$ref": "#/$defs/Ref"
+          "$ref": "#/$defs/argus_mint__wire__Ref"
         }
       },
       "required": [
@@ -1620,6 +1625,185 @@
       "title": "LoraRef",
       "type": "object"
     },
+    "ProjectChecks": {
+      "additionalProperties": false,
+      "description": "What stands between a project's files and approval.\n\n``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is\nfalse when no darkroom is configured: then nothing can be approved.",
+      "properties": {
+        "guard": {
+          "items": {
+            "$ref": "#/$defs/TextCheck"
+          },
+          "title": "Guard",
+          "type": "array"
+        },
+        "guard_ran": {
+          "title": "Guard Ran",
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "spoiler_rules": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Spoiler Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "problems",
+        "spoiler_rules",
+        "guard",
+        "guard_ran"
+      ],
+      "title": "ProjectChecks",
+      "type": "object"
+    },
+    "ProjectDetail": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}: every file of a project, its teaser links and their checks.\n\n``checks.guard`` holds only verdicts already made (on save or approval); a text not yet\nchecked has none.",
+      "properties": {
+        "checks": {
+          "$ref": "#/$defs/ProjectChecks"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/ProjectFile"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "teasers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeaserLinks"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "files",
+        "teasers",
+        "checks"
+      ],
+      "title": "ProjectDetail",
+      "type": "object"
+    },
+    "ProjectFile": {
+      "additionalProperties": false,
+      "properties": {
+        "doc": {
+          "additionalProperties": true,
+          "title": "Doc",
+          "type": "object"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "project",
+            "identity",
+            "scene",
+            "line"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "status",
+        "hash",
+        "file",
+        "doc"
+      ],
+      "title": "ProjectFile",
+      "type": "object"
+    },
+    "ProjectList": {
+      "additionalProperties": false,
+      "properties": {
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/ProjectSummary"
+          },
+          "title": "Projects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "projects"
+      ],
+      "title": "ProjectList",
+      "type": "object"
+    },
+    "ProjectSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "title": "ProjectSummary",
+      "type": "object"
+    },
     "PublishRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1733,26 +1917,6 @@
         "height"
       ],
       "title": "Rect",
-      "type": "object"
-    },
-    "Ref": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "title": "Id",
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "title": "Version",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "version"
-      ],
-      "title": "Ref",
       "type": "object"
     },
     "RenderRequest": {
@@ -2162,7 +2326,7 @@
         "bio": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Ref"
+              "$ref": "#/$defs/argus_mint__wire__Ref"
             },
             {
               "type": "null"
@@ -2180,7 +2344,7 @@
         "frame": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Ref"
+              "$ref": "#/$defs/argus_mint__wire__Ref"
             },
             {
               "type": "null"
@@ -2233,7 +2397,7 @@
           "default": null
         },
         "template": {
-          "$ref": "#/$defs/Ref"
+          "$ref": "#/$defs/argus_mint__wire__Ref"
         },
         "texts": {
           "additionalProperties": {
@@ -2311,6 +2475,60 @@
         "cfg"
       ],
       "title": "Sampling",
+      "type": "object"
+    },
+    "SaveProjectFile": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.\n\n``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved\nfile is always a draft. An approved or retired file never changes; save a new version.",
+      "properties": {
+        "doc": {
+          "additionalProperties": true,
+          "title": "Doc",
+          "type": "object"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "SaveProjectFile",
+      "type": "object"
+    },
+    "SaveTeasers": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/teasers: replace teasers.json.",
+      "properties": {
+        "teasers": {
+          "$ref": "#/$defs/TeaserLinks"
+        }
+      },
+      "required": [
+        "teasers"
+      ],
+      "title": "SaveTeasers",
+      "type": "object"
+    },
+    "SavedProjectFile": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "$ref": "#/$defs/ProjectChecks"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectFile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "file",
+        "checks"
+      ],
+      "title": "SavedProjectFile",
       "type": "object"
     },
     "SlotBackground": {
@@ -2453,6 +2671,76 @@
         }
       },
       "title": "SlotStyle",
+      "type": "object"
+    },
+    "TeaserLink": {
+      "additionalProperties": false,
+      "description": "One teaser: a reviewed line, identity, scene and frame, and the image's alt text.",
+      "properties": {
+        "alt": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Alt",
+          "type": "string"
+        },
+        "background": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Background"
+        },
+        "frame": {
+          "$ref": "#/$defs/argus_mint__projects__Ref"
+        },
+        "identity": {
+          "$ref": "#/$defs/argus_mint__projects__Ref"
+        },
+        "line": {
+          "$ref": "#/$defs/argus_mint__projects__Ref"
+        },
+        "scene": {
+          "$ref": "#/$defs/argus_mint__projects__Ref"
+        }
+      },
+      "required": [
+        "line",
+        "identity",
+        "scene",
+        "frame",
+        "alt"
+      ],
+      "title": "TeaserLink",
+      "type": "object"
+    },
+    "TeaserLinks": {
+      "additionalProperties": false,
+      "description": "``teasers.json``: the project's teasers by number.",
+      "properties": {
+        "project": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "title": "Project",
+          "type": "string"
+        },
+        "teasers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TeaserLink"
+          },
+          "title": "Teasers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "TeaserLinks",
       "type": "object"
     },
     "Template": {
@@ -2640,7 +2928,7 @@
           "type": "array"
         },
         "template": {
-          "$ref": "#/$defs/Ref"
+          "$ref": "#/$defs/argus_mint__wire__Ref"
         }
       },
       "required": [
@@ -2677,6 +2965,31 @@
         "template"
       ],
       "title": "TemplateInfo",
+      "type": "object"
+    },
+    "TextCheck": {
+      "additionalProperties": false,
+      "description": "SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).",
+      "properties": {
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field",
+        "passed"
+      ],
+      "title": "TextCheck",
       "type": "object"
     },
     "TextEdit": {
@@ -2862,7 +3175,49 @@
       ],
       "title": "Tint",
       "type": "object"
+    },
+    "argus_mint__projects__Ref": {
+      "additionalProperties": false,
+      "description": "A reviewed file named by id and version, never by path.",
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "Ref",
+      "type": "object"
+    },
+    "argus_mint__wire__Ref": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "Ref",
+      "type": "object"
     }
   },
-  "title": "argus-mint wire 1.9"
+  "title": "argus-mint wire 1.10"
 }

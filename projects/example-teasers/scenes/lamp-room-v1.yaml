@@ -1,0 +1,13 @@
+# Backgrounds are rendered first (`backgrounds` of them) and reviewed before a teaser uses one.
+id: lamp-room
+version: 1
+status: draft
+project: example-teasers
+model: sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors
+sampling: {sampler: euler, scheduler: normal, steps: 25, cfg: 6.0}
+width: 1024
+height: 1024
+prompt: "inside a lighthouse lamp room at night, brass lens, rain on the windows, warm lamplight, painted illustration, no people, no lettering"
+negative: "people, person, figure, text, letters, watermark, signature"
+backgrounds: 3
+character_area: {x: 320, y: 256, width: 448, height: 704}   # where the keeper may be painted in

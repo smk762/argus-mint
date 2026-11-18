@@ -1,0 +1,8 @@
+# Viewpoint: nobody is painted in. The image is what the lamp sees, and its frame says so.
+id: lamp
+version: 1
+status: draft
+project: example-teasers
+voice: lamp
+presence: viewpoint
+frame: {id: example-plain, version: 1}
