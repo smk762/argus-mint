@@ -6,8 +6,10 @@ status: draft
 project: example-teasers
 voice: keeper
 presence: embodied
-prompt: "an elderly lighthouse keeper, weathered face, short grey beard, dark oilskin coat, knitted cap"
-negative: "nude, nudity, text, letters, watermark, signature"
+# A figure standing in the room, not a portrait: the scene's character_area is a standing figure's
+# box, and the lamp beside it is the light.
+prompt: "three-quarter length figure of an elderly lighthouse keeper standing in a dim room at night, seen from a few steps away, weathered face, short grey beard, dark oilskin coat, knitted cap, lit warmly from one side by lamplight, painted illustration"
+negative: "close-up, headshot, portrait, cropped head, flat front lighting, nude, nudity, text, letters, watermark, signature"
 # How the LoRA is trained (docs/projects.md#training-an-identity), and the proof metric it is checked on.
 check_metric: identity
 training:

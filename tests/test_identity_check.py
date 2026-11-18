@@ -39,7 +39,7 @@ from tests.test_teasers import (  # noqa: E402
 )
 
 SHA = "ab" * 32
-AREA = {"x": 320, "y": 256, "width": 448, "height": 704}  # lamp-room's character_area
+AREA = {"x": 96, "y": 512, "width": 288, "height": 512}  # lamp-room's character_area
 
 
 class Proof:

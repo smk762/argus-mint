@@ -10,4 +10,8 @@ height: 1024
 prompt: "inside a lighthouse lamp room at night, brass lens, rain on the windows, warm lamplight, painted illustration, no people, no lettering"
 negative: "people, person, figure, text, letters, watermark, signature"
 backgrounds: 3
-character_area: {x: 320, y: 256, width: 448, height: 704}   # where the keeper may be painted in
+# Where the keeper may be painted in: a standing figure's box left of centre, clear of the lamp
+# on the sill and the picture on the wall, running to the bottom edge so the mask has no edge
+# below the figure. darkroom repaints it whole (denoise 1.0) and pastes it back through a hard mask
+# grown by 8 px, so the box is kept where a seam falls on plain wall and dark glass.
+character_area: {x: 96, y: 512, width: 288, height: 512}
