@@ -302,3 +302,24 @@ def test_the_example_frame_records_the_sources_it_was_captured_from():
     assert doc["window"] == {"x": 0, "y": 0, "width": 1024, "height": 1024}  # full bleed: the background shows
     assert "http" not in (EXAMPLE.parent / "src" / "harbour-feed" / "overlay.css").read_text()
     assert "http" not in (EXAMPLE.parent / "src" / "harbour-feed" / "overlay.html").read_text()
+
+
+def test_a_projects_frame_is_held_by_a_spoiler_in_any_string_or_comment(app, tmp_path):  # noqa: F811
+    build, _stub, root = app
+    spoilers = tmp_path / "spoilers.txt"
+    spoilers.write_text("# private\nthe drowned bell\nre:harbour-feed-v1\\.png\n")
+    frame = root / "frames" / "harbour-feed-v1.yaml"
+    frame.write_text(EXAMPLE.read_text() + "# the Drowned  Bell rings at T3\n")  # a draft, a hit in a comment only
+    c = build(spoilers=spoilers)
+    r = c.get(f"/projects/{PID}")
+    assert r.status_code == 200 and r.json()["checks"]["spoiler_rules"] == [1, 2]  # comment, and the overlay string
+    assert "drowned" not in r.text.lower()  # by rule number only
+    r = c.post(f"/frames/{FRAME_ID}/1/review", json={"decision": "approve", "by": "m"}, headers=AUTH)
+    assert r.status_code == 409 and r.json()["detail"] == "held by spoiler rule 1, 2"
+    assert "status: draft" in frame.read_text()
+    spoilers.write_text("the drowned bell\n")
+    frame.write_text(EXAMPLE.read_text())  # the comment gone: nothing matches
+    c = build(spoilers=spoilers)
+    assert c.get(f"/projects/{PID}").json()["checks"]["spoiler_rules"] == []
+    r = c.post(f"/frames/{FRAME_ID}/1/review", json={"decision": "approve", "by": "m"}, headers=AUTH)
+    assert r.status_code == 200 and r.json()["status"] == "approved"

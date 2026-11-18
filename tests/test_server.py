@@ -109,7 +109,7 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.16" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert h["wire_version"] == "1.17" and h["chain_id"] == 84532 and h["card"] == CARD
     assert all(
         v
         for k, v in h["capabilities"].items()

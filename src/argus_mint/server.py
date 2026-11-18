@@ -924,6 +924,11 @@ def create_app(
             if not os.access(path, os.W_OK):
                 raise HTTPException(503, f"{rel(kind, path)} is not writable on this server")
             loader = kinds[kind][1]
+            # A project's frame is held while a spoiler rule matches its file: any string or comment in it.
+            if kind == "frame" and body.decision == "approve" and _obj.frame.project is not None:
+                hits = spoiler_list.hits(path.read_text(encoding="utf-8", errors="replace"))
+                if hits:
+                    raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
             # A template darkroom can't render isn't approved; with no darkroom here, nothing to check.
             if kind == "template" and body.decision == "approve" and hasattr(darkroom, "check_template"):
                 problems = template_problems(_obj)

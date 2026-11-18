@@ -76,7 +76,8 @@
           "line_spacing": 1.15
         }
       },
-      "style_locked": false
+      "style_locked": false,
+      "effects": []
     }
   },
   {
@@ -114,7 +115,8 @@
           "line_spacing": 1.15
         }
       },
-      "style_locked": false
+      "style_locked": false,
+      "effects": []
     }
   }
 ]

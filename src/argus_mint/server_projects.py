@@ -36,6 +36,7 @@ from pydantic import BaseModel, ValidationError
 
 from argus_mint._codec import hex0x
 from argus_mint.catalogue import CatalogueError, record_decision, record_guard
+from argus_mint.frames import frame_files_of
 from argus_mint.projects import (
     REVIEW_KEYS,
     GuardVerdict,
@@ -191,7 +192,12 @@ def add_project_routes(
         label = f"{kind} {obj.id} v{obj.version}"
         return [TextCheck(field=f"{label}: {f}", passed=v.passed, detail=v.detail) for f, v in fresh.items()]
 
-    def checks(b: ProjectBundle, files: list[tuple[str, Any]]) -> ProjectChecks:
+    def frame_texts(b: ProjectBundle) -> list[str]:
+        """The project's own frame files as raw text: every string in the YAML and its comments
+        (a capture's comments name its sources). Text drawn into an overlay PNG can't be read here."""
+        return [f.read_text(encoding="utf-8", errors="replace") for f in frame_files_of(b.root)]
+
+    def checks(b: ProjectBundle, files: list[tuple[str, Any]], *, with_frames: bool = False) -> ProjectChecks:
         try:
             found = problems(b, frame_keys())
         except HTTPException as e:  # a broken frames directory: report it, don't hide the project's own
@@ -200,7 +206,9 @@ def add_project_routes(
         policy = b.project.policy
         return ProjectChecks(
             problems=found,
-            spoiler_rules=spoilers.hits(*(s for _, obj in files for s in file_strings(_doc(obj)))),
+            spoiler_rules=spoilers.hits(
+                *(s for _, obj in files for s in file_strings(_doc(obj))), *(frame_texts(b) if with_frames else [])
+            ),
             guard=[c for kind, obj in files for c in text_checks(kind, obj, policy)],
             guard_ran=can_guard,
         )
@@ -227,7 +235,7 @@ def add_project_routes(
     def get_project(pid: str) -> ProjectDetail:
         b = bundle(pid)
         files = [project_file(b, kind, obj, path) for kind in KINDS for obj, path in table(b, kind).values()]
-        return ProjectDetail(id=pid, files=files, checks=checks(b, all_files(b)))
+        return ProjectDetail(id=pid, files=files, checks=checks(b, all_files(b), with_frames=True))
 
     @app.post("/projects/{pid}/files/{kind}/{item_id}/{version}")
     def save_file(

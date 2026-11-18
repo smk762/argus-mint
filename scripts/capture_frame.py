@@ -168,6 +168,9 @@ def _frame_yaml(header: str, frame: dict[str, Any], png_name: str) -> str:
         if isinstance(v, dict) and v and all(isinstance(x, dict) for x in v.values()):
             out.append(f"{k}:")
             out += [f"  {name}: {flow(box)}" for name, box in v.items()]
+        elif isinstance(v, list) and v and all(isinstance(x, dict) for x in v):  # effects: one per line
+            out.append(f"{k}:")
+            out += [f"  - {flow(x)}" for x in v]
         elif isinstance(v, (dict, list)):
             out.append(f"{k}: {flow(v)}")
         else:
