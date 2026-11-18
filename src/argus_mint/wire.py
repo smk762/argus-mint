@@ -84,7 +84,8 @@ __all__ = [
 # 1.13 posting (POST /drafts/{id}/posted, GET /posts/ready, the poster token), teasers publish, tracker posted/minted
 # 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
 # 1.15 the identity check on a teaser (AutoCheck.identity, POST /drafts/{id}/identity-check, identity_check)
-WIRE_VERSION = "1.15"
+# 1.16 a project's own frames (ids <project>/<name>; FrameInfo.project)
+WIRE_VERSION = "1.16"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -151,10 +152,14 @@ class TemplateInfo(_Wire):
 
 
 class FrameInfo(_Wire):
+    """GET /frames. ``file`` is relative to the frames directory, or for a project's own frame
+    (``project`` set, id ``<project>/<name>``) to the projects directory."""
+
     hash: str
     file: str
     width: int
     height: int
+    project: str | None = None  # the project whose frame this is; None: a global frame
     frame: Frame
 
 

@@ -28,7 +28,7 @@ from argus_mint.projects import (
 from argus_mint.spoilers import SpoilerError, load_spoilers, parse
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "projects" / "example-teasers"
-FRAMES = {("example-teaser", 1)}
+FRAMES = {("example-teaser", 1), ("example-teasers/harbour-feed", 1)}
 SAMPLING = {"sampler": "euler", "scheduler": "normal", "steps": 20, "cfg": 6.0}
 
 

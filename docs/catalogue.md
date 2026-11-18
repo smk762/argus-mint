@@ -24,7 +24,7 @@ Approval is a human step recorded in the file: `status: approved` plus `approved
 
 **Hashes.** Each file has a hash that cards carry in their provenance. It covers the whole file **except `status`**, so retiring a file doesn't change the hash on cards already minted. `approved_by` and `approved_at` are included. A frame's hash also covers its overlay PNG and fonts.
 
-**Reviewing through the API.** `POST /{templates,frames,bios}/{id}/{version}/review` with `{"decision": "approve" | "retire", "by": "<reviewer>"}` (moderator token) writes the decision into the YAML, keeping its comments and layout, re-validates it, and restores the original if it no longer loads. The served directories must be writable (`capabilities.review_catalogue`), and the change is a file edit to commit to the consumer's repository.
+**Reviewing through the API.** `POST /{templates,frames,bios}/{id}/{version}/review` (a project's own frame too, by its `<project>/<name>` id) with `{"decision": "approve" | "retire", "by": "<reviewer>"}` (moderator token) writes the decision into the YAML, keeping its comments and layout, re-validates it, and restores the original if it no longer loads. The served directories must be writable (`capabilities.review_catalogue`), and the change is a file edit to commit to the consumer's repository.
 
 **Samples before approving.** `POST /samples` (or `argus-mint sample`) renders a few cards from a draft template, frame and bio template, so the reviewer sees what they're approving. Samples run as background jobs, go through the same safety checks and retries as cards, and are never pinned, signed or minted. `POST /frames/{id}/{version}/preview` shows any frame on a draft's or sample's existing art.
 
@@ -81,6 +81,48 @@ A frame is a PNG overlay, transparent inside its **art window**, described by a 
 argus-mint fills the `name` slot with the card's name and the `bio` slot with the bio. Every other slot (`class`, `stats`…) takes the consumer's display text. That text is shown on the image only and is never a stat a game reads back.
 
 card-green v1 has a landscape art window of about 4:3 (808 × 593), so templates for it render landscape (e.g. 1152 × 896).
+
+### A project's own frames
+
+A [teaser project](projects.md) may keep its own frames beside its other files, in `<project>/frames/` (a private project's then stay outside any public repository). Each is named by its project: **`<project>/<name>`**, such as `example-teasers/harbour-feed`. That id is written in the frame's YAML and is how the frame is referenced (`project.yaml`'s `frames`, a viewpoint identity's `frame`, the teaser links), served, reviewed and recorded in a draft's or token's provenance.
+
+- **No collisions.** A global frame's id has no `/`, so a project's frame never shadows one, nor another project's. The id is part of the frame's hash, so the hash says whose frame it is.
+- **Where the file lives decides.** A frame in `<project>/frames/` (beside that project's `project.yaml`) must be named `<project>/…`; a frame anywhere else must not have a `/` in its id. Only `<project>/frames/*.yaml` is read, not subdirectories, so its sources can sit in `frames/src/`.
+- **Everything else is a frame's.** Same YAML, same review (`draft → approved → retired`, `approved_by`, `approved_at`), same hash (the YAML minus `status`, plus the overlay and fonts). `GET /frames` lists them with `project` set and `file` relative to the projects directory (`<project>/frames/<file>`); the frame routes take the two-part id, with the `/` as it is or encoded (`/frames/example-teasers/harbour-feed/1/overlay`, `/frames/example-teasers%2Fharbour-feed/1/review`).
+- **Teasers only.** A project uses global frames and its own, never another project's (a problem in its checks), and a card draft refuses a project's frame (422).
+
+### Building an overlay from HTML
+
+`scripts/capture_frame.py` renders a local HTML page to a transparent PNG with Playwright's Chromium, and writes the frame's YAML from a small JSON spec (its window and text slots):
+
+```sh
+uv run --with playwright playwright install chromium-headless-shell   # once
+uv run --with playwright python scripts/capture_frame.py <project>/frames/src/<name>/capture.json
+```
+
+```json
+{
+  "html": "overlay.html", "png": "../../<name>-v1.png", "yaml": "../../<name>-v1.yaml",
+  "width": 1024, "height": 1024,
+  "kit": {"name": "monohud", "commit": "<full sha>", "license": "MIT"},
+  "frame": {"id": "<project>/<name>", "version": 1, "window": {"x": 0, "y": 0, "width": 1024, "height": 1024},
+            "style_locked": true, "texts": {"quote": {"x": 72, "y": 700, "width": 880, "height": 220, "wrap": true}}}
+}
+```
+
+- **No network.** The page is opened from `file://` and every other request is refused, so a page that loads a CDN stylesheet or web font fails to capture. Vendor what it needs (fonts too, with their licences).
+- **What's recorded.** The YAML starts with comments: the command that rebuilds it, the sha256 of the HTML and of every local file the page loaded, the kit's name and commit (or `none`), and the Playwright and Chromium versions. Comments aren't hashed, so they change no hash; the overlay's bytes are what the hash covers. The status is always `draft`, and an approved or retired frame is never overwritten: capture a new version. The YAML is validated (`load_frame`) before anything is replaced.
+- **Playwright isn't a dependency** of argus-mint, not even for its tests: they pass a stub renderer. Without it the script says how to run it.
+- Chromium's text rendering can differ by version, so a rebuild is pixel-for-pixel only with the recorded versions. The committed PNG is what's reviewed and hashed, either way.
+
+The example is [projects/example-teasers/frames](https://github.com/smk762/argus-mint/tree/dev/projects/example-teasers/frames): a harbour-camera look (timestamp, reticle, status, signal) in a few lines of its own CSS, captured to `harbour-feed-v1.png`, full bleed so the background shows through.
+
+**Using a component kit (e.g. monohud).** [monohud](https://github.com/jshguo-labs/monohud) (MIT) has framework-free `packages/css` (plain CSS; `tokens.generated.css` holds its tokens) and `packages/fx` (TypeScript, so it needs a build before a page can load it). It is young, so pin a commit and review it. Vendor it into the frame's source directory, never into argus-mint:
+
+1. `git clone https://github.com/jshguo-labs/monohud && git -C monohud checkout <sha>` and read what you're taking.
+2. Copy `packages/css/src/*.css` and `packages/css/LICENSE` into `<project>/frames/src/<name>/vendor/monohud/` (and `packages/tokens/LICENSE` if you take its tokens), with the commit in a `COMMIT` file beside them. Check the CSS loads nothing remote (`@import url(http…)`, web fonts); the capture refuses it anyway.
+3. Write `overlay.html` linking the vendored CSS and your own, with `background: transparent`. A static capture has no motion, so leave `fx`'s animations out; for signal distortion use the frame's reviewed effects.
+4. Put `"kit": {"name": "monohud", "commit": "<sha>", "license": "MIT"}` in `capture.json`, capture, and look at the PNG over a background (`POST /frames/{id}/{version}/preview`) before approving it.
 
 ## Bio templates
 

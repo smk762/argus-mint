@@ -58,6 +58,7 @@ from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from starlette.convertors import Convertor, register_url_convertor
 
 import argus_mint
 from argus_mint import gpu, networks, siwe
@@ -76,7 +77,7 @@ from argus_mint.cards import (
 )
 from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
-from argus_mint.frames import FrameError, LoadedFrame, compose, layout, load_frame
+from argus_mint.frames import FrameError, LoadedFrame, compose, layout, load_frame, project_frame_files
 from argus_mint.keys import KeyLoadError, load_signer
 from argus_mint.library import Library, LibraryError
 from argus_mint.moderation import WordFilter, auto_review
@@ -126,6 +127,22 @@ from argus_mint.workflow import card_texts, check_bio, check_texts, create_draft
 __all__ = ["DEFAULT_PORT", "Settings", "create_app"]
 
 log = structlog.get_logger(__name__)
+
+
+class _FrameIdConvertor(Convertor[str]):
+    """A frame id in a route: one segment, or a project's frame's two (``<project>/<name>``),
+    sent as is or with the slash encoded (``%2F``): the server routes on the decoded path."""
+
+    regex = "[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)?"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("frame_id", _FrameIdConvertor())
 
 DEFAULT_PORT = 8108
 PREFIX = "ARGUS_MINT_"
@@ -407,11 +424,16 @@ def create_app(
         "bio": (cfg.bios_dir, load_bio, BioError),
     }
 
+    def kind_files(kind: str) -> list[Path]:
+        """A kind's files: frames include each project's own (``<project>/frames/``, ids ``<project>/<name>``)."""
+        files = yaml_files(kinds[kind][0])
+        return files + project_frame_files(cfg.projects_dir) if kind == "frame" else files
+
     def load_kind(kind: str) -> dict[tuple[str, int], tuple[Any, Path]]:
         """Every file of one kind (any status), keyed by (id, version), with its path."""
-        root, loader, error = kinds[kind]
+        _root, loader, error = kinds[kind]
         out: dict[tuple[str, int], tuple[Any, Path]] = {}
-        for f in yaml_files(root):
+        for f in kind_files(kind):
             try:
                 obj = loader(f)
             except error as e:
@@ -433,7 +455,12 @@ def create_app(
         return {k: v[0] for k, v in load_kind("bio").items()}
 
     def rel(kind: str, path: Path) -> str:
-        return str(path.relative_to(kinds[kind][0]))
+        """The file's path in its served directory: a project's frame's is from the projects
+        directory (``<project>/frames/<file>``)."""
+        root = kinds[kind][0]
+        if kind == "frame" and not path.is_relative_to(root):
+            return path.relative_to(cfg.projects_dir).as_posix()
+        return path.relative_to(root).as_posix()
 
     def pick(table: dict[tuple[str, int], Any], ref: Ref, kind: str) -> Any:
         try:
@@ -535,11 +562,18 @@ def create_app(
     @app.get("/frames")
     def list_frames() -> list[FrameInfo]:
         return [
-            FrameInfo(hash=hex0x(f.hash()), file=rel("frame", path), width=f.size[0], height=f.size[1], frame=f.frame)
+            FrameInfo(
+                hash=hex0x(f.hash()),
+                file=rel("frame", path),
+                width=f.size[0],
+                height=f.size[1],
+                project=f.frame.project,
+                frame=f.frame,
+            )  # fmt: skip
             for _k, (f, path) in sorted(load_kind("frame").items())
         ]
 
-    @app.get("/frames/{frame_id}/{version}/overlay")
+    @app.get("/frames/{frame_id:frame_id}/{version:int}/overlay")
     def frame_overlay(frame_id: str, version: int) -> Response:
         f = pick(frames(), Ref(id=frame_id, version=version), "frame")
         return Response(f.overlay, media_type="image/png")
@@ -668,6 +702,8 @@ def create_app(
             raise HTTPException(422, str(e)) from e
         t = pick(templates(), body.template, "template")
         lf = pick(frames(), body.frame, "frame") if body.frame else None
+        if lf is not None and lf.frame.project is not None:
+            raise HTTPException(422, f"frame {lf.frame.id} is project {lf.frame.project}'s, for its teasers only")
         bt = pick(bios(), body.bio, "bio template") if body.bio else None
         if bt is not None:
             if writer is None:
@@ -903,7 +939,9 @@ def create_app(
         return decide
 
     for kind, prefix in (("template", "templates"), ("frame", "frames"), ("bio", "bios")):
-        app.post(f"/{prefix}/{{item_id}}/{{version}}/review", name=f"review_{kind}")(decision_handler(kind))
+        # a project's frame is <project>/<name>; the version is digits, so the two parse one way only
+        item = "{item_id:frame_id}/{version:int}" if kind == "frame" else "{item_id}/{version}"
+        app.post(f"/{prefix}/{item}/review", name=f"review_{kind}")(decision_handler(kind))
 
     @app.post("/samples", status_code=202)
     def post_samples(body: SampleRequest, authorization: Annotated[str | None, Header()] = None) -> SampleJob:
@@ -957,7 +995,7 @@ def create_app(
             raise HTTPException(404, "art or framed")
         return Response(samples.image(job_id, n, which), media_type="image/png")
 
-    @app.post("/frames/{frame_id}/{version}/preview")
+    @app.post("/frames/{frame_id:frame_id}/{version:int}/preview")
     def frame_preview(frame_id: str, version: int, body: FramePreviewRequest) -> Response:
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
         src = body.art
@@ -979,7 +1017,7 @@ def create_app(
             raise HTTPException(422, str(e)) from e
         return Response(png, media_type="image/png")
 
-    @app.post("/frames/{frame_id}/{version}/layout")
+    @app.post("/frames/{frame_id:frame_id}/{version:int}/layout")
     def frame_layout(frame_id: str, version: int, body: LayoutRequest) -> FrameLayout:
         """Where Pillow puts each line, so a browser can draw the same card as SVG while it is styled."""
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
@@ -988,7 +1026,7 @@ def create_app(
             raise HTTPException(422, f"frame {frame_id} v{version} has no text slot {unknown}")
         return FrameLayout(width=lf.size[0], height=lf.size[1], slots=layout(lf, body.texts))  # type: ignore[arg-type]
 
-    @app.get("/frames/{frame_id}/{version}/fonts/{font:path}")
+    @app.get("/frames/{frame_id:frame_id}/{version:int}/fonts/{font:path}")
     def frame_font(frame_id: str, version: int, font: str) -> Response:
         """A font the frame names (its path as the frame YAML gives it), for the browser preview."""
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")

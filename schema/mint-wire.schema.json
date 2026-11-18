@@ -1811,7 +1811,7 @@
           "title": "Approved By"
         },
         "id": {
-          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "pattern": "^(?:[a-z0-9][a-z0-9-]{0,63}/)?[a-z0-9][a-z0-9-]{0,63}$",
           "title": "Id",
           "type": "string"
         },
@@ -1862,6 +1862,7 @@
     },
     "FrameInfo": {
       "additionalProperties": false,
+      "description": "GET /frames. ``file`` is relative to the frames directory, or for a project's own frame\n(``project`` set, id ``<project>/<name>``) to the projects directory.",
       "properties": {
         "file": {
           "title": "File",
@@ -1877,6 +1878,18 @@
         "height": {
           "title": "Height",
           "type": "integer"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
         },
         "width": {
           "title": "Width",
@@ -2072,7 +2085,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.15",
+          "default": "1.16",
           "title": "Wire Version",
           "type": "string"
         }
@@ -5009,5 +5022,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.15"
+  "title": "argus-mint wire 1.16"
 }

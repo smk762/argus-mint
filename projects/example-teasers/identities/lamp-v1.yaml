@@ -1,8 +1,9 @@
-# Viewpoint: nobody is painted in. The image is what the lamp sees, and its frame says so.
+# Viewpoint: nobody is painted in. The image is what the lamp sees, and its frame says so: the
+# project's own harbour-camera frame (frames/harbour-feed-v1.yaml), full bleed so the background shows through.
 id: lamp
 version: 1
 status: draft
 project: example-teasers
 voice: lamp
 presence: viewpoint
-frame: {id: example-teaser, version: 1}
+frame: {id: example-teasers/harbour-feed, version: 1}
