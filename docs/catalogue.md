@@ -26,6 +26,8 @@ Approval is a human step recorded in the file: `status: approved` plus `approved
 
 **Reviewing through the API.** `POST /{templates,frames,bios}/{id}/{version}/review` (a project's own frame too, by its `<project>/<name>` id) with `{"decision": "approve" | "retire", "by": "<reviewer>"}` (moderator token) writes the decision into the YAML, keeping its comments and layout, re-validates it, and restores the original if it no longer loads. The served directories must be writable (`capabilities.review_catalogue`), and the change is a file edit to commit to the consumer's repository.
 
+**Check a frame's overlay by eye.** Nothing reads the pixels of an overlay PNG: text drawn into it (a camera name, a caption, a date) isn't checked against anything, the spoiler list included. The reviewer approving a frame reads every word in its overlay, at full size, before approving it.
+
 **Samples before approving.** `POST /samples` (or `argus-mint sample`) renders a few cards from a draft template, frame and bio template, so the reviewer sees what they're approving. Samples run as background jobs, go through the same safety checks and retries as cards, and are never pinned, signed or minted. `POST /frames/{id}/{version}/preview` shows any frame on a draft's or sample's existing art.
 
 ## Templates
@@ -116,6 +118,7 @@ A [teaser project](projects.md) may keep its own frames beside its other files, 
 - **Where the file lives decides.** A frame in `<project>/frames/` (beside that project's `project.yaml`) must be named `<project>/…`; a frame anywhere else must not have a `/` in its id. Only `<project>/frames/*.yaml` is read, not subdirectories, so its sources can sit in `frames/src/`.
 - **Everything else is a frame's.** Same YAML, same review (`draft → approved → retired`, `approved_by`, `approved_at`), same hash (the YAML minus `status`, plus the overlay and fonts). `GET /frames` lists them with `project` set and `file` relative to the projects directory (`<project>/frames/<file>`); the frame routes take the two-part id, with the `/` as it is or encoded (`/frames/example-teasers/harbour-feed/1/overlay`, `/frames/example-teasers%2Fharbour-feed/1/review`).
 - **Teasers only.** A project uses global frames and its own, never another project's (a problem in its checks), and a card draft refuses a project's frame (422).
+- **Spoilers.** The private spoiler list reads a project's frame file as raw text, every string and every comment, so a hit shows (by rule number only) in the project's checks, and approving the frame is refused (409, `held by spoiler rule N`). Text drawn into the overlay PNG can't be read; the reviewer checks it by eye.
 
 ### Building an overlay from HTML
 

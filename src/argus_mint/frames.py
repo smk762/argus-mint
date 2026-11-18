@@ -53,6 +53,7 @@ __all__ = [
     "fit_text",
     "layout",
     "tint_matrix",
+    "frame_files_of",
     "frame_scope",
     "load_frame",
     "project_frame_files",
@@ -213,10 +214,14 @@ def project_frame_files(projects_dir: Path) -> list[Path]:
         return []
     out: list[Path] = []
     for d in sorted(p for p in projects_dir.iterdir() if p.is_dir() and (p / "project.yaml").is_file()):
-        fdir = d / "frames"
-        if fdir.is_dir():
-            out += sorted([*fdir.glob("*.yaml"), *fdir.glob("*.yml")])
+        out += frame_files_of(d)
     return out
+
+
+def frame_files_of(project_root: Path) -> list[Path]:
+    """One project's frame files: ``<project_root>/frames/*.yaml`` (not nested)."""
+    fdir = Path(project_root) / "frames"
+    return sorted([*fdir.glob("*.yaml"), *fdir.glob("*.yml")]) if fdir.is_dir() else []
 
 
 def load_frame(path: Path) -> LoadedFrame:

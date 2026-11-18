@@ -88,6 +88,7 @@ Each row names what catches it. **UNENFORCED** rows need a check, not more prose
 | A frame's effects give different bytes for the same art and frame, use an unseeded or unreviewed source, or reach outside the window | 7 | `test_frame_effects::test_composing_twice_gives_the_same_bytes`, `::test_each_effect_is_byte_stable_and_pinned` (one per effect, digests pinned), `::test_effects_change_only_the_window`, `::test_noise_is_bounded_seeded_by_the_art_and_monochrome_when_asked` |
 | Adding effects changes the hash of a frame without them | 7 | `test_frame_effects::test_committed_frames_without_effects_keep_their_hash`, `::test_the_example_frame_without_its_effects_hashes_as_it_did` |
 | An effect's parameter outside its bounds, missing, or unknown | 2 | `test_frame_effects::test_effect_parameters_are_fixed_and_bounded` |
+| A project's frame is approved while a spoiler rule matches its file (any string, or a comment) | 2 | `test_project_frames::test_a_projects_frame_is_held_by_a_spoiler_in_any_string_or_comment` (text drawn into the overlay PNG isn't read: the reviewer checks it by eye, docs/catalogue.md) |
 | Committed generated files go stale: ABIs, `docs/cli.md`, the wire schema, Python-built fixtures | | CI `contracts` job (`git diff --exit-code src/argus_mint/abi/`), `test_cli_docs::test_cli_docs_are_current`, `test_server::test_wire_schema_is_committed`, `test_fixtures` |
 
 ## Settled decisions (beyond the spec)

@@ -28,7 +28,7 @@ A scene or identity prompt is fixed text written by the author. A teaser never t
 Each save (and `GET /projects/{id}`) reports:
 
 - **Problems**: schema errors, and what one file says about another: a teaser naming a file or frame that doesn't exist, or a frame that isn't one of the project's; a frame of another project (a project uses global frames and its own); a line whose voice isn't the identity's; an embodied identity in a scene with no `character_area`; a viewpoint teaser not using its identity's frame; a scene outside the project's checkpoint family; a file belonging to another project.
-- **Spoilers**: rule numbers from the private spoiler list that match any text in the file, negatives and sources included.
+- **Spoilers**: rule numbers from the private spoiler list that match any text in the file, negatives and sources included. `GET /projects/{id}` also reads the project's own frame files as raw text: every string in the YAML **and its comments** (a capture's comments name its sources). Approving such a frame through the frame review route is refused (409, `held by spoiler rule N`). Text drawn into an overlay PNG can't be read: the reviewer checks the overlay by eye.
 - **SingGuard**: darkroom's text pre-flight, under the project's `policy`, on the title and attribution, each identity and scene prompt, each line's text and published text, and each teaser's alt text. Negative prompts are left out, since they name what to avoid.
 
 ### SingGuard's verdicts are kept in the file
