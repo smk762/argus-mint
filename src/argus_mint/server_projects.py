@@ -220,6 +220,7 @@ def add_project_routes(
     def list_projects() -> ProjectList:
         out: list[ProjectSummary] = []
         if projects_dir.is_dir():
+            # nosemgrep: handler-scans-all - the answer is every project; each request parses every project.yaml, so cache by mtime if projects grow
             for d in sorted(p for p in projects_dir.iterdir() if p.is_dir() and _ID.fullmatch(p.name)):
                 if not (d / "project.yaml").is_file():
                     continue
