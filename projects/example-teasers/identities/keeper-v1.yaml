@@ -1,5 +1,5 @@
 # Embodied: painted into a scene's character_area. Once a LoRA trained on approved references
-# passes argus-proof, `lora` and `proof_run` are pinned here (from GET /report/<run>/manifest).
+# passes argus-proof, `lora`, `proof_run` and `proof_export` are pinned into a new version (from GET /report/<run>/manifest).
 id: keeper
 version: 1
 status: draft
@@ -8,3 +8,14 @@ voice: keeper
 presence: embodied
 prompt: "an elderly lighthouse keeper, weathered face, short grey beard, dark oilskin coat, knitted cap"
 negative: "nude, nudity, text, letters, watermark, signature"
+# How the LoRA is trained (docs/projects.md#training-an-identity), and the proof metric it is checked on.
+check_metric: identity
+training:
+  model: sdxl/juggernautXL_ragnarokBy/juggernautXL_ragnarokBy.safetensors  # the scenes' checkpoint
+  sampling: {sampler: dpmpp_2m, scheduler: karras, steps: 28, cfg: 6.0}
+  width: 1024
+  height: 1024
+  candidates: 60
+  train: 30
+  held_out: 8
+  trigger: kpr_keeper

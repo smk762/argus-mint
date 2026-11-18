@@ -171,7 +171,8 @@ def test_the_poster_token_does_nothing_but_post(mint):
     assert c.get(f"/drafts/{did}").json()["awaiting"] == ["moderator", "owner"]
 
     params = {"draft_id": did, "pid": PID, "item_id": "x", "version": "1", "scene": "lamp-room", "bg_id": "x",
-              "number": "T1", "kind": "line", "item": "x", "frame_id": "x", "job_id": "x"}  # fmt: skip
+              "number": "T1", "kind": "line", "item": "x", "frame_id": "x", "job_id": "x", "iid": "keeper",
+              "step": "candidates"}  # fmt: skip
     posting = {"/drafts/{draft_id}/posted"}
     for route in c.app.routes:  # type: ignore[attr-defined]
         if "POST" not in getattr(route, "methods", set()) or route.path in posting:

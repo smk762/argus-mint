@@ -594,6 +594,57 @@
       "title": "BioTemplate",
       "type": "object"
     },
+    "Candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "made_with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Made With",
+          "type": "object"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/RenderRequest"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n",
+        "seed",
+        "file",
+        "sha256",
+        "request",
+        "attempts"
+      ],
+      "title": "Candidate",
+      "type": "object"
+    },
     "Capabilities": {
       "additionalProperties": false,
       "description": "What this server will do. A client disables a control whose capability is false.",
@@ -625,6 +676,11 @@
         "edit_text": {
           "default": false,
           "title": "Edit Text",
+          "type": "boolean"
+        },
+        "identity_training": {
+          "default": false,
+          "title": "Identity Training",
           "type": "boolean"
         },
         "library": {
@@ -677,6 +733,25 @@
         "publish"
       ],
       "title": "Capabilities",
+      "type": "object"
+    },
+    "Caption": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "text"
+      ],
+      "title": "Caption",
       "type": "object"
     },
     "CardDraft": {
@@ -1540,6 +1615,76 @@
       "title": "EditTextRequest",
       "type": "object"
     },
+    "Evaluation": {
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "enum": [
+            "identity",
+            "likeness"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "min_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min Score"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "pending": {
+          "title": "Pending",
+          "type": "boolean"
+        },
+        "proof_passed": {
+          "title": "Proof Passed",
+          "type": "boolean"
+        },
+        "proof_run": {
+          "title": "Proof Run",
+          "type": "string"
+        },
+        "reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Score"
+        }
+      },
+      "required": [
+        "proof_run",
+        "metric",
+        "score",
+        "min_score",
+        "proof_passed",
+        "pending",
+        "passed"
+      ],
+      "title": "Evaluation",
+      "type": "object"
+    },
     "FailedBackground": {
       "additionalProperties": false,
       "description": "A background that made no image. ``final``: the safety check refused every attempt, so\nrendering it again would only repeat them; otherwise an error stopped it and a new job retries.",
@@ -1578,6 +1723,46 @@
         "attempts"
       ],
       "title": "FailedBackground",
+      "type": "object"
+    },
+    "FailedCandidate": {
+      "additionalProperties": false,
+      "description": "A candidate that made no image. ``final``: the safety check refused every attempt.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        },
+        "final": {
+          "title": "Final",
+          "type": "boolean"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n",
+        "seed",
+        "error",
+        "final",
+        "attempts"
+      ],
+      "title": "FailedCandidate",
       "type": "object"
     },
     "Frame": {
@@ -1871,7 +2056,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.13",
+          "default": "1.14",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1889,6 +2074,87 @@
         "backends"
       ],
       "title": "Health",
+      "type": "object"
+    },
+    "IdentityTrainingView": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}/identities/{identity}/{version}/training: the record, and each step's status\nas mint works it out (a job a restart cut off reads as failed). ``next``: the one step the\nmoderator may start now, if any.",
+      "properties": {
+        "identity": {
+          "title": "Identity",
+          "type": "string"
+        },
+        "next": {
+          "anyOf": [
+            {
+              "enum": [
+                "candidates",
+                "select",
+                "caption",
+                "train",
+                "evaluate",
+                "pin"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "record": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrainingRecord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "steps": {
+          "additionalProperties": {
+            "enum": [
+              "not_started",
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "candidates",
+              "select",
+              "caption",
+              "train",
+              "evaluate",
+              "pin"
+            ]
+          },
+          "title": "Steps",
+          "type": "object"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "identity",
+        "version",
+        "steps",
+        "next",
+        "record"
+      ],
+      "title": "IdentityTrainingView",
       "type": "object"
     },
     "InitImageRef": {
@@ -2149,6 +2415,40 @@
         "name"
       ],
       "title": "LoraRef",
+      "type": "object"
+    },
+    "Pinned": {
+      "additionalProperties": false,
+      "properties": {
+        "identity_version": {
+          "title": "Identity Version",
+          "type": "integer"
+        },
+        "lora": {
+          "title": "Lora",
+          "type": "string"
+        },
+        "proof_export": {
+          "title": "Proof Export",
+          "type": "string"
+        },
+        "proof_run": {
+          "title": "Proof Run",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "identity_version",
+        "lora",
+        "sha256",
+        "proof_run",
+        "proof_export"
+      ],
+      "title": "Pinned",
       "type": "object"
     },
     "Post": {
@@ -3329,6 +3629,76 @@
       "title": "SavedProjectFile",
       "type": "object"
     },
+    "Selection": {
+      "additionalProperties": false,
+      "description": "Curator's pick, split by mint. Files are candidate files; the two sets never share one.",
+      "properties": {
+        "anchors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Anchors",
+          "type": "array"
+        },
+        "held_out": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Held Out",
+          "type": "array"
+        },
+        "held_out_sha256": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Held Out Sha256",
+          "type": "array"
+        },
+        "kept": {
+          "title": "Kept",
+          "type": "integer"
+        },
+        "proof_export": {
+          "title": "Proof Export",
+          "type": "string"
+        },
+        "scan_id": {
+          "title": "Scan Id",
+          "type": "string"
+        },
+        "train": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Train",
+          "type": "array"
+        },
+        "train_export": {
+          "title": "Train Export",
+          "type": "string"
+        },
+        "train_sha256": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Train Sha256",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scan_id",
+        "kept",
+        "train",
+        "held_out",
+        "train_export",
+        "proof_export",
+        "train_sha256",
+        "held_out_sha256"
+      ],
+      "title": "Selection",
+      "type": "object"
+    },
     "SlotBackground": {
       "additionalProperties": false,
       "description": "A filled, rounded box behind a text slot.",
@@ -3469,6 +3839,94 @@
         }
       },
       "title": "SlotStyle",
+      "type": "object"
+    },
+    "StepRun": {
+      "additionalProperties": false,
+      "description": "One run of one step: what it was given, which sibling run or scan it made, what came of it.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "inputs": {
+          "additionalProperties": true,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "job": {
+          "pattern": "^[0-9a-f]{16}$",
+          "title": "Job",
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": true,
+          "title": "Outputs",
+          "type": "object"
+        },
+        "sibling": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sibling",
+          "type": "object"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step": {
+          "enum": [
+            "candidates",
+            "select",
+            "caption",
+            "train",
+            "evaluate",
+            "pin"
+          ],
+          "title": "Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "job",
+        "status",
+        "started_at"
+      ],
+      "title": "StepRun",
       "type": "object"
     },
     "TeaserBackground": {
@@ -4158,7 +4616,165 @@
       ],
       "title": "Tint",
       "type": "object"
+    },
+    "TrainedLora": {
+      "additionalProperties": false,
+      "properties": {
+        "forge_run": {
+          "title": "Forge Run",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "output_name": {
+          "title": "Output Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "trigger": {
+          "title": "Trigger",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256",
+        "forge_run",
+        "output_name",
+        "trigger"
+      ],
+      "title": "TrainedLora",
+      "type": "object"
+    },
+    "TrainingRecord": {
+      "additionalProperties": false,
+      "description": "``record.json``: one identity version's training, every step run kept.",
+      "properties": {
+        "candidates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "captions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Caption"
+          },
+          "title": "Captions",
+          "type": "array"
+        },
+        "evaluation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evaluation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failed": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FailedCandidate"
+          },
+          "title": "Failed",
+          "type": "array"
+        },
+        "format": {
+          "const": 1,
+          "default": 1,
+          "title": "Format",
+          "type": "integer"
+        },
+        "identity": {
+          "title": "Identity",
+          "type": "string"
+        },
+        "identity_hash": {
+          "pattern": "^0x[0-9a-f]{64}$",
+          "title": "Identity Hash",
+          "type": "string"
+        },
+        "identity_version": {
+          "minimum": 1,
+          "title": "Identity Version",
+          "type": "integer"
+        },
+        "lora": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrainedLora"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "metric": {
+          "enum": [
+            "identity",
+            "likeness"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "pinned": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pinned"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "runs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StepRun"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "selection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Selection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "project",
+        "identity",
+        "identity_version",
+        "identity_hash",
+        "metric"
+      ],
+      "title": "TrainingRecord",
+      "type": "object"
     }
   },
-  "title": "argus-mint wire 1.13"
+  "title": "argus-mint wire 1.14"
 }
