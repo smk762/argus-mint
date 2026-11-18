@@ -49,6 +49,8 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 | `check_templates` | a darkroom is configured to check templates against |
 | `auto_moderate` | auto-moderation is on |
 | `author_catalogue` | moderator token set, projects directory writable, not read-only |
+| `backgrounds` | moderator token and darkroom, not read-only |
+| `teasers` | moderator token set, not read-only (painting an embodied identity in also needs darkroom) |
 
 ## Catalogue
 
@@ -69,6 +71,17 @@ See [catalogue.md](catalogue.md).
 
 See [projects.md](projects.md): `GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/files/{kind}/{item}/{version}` (save a draft), `POST /projects/{id}/teasers`, and `POST /projects/{id}/files/{kind}/{item}/{version}/review`. Writes need the moderator token.
 
+Backgrounds and teaser drafts ([projects.md](projects.md#backgrounds)):
+
+| Endpoint | Auth | |
+|---|---|---|
+| `POST /projects/{id}/scenes/{scene}/{version}/backgrounds` | moderator | render the scene's backgrounds that have no image yet, as a job (202): the set, with its `job` |
+| `GET /projects/{id}/backgrounds` | | `{sets}`: every scene version's set |
+| `GET /projects/{id}/scenes/{scene}/{version}/backgrounds` | | one set: `{project, scene, scene_version, scene_hash, wanted, backgrounds, failed, job}` |
+| `GET /projects/{id}/backgrounds/{bg}/image` | | the background's PNG |
+| `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}`; once per background |
+| `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft from `T<n>` (201, `{id, status, awaiting, draft}`), reviewed like any draft |
+
 ## Library
 
 | Endpoint | Auth | |
@@ -83,7 +96,7 @@ See [drafts.md](drafts.md) and [review.md](review.md).
 | Endpoint | Auth | |
 |---|---|---|
 | `GET /drafts` | | `{items, total}`, newest first. `?status=pending\|approved\|rejected\|published`, `?limit=` (1–200, default 50), `?offset=` |
-| `GET /drafts/{id}` | | `{id, status, awaiting, draft, published}` |
+| `GET /drafts/{id}` | | `{id, status, awaiting, draft, published}`. `draft.kind` is `card` or `teaser` |
 | `GET /drafts/{id}/image` | | the card image the reviewers approve (PNG) |
 | `GET /drafts/{id}/art` | | the unframed render (PNG) |
 | `POST /drafts` | moderator | make a draft (201) |

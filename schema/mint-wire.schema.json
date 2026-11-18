@@ -87,6 +87,321 @@
       "title": "AutoCheck",
       "type": "object"
     },
+    "Background": {
+      "additionalProperties": false,
+      "description": "One rendered background and its review. ``status`` is ``pending`` until the moderator decides.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "made_with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Made With",
+          "type": "object"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/RenderRequest"
+        },
+        "review": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BackgroundReview"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "n",
+        "seed",
+        "request",
+        "attempts",
+        "file",
+        "sha256",
+        "created_at"
+      ],
+      "title": "Background",
+      "type": "object"
+    },
+    "BackgroundDecision": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/backgrounds/{bg}/review: the moderator's decision on one background.",
+      "properties": {
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "by"
+      ],
+      "title": "BackgroundDecision",
+      "type": "object"
+    },
+    "BackgroundJob": {
+      "additionalProperties": false,
+      "description": "The last rendering job for a set. A job left queued or running by a restart reads as failed.",
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{16}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "numbers": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Numbers",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "created_at",
+        "numbers"
+      ],
+      "title": "BackgroundJob",
+      "type": "object"
+    },
+    "BackgroundReview": {
+      "additionalProperties": false,
+      "description": "The moderator's decision on one background image, bound to its sha256.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "by",
+        "at",
+        "image_sha256"
+      ],
+      "title": "BackgroundReview",
+      "type": "object"
+    },
+    "BackgroundSet": {
+      "additionalProperties": false,
+      "description": "``manifest.json``: the backgrounds of one scene version.",
+      "properties": {
+        "backgrounds": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Background"
+          },
+          "title": "Backgrounds",
+          "type": "array"
+        },
+        "failed": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FailedBackground"
+          },
+          "title": "Failed",
+          "type": "array"
+        },
+        "format": {
+          "const": 1,
+          "default": 1,
+          "title": "Format",
+          "type": "integer"
+        },
+        "job": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BackgroundJob"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "scene": {
+          "title": "Scene",
+          "type": "string"
+        },
+        "scene_hash": {
+          "pattern": "^0x[0-9a-f]{64}$",
+          "title": "Scene Hash",
+          "type": "string"
+        },
+        "scene_version": {
+          "minimum": 1,
+          "title": "Scene Version",
+          "type": "integer"
+        },
+        "wanted": {
+          "minimum": 1,
+          "title": "Wanted",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "scene",
+        "scene_version",
+        "scene_hash",
+        "wanted"
+      ],
+      "title": "BackgroundSet",
+      "type": "object"
+    },
+    "BackgroundSetList": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}/backgrounds: each scene version's backgrounds, by scene then version.",
+      "properties": {
+        "sets": {
+          "items": {
+            "$ref": "#/$defs/BackgroundSet"
+          },
+          "title": "Sets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sets"
+      ],
+      "title": "BackgroundSetList",
+      "type": "object"
+    },
     "BioInfo": {
       "additionalProperties": false,
       "properties": {
@@ -293,6 +608,11 @@
           "title": "Auto Moderate",
           "type": "boolean"
         },
+        "backgrounds": {
+          "default": false,
+          "title": "Backgrounds",
+          "type": "boolean"
+        },
         "check_templates": {
           "default": false,
           "title": "Check Templates",
@@ -334,6 +654,11 @@
           "title": "Sample",
           "type": "boolean"
         },
+        "teasers": {
+          "default": false,
+          "title": "Teasers",
+          "type": "boolean"
+        },
         "write_bios": {
           "title": "Write Bios",
           "type": "boolean"
@@ -351,7 +676,7 @@
     },
     "CardDraft": {
       "additionalProperties": false,
-      "description": "Everything needed to publish a card, except the pins and the signature.",
+      "description": "Everything needed to publish a card, except the pins and the signature.\n\n``kind`` is ``card`` (a game card: ``asset_id``, ``consumer``, maybe a bio) or ``teaser``\n(an image and quote from a teaser project: ``teaser`` records what made it, and it has no\nasset id, consumer or bio). Both are reviewed the same way; ``to`` is the owner who signs.",
       "properties": {
         "art_sha256": {
           "pattern": "^[0-9a-f]{64}$",
@@ -359,8 +684,16 @@
           "type": "string"
         },
         "asset_id": {
-          "title": "Asset Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
         },
         "attempts": {
           "items": {
@@ -393,10 +726,18 @@
           "default": null
         },
         "consumer": {
-          "maxLength": 64,
-          "minLength": 1,
-          "title": "Consumer",
-          "type": "string"
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Consumer"
         },
         "created_at": {
           "format": "date-time",
@@ -450,6 +791,15 @@
           "title": "Image Sha256",
           "type": "string"
         },
+        "kind": {
+          "default": "card",
+          "enum": [
+            "card",
+            "teaser"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "library": {
           "anyOf": [
             {
@@ -500,6 +850,17 @@
           ],
           "default": null
         },
+        "teaser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeaserRecord"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "texts": {
           "additionalProperties": {
             "type": "string"
@@ -516,10 +877,8 @@
         "request",
         "attempts",
         "renderer",
-        "asset_id",
         "to",
         "name",
-        "consumer",
         "art_sha256",
         "image_sha256",
         "created_at"
@@ -845,6 +1204,21 @@
       "title": "CreateDraft",
       "type": "object"
     },
+    "CreateTeaserDraft": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/teasers/{n}/draft. Everything else comes from the project's reviewed files.",
+      "properties": {
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "to"
+      ],
+      "title": "CreateTeaserDraft",
+      "type": "object"
+    },
     "DraftDetail": {
       "additionalProperties": false,
       "properties": {
@@ -948,6 +1322,15 @@
           "title": "Image Sha256",
           "type": "string"
         },
+        "kind": {
+          "default": "card",
+          "enum": [
+            "card",
+            "teaser"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "name": {
           "title": "Name",
           "type": "string"
@@ -961,6 +1344,17 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "teaser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeaserOf"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "template": {
           "$ref": "#/$defs/argus_mint__wire__Ref"
@@ -1104,6 +1498,46 @@
         "signature"
       ],
       "title": "EditTextRequest",
+      "type": "object"
+    },
+    "FailedBackground": {
+      "additionalProperties": false,
+      "description": "A background that made no image. ``final``: the safety check refused every attempt, so\nrendering it again would only repeat them; otherwise an error stopped it and a new job retries.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        },
+        "final": {
+          "title": "Final",
+          "type": "boolean"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n",
+        "seed",
+        "error",
+        "final",
+        "attempts"
+      ],
+      "title": "FailedBackground",
       "type": "object"
     },
     "Frame": {
@@ -1397,7 +1831,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.11",
+          "default": "1.12",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1415,6 +1849,42 @@
         "backends"
       ],
       "title": "Health",
+      "type": "object"
+    },
+    "InitImageRef": {
+      "additionalProperties": false,
+      "description": "An inpainting (or image-to-image) input, by hash: the bytes travel beside the request.\n\n``sha256`` is of the image bytes sent and ``mask_sha256`` of the mask's (white repaints,\nblack keeps); darkroom's record names both as ``source_sha256``, and the client checks them.",
+      "properties": {
+        "denoise": {
+          "maximum": 1.0,
+          "minimum": 0.05,
+          "title": "Denoise",
+          "type": "number"
+        },
+        "mask_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mask Sha256"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256",
+        "denoise"
+      ],
+      "title": "InitImageRef",
       "type": "object"
     },
     "LayoutRequest": {
@@ -1937,11 +2407,22 @@
     },
     "RenderRequest": {
       "additionalProperties": false,
-      "description": "Everything a renderer needs, fully determined by template version + values + seed.",
+      "description": "Everything a renderer needs, fully determined by template version + values + seed.\n\nA teaser's renders are not of a template: a background's ``template_*`` name its scene, and\nan inpainted figure's name its identity (each file's id, version and hash). ``init_image``\nis set only for an inpainted figure.",
       "properties": {
         "height": {
           "title": "Height",
           "type": "integer"
+        },
+        "init_image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InitImageRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "loras": {
           "items": {
@@ -2693,6 +3174,54 @@
       "title": "SlotStyle",
       "type": "object"
     },
+    "TeaserBackground": {
+      "additionalProperties": false,
+      "description": "The approved background a teaser was made on.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "TeaserBackground",
+      "type": "object"
+    },
+    "TeaserFile": {
+      "additionalProperties": false,
+      "description": "A reviewed project file a teaser was made from, by id, version and hash (0x keccak256).",
+      "properties": {
+        "hash": {
+          "pattern": "^0x[0-9a-f]{64}$",
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "hash"
+      ],
+      "title": "TeaserFile",
+      "type": "object"
+    },
     "TeaserLink": {
       "additionalProperties": false,
       "description": "One teaser: a reviewed line, identity, scene and frame, and the image's alt text.",
@@ -2761,6 +3290,77 @@
         "project"
       ],
       "title": "TeaserLinks",
+      "type": "object"
+    },
+    "TeaserOf": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "title": "Number",
+          "type": "string"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "TeaserOf",
+      "type": "object"
+    },
+    "TeaserRecord": {
+      "additionalProperties": false,
+      "description": "What a teaser draft was made from: its project, number, each linked file and the background.\n\nThe frame is the draft's own ``frame``. The quote, attribution and label drawn on it are the\ndraft's ``texts`` (by slot), from the reviewed line and project, never edited.",
+      "properties": {
+        "alt": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Alt",
+          "type": "string"
+        },
+        "background": {
+          "$ref": "#/$defs/TeaserBackground"
+        },
+        "identity": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "line": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "number": {
+          "pattern": "^T[1-9][0-9]{0,4}$",
+          "title": "Number",
+          "type": "string"
+        },
+        "presence": {
+          "enum": [
+            "embodied",
+            "viewpoint"
+          ],
+          "title": "Presence",
+          "type": "string"
+        },
+        "project": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "scene": {
+          "$ref": "#/$defs/TeaserFile"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "line",
+        "identity",
+        "scene",
+        "presence",
+        "background",
+        "alt"
+      ],
+      "title": "TeaserRecord",
       "type": "object"
     },
     "Template": {
@@ -3243,5 +3843,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.11"
+  "title": "argus-mint wire 1.12"
 }

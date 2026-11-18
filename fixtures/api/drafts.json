@@ -1,15 +1,16 @@
 {
   "items": [
     {
-      "id": "08f74746893da5ad",
+      "id": "b8379ee75c93009d",
+      "kind": "card",
       "name": "Library Pick",
-      "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+      "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
       "status": "pending",
       "awaiting": [
         "moderator",
         "owner"
       ],
-      "created_at": "2026-11-18T06:23:50.046941Z",
+      "created_at": "2026-11-18T06:34:09.737881Z",
       "template": {
         "id": "example-portrait",
         "version": 3
@@ -18,17 +19,19 @@
         "id": "card-green",
         "version": 1
       },
-      "image_sha256": "889de87d15ba54b119b68c7514e0dffac6fa640aee9573c90219dccb71ca361c"
+      "image_sha256": "889de87d15ba54b119b68c7514e0dffac6fa640aee9573c90219dccb71ca361c",
+      "teaser": null
     },
     {
-      "id": "24fbdd84724a7ce6",
+      "id": "278298e588fb3fd3",
+      "kind": "card",
       "name": "Lantern Keeper",
-      "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+      "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
       "status": "rejected",
       "awaiting": [
         "owner"
       ],
-      "created_at": "2026-11-18T06:23:49.570096Z",
+      "created_at": "2026-11-18T06:34:09.257003Z",
       "template": {
         "id": "example-portrait",
         "version": 3
@@ -37,15 +40,17 @@
         "id": "card-green",
         "version": 1
       },
-      "image_sha256": "359b9b8be993ad846cddceaf74ecef26a5015ca8988df346d4438c3bee3ab727"
+      "image_sha256": "359b9b8be993ad846cddceaf74ecef26a5015ca8988df346d4438c3bee3ab727",
+      "teaser": null
     },
     {
-      "id": "de3836a6560d0ea2",
+      "id": "907252e96bbd27b9",
+      "kind": "card",
       "name": "Azure Stormcaller",
-      "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+      "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
       "status": "approved",
       "awaiting": [],
-      "created_at": "2026-11-18T06:23:49.089062Z",
+      "created_at": "2026-11-18T06:34:08.692630Z",
       "template": {
         "id": "example-portrait",
         "version": 3
@@ -54,18 +59,20 @@
         "id": "card-green",
         "version": 1
       },
-      "image_sha256": "b37668924c86ec203158a838438f62ebb36a97e2e5cfb7c591d91f1426e8fbf3"
+      "image_sha256": "b37668924c86ec203158a838438f62ebb36a97e2e5cfb7c591d91f1426e8fbf3",
+      "teaser": null
     },
     {
-      "id": "7ebbf0e5a6d1b1d4",
+      "id": "544ac64ad1ada020",
+      "kind": "card",
       "name": "Steel Tinker",
-      "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+      "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
       "status": "pending",
       "awaiting": [
         "moderator",
         "owner"
       ],
-      "created_at": "2026-11-18T06:23:48.615590Z",
+      "created_at": "2026-11-18T06:34:08.207132Z",
       "template": {
         "id": "example-portrait",
         "version": 3
@@ -74,15 +81,17 @@
         "id": "card-green",
         "version": 1
       },
-      "image_sha256": "94b24d225b7ae99dd14cf9997573c40af89bb0a4ee443d6d0ed1d3444e6ccbeb"
+      "image_sha256": "94b24d225b7ae99dd14cf9997573c40af89bb0a4ee443d6d0ed1d3444e6ccbeb",
+      "teaser": null
     },
     {
-      "id": "4b30fc131847ac65",
+      "id": "6f6358ae60cb7f4e",
+      "kind": "card",
       "name": "Emerald Wizard",
-      "to": "0x5EbE554d4cd5e317b2b8bE4ADDB7248F1F9C1103",
+      "to": "0xC70b4EDddDD752403c3147700c6021234E072cFB",
       "status": "published",
       "awaiting": [],
-      "created_at": "2026-11-18T06:23:48.118966Z",
+      "created_at": "2026-11-18T06:34:07.702662Z",
       "template": {
         "id": "example-portrait",
         "version": 3
@@ -91,7 +100,8 @@
         "id": "card-green",
         "version": 1
       },
-      "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9"
+      "image_sha256": "fc3b2cfefcd9f5f7993e3aba6137ad2ff0fc6d198694c7f949cb417356433aa9",
+      "teaser": null
     }
   ],
   "total": 5

@@ -79,6 +79,7 @@ from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
 from argus_mint.server_projects import add_project_routes
+from argus_mint.server_teasers import add_teaser_routes
 from argus_mint.spoilers import load_spoilers
 from argus_mint.templates import Template, TemplateError, combinations, load_template
 from argus_mint.wire import (
@@ -108,6 +109,7 @@ from argus_mint.wire import (
     SampleJob,
     SampleJobList,
     SampleRequest,
+    TeaserOf,
     TemplateCheck,
     TemplateInfo,
     TextEdit,
@@ -155,6 +157,7 @@ class Settings:
     blocklist: Path | None = None  # extra word-filter terms, one per line
     projects_dir: Path = Path("projects")  # teaser projects, one directory each
     spoilers: Path | None = None  # the private spoiler list (outside any repository; chmod 600)
+    backgrounds_dir: Path = Path("backgrounds")  # rendered scene backgrounds, one directory per scene version
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
@@ -191,6 +194,7 @@ class Settings:
             blocklist=Path(get("BLOCKLIST")) if get("BLOCKLIST") else None,
             projects_dir=Path(get("PROJECTS_DIR", "projects")),
             spoilers=Path(get("SPOILERS")) if get("SPOILERS") else None,
+            backgrounds_dir=Path(get("BACKGROUNDS_DIR", "backgrounds")),
         )
 
 
@@ -313,6 +317,8 @@ def create_app(
             and has_token
             and cfg.projects_dir.is_dir()
             and os.access(cfg.projects_dir, os.W_OK),
+            backgrounds=writable and has_token and darkroom is not None,
+            teasers=writable and has_token,
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -539,6 +545,7 @@ def create_app(
             items.append(
                 DraftSummary(
                     id=draft_id,
+                    kind=d.kind,
                     name=d.name,
                     to=d.to,
                     status=s,  # type: ignore[arg-type]
@@ -547,6 +554,7 @@ def create_app(
                     template=Ref(id=d.request.template_id, version=d.request.template_version),
                     frame=Ref(id=d.frame.id, version=d.frame.version) if d.frame else None,
                     image_sha256=d.image_sha256,
+                    teaser=TeaserOf(project=d.teaser.project.id, number=d.teaser.number) if d.teaser else None,
                 )
             )
         return DraftList(items=items[offset : offset + limit], total=len(items))
@@ -649,6 +657,8 @@ def create_app(
                 raise HTTPException(422, "an edit challenge needs the edit it is for")
             if d.status == "published":
                 raise HTTPException(409, "a published card can't be edited")
+            if d.draft.kind == "teaser":
+                raise HTTPException(409, "a teaser's text is its reviewed line and project: it isn't edited")
             purpose = f"edit:{_edit_hash(body.edit)}"
         else:
             if d.status != "pending" or "owner" not in d.awaiting:
@@ -935,6 +945,19 @@ def create_app(
         require_token=require_token,
         lock=lock,
         frame_keys=lambda: set(frames()),
+    )
+    add_teaser_routes(
+        app,
+        projects_dir=cfg.projects_dir,
+        backgrounds_dir=cfg.backgrounds_dir,
+        spoilers=spoiler_list,
+        darkroom=darkroom,
+        require_token=require_token,
+        lock=lock,
+        frames=frames,
+        drafts=store,
+        moderate=moderate_automatically,
+        detail=detail,
     )
     return app
 

@@ -46,6 +46,7 @@ __all__ = [
     "Scene",
     "TeaserLink",
     "TeaserLinks",
+    "file_strings",
     "load_bundle",
     "load_identity",
     "load_line",
@@ -352,6 +353,21 @@ def load_bundle(root: Path) -> ProjectBundle:
     if (root / "teasers.json").is_file():
         b.teasers = load_teasers(root / "teasers.json")
     return b
+
+
+REVIEW_KEYS = ("status", "approved_by", "approved_at")
+
+
+def file_strings(value: object) -> list[str]:
+    """Every string in a file's document, review fields aside: what the spoiler list reads
+    (everything, negatives and sources included)."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for k, v in value.items() if k not in REVIEW_KEYS for s in file_strings(v)]
+    if isinstance(value, (list, tuple)):
+        return [s for v in value for s in file_strings(v)]
+    return []
 
 
 # -- cross-checks ---------------------------------------------------------------------------------

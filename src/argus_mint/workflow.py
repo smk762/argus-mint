@@ -16,7 +16,7 @@ from eth_account.signers.local import LocalAccount
 import argus_mint
 from argus_mint._codec import hex0x
 from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
-from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
+from argus_mint.cards import BioRecord, CardDraft, DraftError, check_publishable, sha256_hex
 from argus_mint.frames import FrameError, LoadedFrame, check_style, compose, require_approved
 from argus_mint.library import LibraryEntry, LibraryError, check_entry
 from argus_mint.metadata import CardStyle, card_metadata, content_hash
@@ -196,6 +196,8 @@ def publish(
 ) -> dict[str, Any]:
     """Pin an approved draft, build its metadata and sign the voucher. Raises ``DraftError``/``NotApproved``
     (before anything leaves the machine) or ``PinError``."""
+    if draft.kind != "card" or draft.asset_id is None:
+        raise DraftError("a teaser isn't published as a card: posting and minting teasers come later (#52)")
     check_publishable(draft, art, image)
     req = draft.request
     stem = f"{req.template_id}-v{req.template_version}-{req.seed}"
@@ -307,8 +309,10 @@ def edit_text(
     The new image needs both approvals again; the old reviews stay as history. Hand-written
     text never goes to a model (hard rule 1).
     """
-    from argus_mint.cards import DraftError, Edit
+    from argus_mint.cards import Edit
 
+    if draft.kind == "teaser":
+        raise DraftError("a teaser's text is its reviewed line and project: save a new version of those instead")
     if draft.frame is None:
         raise DraftError("only a framed card has text to edit")
     if frame.ref().hash != draft.frame.hash:

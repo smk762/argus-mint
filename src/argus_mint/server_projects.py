@@ -34,12 +34,14 @@ from pydantic import BaseModel, ValidationError
 from argus_mint._codec import hex0x
 from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.projects import (
+    REVIEW_KEYS,
     Identity,
     Line,
     Project,
     ProjectBundle,
     ProjectError,
     Scene,
+    file_strings,
     load_bundle,
     load_identity,
     load_line,
@@ -64,7 +66,6 @@ from argus_mint.wire import (
 log = structlog.get_logger()
 
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
-_REVIEW_KEYS = ("status", "approved_by", "approved_at")
 
 
 class _Kind:
@@ -83,17 +84,6 @@ KINDS: dict[str, _Kind] = {
     "scene": _Kind("scenes", load_scene, Scene, ("prompt",)),
     "line": _Kind("lines", load_line, Line, ("text", "published")),
 }
-
-
-def _strings(value: Any) -> list[str]:
-    """Every string in a document, for the spoiler list (which reads everything, negatives included)."""
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, dict):
-        return [s for k, v in value.items() if k not in _REVIEW_KEYS for s in _strings(v)]
-    if isinstance(value, (list, tuple)):
-        return [s for v in value for s in _strings(v)]
-    return []
 
 
 def _doc(obj: BaseModel) -> dict[str, Any]:
@@ -184,9 +174,9 @@ def add_project_routes(
         for kind in KINDS:
             for obj, _ in table(b, kind).values():
                 texts += guard_texts(kind, obj)
-                strings += _strings(_doc(obj))
+                strings += file_strings(_doc(obj))
         texts += teaser_texts(b)
-        strings += _strings(b.teasers.model_dump(mode="json")) if b.teasers else []
+        strings += file_strings(b.teasers.model_dump(mode="json")) if b.teasers else []
         return texts, strings
 
     @app.get("/projects")
@@ -228,7 +218,7 @@ def add_project_routes(
             raise HTTPException(422, "an id is lower-case letters, digits and hyphens, and a version is 1 or more")
         if kind == "project" and item_id != pid:
             raise HTTPException(422, f"project.yaml's id is the project's own ({pid})")
-        given = [k for k in _REVIEW_KEYS if k in body.doc]
+        given = [k for k in REVIEW_KEYS if k in body.doc]
         if given:
             raise HTTPException(422, f"a saved file is a draft: leave out {', '.join(given)}")
         for key, want in (("id", item_id), ("version", version), *((("project", pid),) if kind != "project" else ())):
@@ -272,7 +262,7 @@ def add_project_routes(
                     path.write_text(original, encoding="utf-8")
                 raise HTTPException(422, f"the project wouldn't load with this file, so it wasn't saved: {e}") from e
         saved_obj, saved_path = table(b, kind)[(item_id, version)]
-        result = checks(b, guard_texts(kind, saved_obj), _strings(_doc(saved_obj)), cached_only=False)
+        result = checks(b, guard_texts(kind, saved_obj), file_strings(_doc(saved_obj)), cached_only=False)
         return SavedProjectFile(file=project_file(b, kind, saved_obj, saved_path), checks=result)
 
     @app.post("/projects/{pid}/teasers")
@@ -298,7 +288,7 @@ def add_project_routes(
                 else:
                     path.write_text(original, encoding="utf-8")
                 raise HTTPException(422, str(e)) from e
-        strings = _strings(b.teasers.model_dump(mode="json")) if b.teasers else []
+        strings = file_strings(b.teasers.model_dump(mode="json")) if b.teasers else []
         return SavedProjectFile(file=None, checks=checks(b, teaser_texts(b), strings, cached_only=False))
 
     @app.post("/projects/{pid}/files/{kind}/{item_id}/{version}/review")
@@ -321,7 +311,7 @@ def add_project_routes(
         if not os.access(path, os.W_OK):
             raise HTTPException(503, f"{path.relative_to(projects_dir)} is not writable on this server")
         if body.decision == "approve":
-            hits = spoilers.hits(*_strings(_doc(obj)))
+            hits = spoilers.hits(*file_strings(_doc(obj)))
             if hits:
                 raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
             if not can_guard:

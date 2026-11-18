@@ -10,6 +10,7 @@ is never turned off. darklight's wire API is not settled yet, so the client is t
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol
@@ -18,12 +19,22 @@ import structlog
 
 from argus_mint._codec import Bytes32
 from argus_mint.metadata import Provenance
-from argus_mint.templates import SEED_MAX, LoraChoice, RenderRequest, Template, fill, fill_for_review
+from argus_mint.templates import (
+    SEED_MAX,
+    InitImageRef,
+    LoraChoice,
+    RenderRequest,
+    Template,
+    fill,
+    fill_for_review,
+)
 
 __all__ = [
     "Attempt",
     "Darklight",
     "GenResult",
+    "InitImage",
+    "Inpainter",
     "Outcome",
     "RenderError",
     "RenderFailed",
@@ -31,6 +42,7 @@ __all__ = [
     "derive_seed",
     "render",
     "render_for_review",
+    "render_requests",
 ]
 
 log = structlog.get_logger(__name__)
@@ -71,6 +83,32 @@ class GenResult:
 
 class Darklight(Protocol):
     def generate(self, req: RenderRequest) -> GenResult: ...
+
+
+@dataclass(frozen=True)
+class InitImage:
+    """The bytes an inpainting request carries: the input image and its mask (white repaints)."""
+
+    image: bytes
+    mask: bytes | None
+    denoise: float
+
+    def ref(self) -> InitImageRef:
+        """What the request records about these bytes."""
+        return InitImageRef(
+            sha256=hashlib.sha256(self.image).hexdigest(),
+            mask_sha256=hashlib.sha256(self.mask).hexdigest() if self.mask is not None else None,
+            denoise=self.denoise,
+        )
+
+    def __repr__(self) -> str:  # never the pixels, in a log or a traceback
+        return f"InitImage(<{len(self.image)} bytes>, mask={self.mask is not None}, denoise={self.denoise})"
+
+
+class Inpainter(Protocol):
+    """A renderer that also takes an input image and mask (darkroom's inpainting)."""
+
+    def generate(self, req: RenderRequest, init: InitImage | None = None) -> GenResult: ...
 
 
 @dataclass(frozen=True)
@@ -173,10 +211,41 @@ def _render(
     model: str | None = None,
     loras: tuple[LoraChoice, ...] = (),
 ) -> Rendered:
+    try:
+        return render_requests(
+            client,
+            lambda s: fill_fn(t, values, s, model, loras),
+            seed,
+            t.max_attempts,
+            label=f"template {t.id} v{t.version}",
+        )
+    except RenderFailed as e:
+        raise RenderFailed(
+            f"template {t.id} v{t.version}: safety check rejected all {t.max_attempts} attempts", e.attempts
+        ) from None
+
+
+def render_requests(
+    client: Darklight | Inpainter,
+    build: Callable[[int], RenderRequest],
+    seed: int,
+    max_attempts: int,
+    *,
+    init: InitImage | None = None,
+    label: str = "render",
+) -> Rendered:
+    """Render ``build(seed)``, retrying safety rejections with derived seeds (hard rule 3).
+
+    ``build`` makes the request for a seed; only the seed differs between attempts. ``init``
+    (inpainting) goes to the client with every attempt, unchanged. Raises :class:`RenderFailed`
+    after ``max_attempts`` rejections and :class:`RenderError` at once on any other error.
+    """
     attempts: list[Attempt] = []
-    for n in range(t.max_attempts):
-        req = fill_fn(t, values, derive_seed(seed, n), model, loras)
-        result = client.generate(req)
+    for n in range(max_attempts):
+        req = build(derive_seed(seed, n))
+        if init is not None and req.init_image != init.ref():
+            raise ValueError("the request doesn't record the input image it is sent with")
+        result = client.generate(req) if init is None else client.generate(req, init=init)  # type: ignore[call-arg]
         if result.outcome is Outcome.OK and not result.image:
             result = GenResult.error("darklight returned no image", ref=result.ref)
         attempts.append(
@@ -184,14 +253,10 @@ def _render(
                 seed=req.seed, outcome=result.outcome, detail=result.detail, ref=result.ref, workflow=result.workflow
             )
         )
-        log.info(
-            "render_attempt", template=t.id, version=t.version, attempt=n + 1, seed=req.seed, outcome=result.outcome
-        )
+        log.info("render_attempt", what=label, attempt=n + 1, seed=req.seed, outcome=result.outcome)
         if result.outcome is Outcome.OK:
             assert result.image is not None
             return Rendered(image=result.image, request=req, attempts=tuple(attempts), renderer_version=result.version)
         if result.outcome is Outcome.ERROR:
             raise RenderError(f"darklight error on attempt {n + 1}: {result.detail}", tuple(attempts))
-    raise RenderFailed(
-        f"template {t.id} v{t.version}: safety check rejected all {t.max_attempts} attempts", tuple(attempts)
-    )
+    raise RenderFailed(f"{label}: safety check rejected all {max_attempts} attempts", tuple(attempts))

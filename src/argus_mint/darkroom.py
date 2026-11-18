@@ -19,6 +19,7 @@ SFW policy), and the returned record is checked to be the render that was asked 
 
 from __future__ import annotations
 
+import base64
 import copy
 import hashlib
 import json
@@ -30,10 +31,18 @@ from typing import Any
 import httpx
 import structlog
 
-from argus_mint.render import GenResult
+from argus_mint.render import GenResult, InitImage
 from argus_mint.templates import RenderRequest, Template, family
 
-__all__ = ["DarkroomClient", "DarkroomError", "check_template", "final_prompt", "lora_counts", "request_body"]
+__all__ = [
+    "DarkroomClient",
+    "DarkroomError",
+    "check_inpaint",
+    "check_template",
+    "final_prompt",
+    "lora_counts",
+    "request_body",
+]
 
 log = structlog.get_logger(__name__)
 
@@ -73,9 +82,16 @@ def request_body(
     advisory_policies: tuple[str, ...] = (),
     thinking: str | None = None,
     for_preflight: bool = False,
+    init: InitImage | None = None,
 ) -> dict[str, Any]:
     """The ``POST /generate/stream`` body for a filled template (``for_preflight``: the
-    ``/preflight`` body, where sampling is optional because nothing is rendered)."""
+    ``/preflight`` body, where sampling is optional because nothing is rendered).
+
+    ``init`` is the input image and mask of an inpainting request (darkroom's ``init_image``):
+    it must be the one ``req.init_image`` records, and a request that records one needs it.
+    """
+    if (init is None) != (req.init_image is None) or (init is not None and init.ref() != req.init_image):
+        raise DarkroomError("the input image sent must be the one the request records")
     if req.sampling is None and not for_preflight:
         raise DarkroomError(
             f"template {req.template_id} v{req.template_version} has no sampling block; darkroom needs one"
@@ -95,6 +111,12 @@ def request_body(
     }
     if thinking is not None:
         body["thinking"] = thinking
+    if init is not None:
+        body["init_image"] = {
+            "data_base64": base64.b64encode(init.image).decode("ascii"),
+            "denoise": init.denoise,
+            **({"mask_base64": base64.b64encode(init.mask).decode("ascii")} if init.mask is not None else {}),
+        }
     return body
 
 
@@ -188,6 +210,28 @@ def check_template(t: Template, models: dict[str, Any]) -> list[str]:
     return list(dict.fromkeys(problems))
 
 
+def check_inpaint(models: dict[str, Any], model: str, loras: int) -> list[str]:
+    """What would make darkroom refuse to inpaint on ``model`` with ``loras`` LoRAs, from its ``GET /models``.
+
+    darkroom picks an inpainting workflow (``<family>+lora<N>+inpaint.json``) by checkpoint
+    family and LoRA count, and refuses (400) a mask with none. Its example workflows inpaint
+    SDXL with 0 or 1 LoRA; two need a ``sdxl+lora2+inpaint.json`` in its workflow directory.
+    Pure; an empty list means nothing was found.
+    """
+    c = next(
+        (c for c in models.get("checkpoints") or [] if isinstance(c, dict) and c.get("name") == model),
+        None,
+    )
+    if c is None:
+        return [f"{model}: darkroom has no such checkpoint"]
+    if "inpaint_lora_counts" not in c:
+        return [f"{model}: darkroom doesn't say whether it can inpaint (it needs inpaint_lora_counts in /models)"]
+    offered = sorted(n for n in c.get("inpaint_lora_counts") or [] if isinstance(n, int))
+    if loras not in offered:
+        return [f"{model}: no darkroom inpainting workflow takes {loras} LoRA(s) (it has {offered or 'none'})"]
+    return []
+
+
 class DarkroomClient:
     """Renders through argus-darkroom. Implements :class:`argus_mint.render.Darklight`."""
 
@@ -223,13 +267,16 @@ class DarkroomClient:
         other.priority = "batch"
         return other
 
-    def _body(self, req: RenderRequest, *, for_preflight: bool = False) -> dict[str, Any]:
+    def _body(
+        self, req: RenderRequest, *, for_preflight: bool = False, init: InitImage | None = None
+    ) -> dict[str, Any]:
         return request_body(
             req,
             policy=self.policy,
             advisory_policies=self.advisory_policies,
             thinking=self.thinking,
             for_preflight=for_preflight,
+            init=init,
         )
 
     # -- checks ---------------------------------------------------------------------------------
@@ -294,7 +341,11 @@ class DarkroomClient:
 
     # -- generation -----------------------------------------------------------------------------
 
-    def _stream(self, req: RenderRequest) -> dict[str, Any] | str:
+    def check_inpaint(self, model: str, loras: int) -> list[str]:
+        """:func:`check_inpaint` against this darkroom."""
+        return check_inpaint(self.models(), model, loras)
+
+    def _stream(self, req: RenderRequest, init: InitImage | None = None) -> dict[str, Any] | str:
         """Run one generation; return the record, or the error detail.
 
         Retries a 409 every ``busy_wait`` seconds until ``busy_timeout``. A darkroom on the GPU broker
@@ -305,7 +356,7 @@ class DarkroomClient:
         while True:
             headers = {"X-Argus-Priority": self.priority} if self.priority else {}
             with self.client.stream(
-                "POST", f"{self.base_url}/generate/stream", json=self._body(req), headers=headers
+                "POST", f"{self.base_url}/generate/stream", json=self._body(req, init=init), headers=headers
             ) as resp:
                 if resp.status_code == 409 and time.monotonic() < deadline:
                     log.info("darkroom_busy", wait=self.busy_wait)
@@ -339,11 +390,23 @@ class DarkroomClient:
             return "darkroom record does not state its enforcing policy"
         if enforced != self.policy:
             return "darkroom enforced a different policy"
+        if req.init_image is not None:
+            got = r.get("init_image") if isinstance(r.get("init_image"), dict) else {}
+            mask = got.get("mask") if isinstance(got.get("mask"), dict) else {}
+            if got.get("source_sha256") != req.init_image.sha256:
+                return "darkroom painted on a different input image"
+            if mask.get("source_sha256") != req.init_image.mask_sha256:
+                return "darkroom used a different mask"
+            if got.get("denoise") != req.init_image.denoise:
+                return f"darkroom used denoise {got.get('denoise')}, not {req.init_image.denoise}"
+        elif r.get("init_image") is not None:
+            return "darkroom painted on an input image nobody sent"
         return None
 
-    def generate(self, req: RenderRequest) -> GenResult:
+    def generate(self, req: RenderRequest, init: InitImage | None = None) -> GenResult:
+        """Render ``req``; with ``init``, inpaint it into that image through its mask."""
         try:
-            outcome = self._stream(req)
+            outcome = self._stream(req, init)
         except httpx.HTTPError as e:
             return GenResult.error(f"darkroom unreachable or failed: {e}")
         except ValueError as e:  # an event whose data isn't JSON
