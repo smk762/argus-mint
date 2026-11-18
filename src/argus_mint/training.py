@@ -61,7 +61,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -525,6 +525,9 @@ class TrainingContext:
     forge: Forge | None = None
     proof: Proof | None = None
     save_identity: Callable[[dict[str, Any]], int] | None = None
+    # references.ConsentStore: a real person's consent, checked again whenever references are used
+    # (it can be revoked after approval). None: no records here, so such a reference is refused.
+    consent: Any = None
     made_with: Callable[[Rendered], dict[str, str]] | None = None
     poll_seconds: float = 30.0
     poll_limit: float = 7 * 24 * 3600.0
@@ -610,8 +613,21 @@ def _candidates(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, An
     return {"rendered": len(r.candidates), "refused": len([f for f in r.failed if f.final])}
 
 
+def _references_cleared(ctx: TrainingContext) -> None:
+    """Refuse the step if any of the identity's references can't be used right now: an uncleared
+    source, or a real person whose consent doesn't cover training today (revoked, expired...)."""
+    if not ctx.identity.references:
+        return
+    from argus_mint.references import reference_problems  # argus-cortex: only where references are used
+
+    found = reference_problems(ctx.identity, ctx.consent, at=datetime.now(UTC))
+    if found:
+        raise TrainingError("the identity's references can't be used now: " + "; ".join(found))
+
+
 def _select(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
     curator = _need(ctx.curator, "curator")
+    _references_cleared(ctx)  # before any reference reaches curator or proof's export
     ident, t = ctx.identity, _training(ctx.identity)
     if ctx.record().metric != "identity":
         raise TrainingError(
@@ -779,6 +795,7 @@ def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
 
 def _evaluate(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
     proof = _need(ctx.proof, "proof")
+    _references_cleared(ctx)  # proof scores against them: consent may have changed since select
     ident, t = ctx.identity, _training(ctx.identity)
     sel = _selection(ctx)
     lora = ctx.record().lora

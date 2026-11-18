@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import time
 from pathlib import Path
@@ -569,3 +570,34 @@ def test_clients_speak_each_siblings_routes():
         ("GET", "/report/r1"),
         ("GET", "/report/r1/manifest"),
     ]
+
+
+def test_references_are_checked_again_whenever_training_uses_them(tmp_path):
+    """Consent can be revoked after the identity was approved: select and evaluate check it again,
+    before any reference reaches curator or proof (and with no consent records here, refuse)."""
+    pytest.importorskip("argus_cortex")
+    from argus_mint.projects import Identity, Project
+    from argus_mint.references import ConsentStore
+    from argus_mint.training import TrainingContext, run_step
+    from tests.test_references import CONSENTED, IMAGE, RELEASE, _record
+
+    ident = Identity(
+        id="jo", version=1, status="approved", approved_by="m", approved_at="2026-11-18", project=PID,
+        voice="keeper", presence="embodied", prompt="a keeper",
+        references=[{"file": "jo.png", "sha256": IMAGE, "provenance": CONSENTED}],
+    )  # fmt: skip
+    consent_dir = tmp_path / "consent"
+    consent_dir.mkdir()
+    revoked = {"requested_on": "2026-01-02", "effective_on": "2026-01-03", "by": "subject"}
+    (consent_dir / f"{RELEASE}.json").write_text(json.dumps(_record(revocation=revoked)))
+    curator = FakeCurator(tmp_path / "exports")
+    for consent, why in ((ConsentStore(consent_dir), "(revoked)"), (None, "no consent records are configured")):
+        ctx = TrainingContext(
+            store=TrainingStore(tmp_path / "training"), project=Project(id=PID, version=1, status="draft", title="T"),
+            identity=ident, identity_dir=tmp_path, exports_dir=tmp_path / "exports", loras_dir=tmp_path / "loras",
+            curator=curator, proof=object(), consent=consent,
+        )  # fmt: skip
+        for step_name in ("select", "evaluate"):
+            with pytest.raises(TrainingError, match=re.escape(why)):
+                run_step(step_name, ctx, lambda **_: None)
+    assert curator.calls == []  # nothing reached curator

@@ -31,6 +31,7 @@ from fastapi.responses import Response
 import argus_mint
 from argus_mint.darkroom import DarkroomError
 from argus_mint.projects import Identity, ProjectBundle, ProjectError, file_strings, fresh_verdicts, load_bundle
+from argus_mint.references import ConsentStore
 from argus_mint.render import Rendered
 from argus_mint.spoilers import SpoilerList
 from argus_mint.training import (
@@ -156,6 +157,7 @@ def add_training_routes(
     darkroom: Any,
     require_token: Callable[[str | None], None],
     save_file: Callable[[str, str, str, int, dict[str, Any]], Any],
+    consent_dir: Path | None = None,
 ) -> tuple[TrainingRunner, Callable[[str, Identity], str | None]]:
     """Add the routes. Returns the runner and ``vouch(pid, identity)`` for the project routes'
     approval check (an identity's LoRA is approved only as a passing training run pinned it)."""
@@ -275,6 +277,7 @@ def add_training_routes(
             renderer=darkroom.batch() if hasattr(darkroom, "batch") else darkroom,
             curator=clients.curator, lens=clients.lens, forge=clients.forge, proof=clients.proof,
             save_identity=save_identity, made_with=made_with, poll_seconds=clients.poll_seconds,
+            consent=ConsentStore(consent_dir) if consent_dir is not None else None,
             **({"sleep": clients.sleep} if clients.sleep is not None else {}),
         )  # fmt: skip
         with starting:
