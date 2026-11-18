@@ -72,6 +72,7 @@ An approved or retired file never changes: the author saves a new version.
 | `GET /projects/{id}/backgrounds/{bg}/image` | | a background's PNG |
 | `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}` |
 | `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft (201) |
+| `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: each teaser's stages and drafts |
 
 ## Backgrounds
 
@@ -102,6 +103,19 @@ Then the layers:
 3. **The PNG** is baked opaque, with only its critical chunks (`IHDR`, `IDAT`, `IEND`): no text, time, colour-profile or size metadata. Stripping metadata (argus-herald does) changes no byte, so its sha256 stays the one reviewed.
 
 The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash, `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Publishing a teaser as a card is refused; posting and minting teasers come later.
+
+## The tracker
+
+`GET /projects/{id}/tracker` reports, for each teaser of the newest approved links, the stages argus-mint works out, so a UI shows them rather than deciding them:
+
+| Stage | Reached when |
+|---|---|
+| `quote_final` | the teaser's line is approved |
+| `concept_chosen` | its identity and its scene are approved |
+| `image_made` | a teaser draft made from the current line, identity and scene is approved (or published) |
+| `posted`, `minted` | always `false` for now: posting and minting teasers come later |
+
+Each teaser also lists its chosen `background` and its drafts, newest first: `{id, status, awaiting, created_at, links_version, background, current}`. `current` is false for a draft made from another line, identity or scene than the current links name. With no approved links, `links_version` is `null` and `teasers` is empty.
 
 ## Capabilities
 

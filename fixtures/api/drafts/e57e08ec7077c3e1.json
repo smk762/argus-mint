@@ -1,5 +1,5 @@
 {
-  "id": "e6b27637f482c601",
+  "id": "e57e08ec7077c3e1",
   "status": "pending",
   "awaiting": [
     "moderator",
@@ -50,7 +50,7 @@
     ],
     "renderer": "darkroom",
     "asset_id": "0x4e7c4b1ae555535666b339bbef3ecfd778991593efc8590c56c77501872e8ea5",
-    "to": "0xfe345bD7bF0dAc770eF763827CfB588cE4236525",
+    "to": "0x30aB2dd1e0DA86a0b38696C149DAF26627E45BC2",
     "name": "Library Pick",
     "description": "Library Pick hums sonnets to the spines of forgotten books, and the library, charmed, rearranges itself to listen.",
     "external_url": null,
@@ -91,7 +91,7 @@
     "auto_check": null,
     "art_sha256": "6b6d7daa683ce4aa262ef2f42c5bf57cadaa070f3f18358046d4d73b425272db",
     "image_sha256": "889de87d15ba54b119b68c7514e0dffac6fa640aee9573c90219dccb71ca361c",
-    "created_at": "2026-11-18T06:37:58.842657Z",
+    "created_at": "2026-11-18T06:39:46.946859Z",
     "reviews": []
   },
   "published": null

@@ -194,7 +194,7 @@ Any colours are allowed; if the owner wants black on black, so be it. A frame ca
 The browser previews a restyle as SVG from `/layout` and the fonts, using the same tint matrix as the server. argus-mint bakes the PNG when the owner confirms, and that PNG is what gets reviewed and published. Provenance records the style, so the card can be redrawn exactly. Edited text never reaches a model, so an edited bio goes through the word filter rather than darkroom.
 
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
-- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`, `PROJECTS_DIR` (teaser projects, [docs/projects.md](docs/projects.md)).
+- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`, `PROJECTS_DIR` (teaser projects, [docs/projects.md](docs/projects.md)), `BACKGROUNDS_DIR` (their rendered scene backgrounds).
 - **Backends:** `DARKROOM_URL`, `POLICY` (darkroom's enforcing policy, default `default`, the SFW one), `WRITER_URL`, `WRITER_KEY` (its bearer token), `IPFS_API`.
 - **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`. Keystores are looked up in `KEYSTORE_DIR` (default `~/.foundry/keystores`).
 - **Chain and metadata:** `NETWORK`, `CARD`, `CONSUMER` (the consumer named in card metadata, default `argus-mint`), `VOUCHER_TTL` (seconds a signed voucher stays valid, default 3600).

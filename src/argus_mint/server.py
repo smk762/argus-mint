@@ -958,6 +958,7 @@ def create_app(
         drafts=store,
         moderate=moderate_automatically,
         detail=detail,
+        status_of=status_of,
     )
     return app
 

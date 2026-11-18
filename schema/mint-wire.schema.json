@@ -2280,6 +2280,41 @@
       "title": "ProjectSummary",
       "type": "object"
     },
+    "ProjectTracker": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}/tracker: each teaser of the newest approved links (none: ``links_version`` null).",
+      "properties": {
+        "links_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Links Version"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "teasers": {
+          "items": {
+            "$ref": "#/$defs/TeaserProgress"
+          },
+          "title": "Teasers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project",
+        "links_version",
+        "teasers"
+      ],
+      "title": "ProjectTracker",
+      "type": "object"
+    },
     "PublishRequest": {
       "additionalProperties": false,
       "properties": {
@@ -3184,6 +3219,61 @@
       "title": "TeaserBackground",
       "type": "object"
     },
+    "TeaserDraftState": {
+      "additionalProperties": false,
+      "description": "One teaser draft, as the tracker lists it. ``current``: made from the current links' line,\nidentity and scene (an older draft of the same number may not be).",
+      "properties": {
+        "awaiting": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Awaiting",
+          "type": "array"
+        },
+        "background": {
+          "title": "Background",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "current": {
+          "title": "Current",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "links_version": {
+          "title": "Links Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "published"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "awaiting",
+        "created_at",
+        "links_version",
+        "background",
+        "current"
+      ],
+      "title": "TeaserDraftState",
+      "type": "object"
+    },
     "TeaserFile": {
       "additionalProperties": false,
       "description": "A reviewed project file a teaser was made from, by id, version and hash (0x keccak256).",
@@ -3228,6 +3318,44 @@
         "number"
       ],
       "title": "TeaserOf",
+      "type": "object"
+    },
+    "TeaserProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Background"
+        },
+        "drafts": {
+          "items": {
+            "$ref": "#/$defs/TeaserDraftState"
+          },
+          "title": "Drafts",
+          "type": "array"
+        },
+        "number": {
+          "title": "Number",
+          "type": "string"
+        },
+        "stages": {
+          "$ref": "#/$defs/TeaserStages"
+        }
+      },
+      "required": [
+        "number",
+        "stages",
+        "background",
+        "drafts"
+      ],
+      "title": "TeaserProgress",
       "type": "object"
     },
     "TeaserRecord": {
@@ -3284,6 +3412,41 @@
         "alt"
       ],
       "title": "TeaserRecord",
+      "type": "object"
+    },
+    "TeaserStages": {
+      "additionalProperties": false,
+      "description": "The stages a teaser has reached, as argus-mint works them out (a client never does).",
+      "properties": {
+        "concept_chosen": {
+          "title": "Concept Chosen",
+          "type": "boolean"
+        },
+        "image_made": {
+          "title": "Image Made",
+          "type": "boolean"
+        },
+        "minted": {
+          "default": false,
+          "title": "Minted",
+          "type": "boolean"
+        },
+        "posted": {
+          "default": false,
+          "title": "Posted",
+          "type": "boolean"
+        },
+        "quote_final": {
+          "title": "Quote Final",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "quote_final",
+        "concept_chosen",
+        "image_made"
+      ],
+      "title": "TeaserStages",
       "type": "object"
     },
     "Template": {

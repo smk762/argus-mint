@@ -7,6 +7,7 @@
 ``GET  /projects/{id}/backgrounds/{bg}/image``                    a background's PNG
 ``POST /projects/{id}/backgrounds/{bg}/review``                   the moderator approves or rejects one
 ``POST /projects/{id}/teasers/{n}/draft``                         a teaser draft from ``T<n>`` (then reviewed as usual)
+``GET  /projects/{id}/tracker``                                   each teaser's stages, as mint works them out
 =================================================================  ===================================================
 
 Every write needs the moderator token. Background jobs run one at a time on a background
@@ -40,14 +41,23 @@ from argus_mint.backgrounds import (
     BackgroundStore,
     render_background,
 )
-from argus_mint.cards import CardDraft, DraftStore
+from argus_mint.cards import CardDraft, DraftError, DraftStore
 from argus_mint.darkroom import DarkroomError
 from argus_mint.frames import FrameError, LoadedFrame
 from argus_mint.projects import ProjectBundle, ProjectError, Scene, file_strings, load_bundle, load_project
 from argus_mint.render import RenderError, RenderFailed
 from argus_mint.spoilers import SpoilerList
 from argus_mint.teasers import TeaserError, TeaserNotFound, make_teaser
-from argus_mint.wire import BackgroundDecision, BackgroundSetList, CreateTeaserDraft, DraftDetail
+from argus_mint.wire import (
+    BackgroundDecision,
+    BackgroundSetList,
+    CreateTeaserDraft,
+    DraftDetail,
+    ProjectTracker,
+    TeaserDraftState,
+    TeaserProgress,
+    TeaserStages,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -163,9 +173,11 @@ def add_teaser_routes(
     drafts: DraftStore,
     moderate: Callable[[CardDraft, bytes], CardDraft],
     detail: Callable[[str], DraftDetail],
+    status_of: Callable[[str, CardDraft], str],
 ) -> BackgroundRunner:
     store = BackgroundStore(backgrounds_dir)
     runner = BackgroundRunner(store, projects_dir)
+    starting = threading.Lock()  # one start at a time, so two requests can't both find the set idle
 
     def bundle(pid: str) -> ProjectBundle:
         if not _ID.fullmatch(pid) or not (projects_dir / pid / "project.yaml").is_file():
@@ -206,19 +218,20 @@ def add_teaser_routes(
         hits = spoilers.hits(*file_strings(sc.model_dump(mode="json")))
         if hits:
             raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
-        with store.lock:
-            try:
-                s = store.start(pid, sc)
-            except BackgroundError as e:
-                raise HTTPException(409, str(e)) from e
-        if runner.busy(s):
-            raise HTTPException(409, f"a job is already rendering scene {scene} v{version}")
-        numbers = s.missing()
-        if not numbers:
-            raise HTTPException(409, f"every background of scene {scene} v{version} is rendered")
         # Background work: darkroom leases the GPU at batch priority, behind a person.
         renderer = darkroom.batch() if hasattr(darkroom, "batch") else darkroom
-        runner.submit(pid, sc, numbers, renderer)
+        with starting:
+            with store.lock:
+                try:
+                    s = store.start(pid, sc)
+                except BackgroundError as e:
+                    raise HTTPException(409, str(e)) from e
+            if runner.busy(s):
+                raise HTTPException(409, f"a job is already rendering scene {scene} v{version}")
+            numbers = s.missing()
+            if not numbers:
+                raise HTTPException(409, f"every background of scene {scene} v{version} is rendered")
+            runner.submit(pid, sc, numbers, renderer)
         return background_set(pid, scene, version)
 
     @app.get("/projects/{pid}/backgrounds")
@@ -303,5 +316,65 @@ def add_teaser_routes(
             draft_id = drafts.new_id()
             drafts.save(draft_id, moderate(made.draft, made.image), made.art, made.image)
         return detail(draft_id)
+
+    @app.get("/projects/{pid}/tracker")
+    def tracker(pid: str) -> ProjectTracker:
+        """Per teaser of the newest approved links: which stages it has reached, and its drafts.
+
+        ``quote_final``: its line is approved. ``concept_chosen``: its identity and scene are.
+        ``image_made``: a draft made from these same files is approved (or published). ``posted``
+        and ``minted`` are always false until posting and minting teasers exist (#52).
+        """
+        b = bundle(pid)
+        links = b.current_teasers()
+        mine: list[tuple[str, CardDraft]] = []
+        for draft_id in drafts.ids():
+            try:
+                d, _a, _i = drafts.load(draft_id)
+            except DraftError:
+                continue
+            if d.kind == "teaser" and d.teaser is not None and d.teaser.project.id == pid:
+                mine.append((draft_id, d))
+
+        def approved(table: dict[tuple[str, int], tuple[Any, Path]], key: tuple[str, int]) -> bool:
+            found = table.get(key)
+            return found is not None and found[0].status == "approved"
+
+        items: list[TeaserProgress] = []
+        for number, link in sorted((links.teasers if links else {}).items(), key=lambda kv: int(kv[0][1:])):
+            states = []
+            for draft_id, d in mine:
+                t = d.teaser
+                assert t is not None
+                if t.number != number:
+                    continue
+                current = ((t.line.id, t.line.version), (t.identity.id, t.identity.version),
+                           (t.scene.id, t.scene.version)) == (link.line.key, link.identity.key, link.scene.key)  # fmt: skip
+                states.append(
+                    TeaserDraftState(
+                        id=draft_id,
+                        status=status_of(draft_id, d),
+                        awaiting=d.awaiting(),  # type: ignore[arg-type]
+                        created_at=d.created_at,
+                        links_version=t.links.version,
+                        background=t.background.id,
+                        current=current,
+                    )  # fmt: skip
+                )
+            items.append(
+                TeaserProgress(
+                    number=number,
+                    stages=TeaserStages(
+                        quote_final=approved(b.lines, link.line.key),
+                        concept_chosen=approved(b.identities, link.identity.key) and approved(b.scenes, link.scene.key),
+                        image_made=any(s.current and s.status in ("approved", "published") for s in states),
+                        posted=False,
+                        minted=False,
+                    ),
+                    background=link.background,
+                    drafts=states,
+                )
+            )
+        return ProjectTracker(project=pid, links_version=links.version if links else None, teasers=items)
 
     return runner

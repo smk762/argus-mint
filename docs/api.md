@@ -81,6 +81,7 @@ Backgrounds and teaser drafts ([projects.md](projects.md#backgrounds)):
 | `GET /projects/{id}/backgrounds/{bg}/image` | | the background's PNG |
 | `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}`; once per background |
 | `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft from `T<n>` (201, `{id, status, awaiting, draft}`), reviewed like any draft |
+| `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: per teaser, its `stages` (`quote_final`, `concept_chosen`, `image_made`, `posted`, `minted`), `background` and `drafts` |
 
 ## Library
 

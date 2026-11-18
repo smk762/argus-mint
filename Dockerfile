@@ -32,13 +32,14 @@ COPY . .
 RUN uv pip install --system --no-cache "certifi>=2026.10.19" ".[server]"
 
 # The example templates, frames and bios ship in /app; mount your own over them.
-# Drafts (and their published vouchers) and sample jobs live on a volume.
+# Drafts (and their published vouchers), sample jobs and scene backgrounds live on a volume.
 ENV ARGUS_MINT_TEMPLATES_DIR=/app/templates \
     ARGUS_MINT_FRAMES_DIR=/app/frames \
     ARGUS_MINT_BIOS_DIR=/app/bios \
     ARGUS_MINT_PROJECTS_DIR=/app/projects \
     ARGUS_MINT_DRAFTS_DIR=/data/drafts \
     ARGUS_MINT_SAMPLES_DIR=/data/samples \
+    ARGUS_MINT_BACKGROUNDS_DIR=/data/backgrounds \
     ARGUS_GPU_TENANT_MANIFEST=/app/gpu-tenant.yaml
 VOLUME /data
 EXPOSE 8108

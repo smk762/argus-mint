@@ -25,6 +25,10 @@ __all__ = [
     "BackgroundDecision",
     "BackgroundSetList",
     "CreateTeaserDraft",
+    "ProjectTracker",
+    "TeaserDraftState",
+    "TeaserProgress",
+    "TeaserStages",
     "BioInfo",
     "Capabilities",
     "Challenge",
@@ -70,7 +74,7 @@ __all__ = [
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
 # 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts);
-# 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds and teaser drafts (CardDraft.kind)
+# 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker
 WIRE_VERSION = "1.12"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
@@ -502,6 +506,44 @@ class BackgroundDecision(_Wire):
     note: str = Field(default="", max_length=2000)
 
 
+class TeaserStages(_Wire):
+    """The stages a teaser has reached, as argus-mint works them out (a client never does)."""
+
+    quote_final: bool  # its line is approved
+    concept_chosen: bool  # its identity and scene are approved
+    image_made: bool  # a draft made from the current line, identity and scene is approved or published
+    posted: bool = False  # reserved: posting teasers comes later (#52)
+    minted: bool = False  # reserved: minting teasers comes later (#52)
+
+
+class TeaserDraftState(_Wire):
+    """One teaser draft, as the tracker lists it. ``current``: made from the current links' line,
+    identity and scene (an older draft of the same number may not be)."""
+
+    id: str
+    status: DraftStatus
+    awaiting: list[str]
+    created_at: datetime
+    links_version: int
+    background: str
+    current: bool
+
+
+class TeaserProgress(_Wire):
+    number: str
+    stages: TeaserStages
+    background: str | None  # the chosen background, if any
+    drafts: list[TeaserDraftState]  # newest first
+
+
+class ProjectTracker(_Wire):
+    """GET /projects/{id}/tracker: each teaser of the newest approved links (none: ``links_version`` null)."""
+
+    project: str
+    links_version: int | None
+    teasers: list[TeaserProgress]
+
+
 class CreateTeaserDraft(_Wire):
     """POST /projects/{id}/teasers/{n}/draft. Everything else comes from the project's reviewed files."""
 
@@ -542,4 +584,5 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Background,
     BackgroundDecision,
     CreateTeaserDraft,
+    ProjectTracker,
 )

@@ -70,7 +70,8 @@ REPO = Path(__file__).resolve().parents[1]
 PID = "example-teasers"
 TOKEN = "s3cret-moderator"
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
-OWNER = Account.from_key("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d").address
+OWNER_KEY = Account.from_key("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d")
+OWNER = OWNER_KEY.address
 CRITICAL = {b"IHDR", b"PLTE", b"IDAT", b"IEND"}
 
 
@@ -540,6 +541,7 @@ def app(tmp_path, world):
             "drafts_dir": tmp_path / "drafts", "samples_dir": tmp_path / "samples",
             "templates_dir": REPO / "templates", "frames_dir": frames, "bios_dir": REPO / "bios",
             "projects_dir": root.parent, "backgrounds_dir": tmp_path / "backgrounds", "moderator_token": TOKEN,
+            "siwe_domain": "localhost:3108",
         } | over))  # fmt: skip
         return TestClient(create_app(cfg, darkroom=darkroom, probe_fn=lambda url: False))
 
@@ -703,3 +705,43 @@ def test_only_approved_teaser_links_with_fresh_singguard_verdicts_make_teasers(w
     links_file.write_text(json.dumps(doc))
     with pytest.raises(TeaserError, match="no approved teaser links"):
         _make(root, frames, store, bg=bg.id, renderer=Stub())
+
+
+def test_the_tracker_reports_each_teasers_stages_from_the_files_and_drafts(app):
+    from eth_account.messages import encode_defunct
+
+    build, _stub, root = app
+    c = build()
+    t = c.get(f"/projects/{PID}/tracker").json()
+    assert t["links_version"] == 1 and [x["number"] for x in t["teasers"]] == ["T1", "T2"]
+    assert t["teasers"][0]["stages"] == {
+        "quote_final": True, "concept_chosen": True, "image_made": False, "posted": False, "minted": False
+    }  # fmt: skip
+    assert t["teasers"][0]["drafts"] == [] and t["teasers"][0]["background"] is None
+
+    url = f"/projects/{PID}/scenes/lamp-room/1/backgrounds"
+    c.post(url, headers=AUTH)
+    _wait(c, url)
+    c.post(f"/projects/{PID}/backgrounds/lamp-room-v1-01/review", json={"decision": "approve", "by": "m"}, headers=AUTH)
+    choose(root, "T1", "lamp-room-v1-01")
+    draft_id = c.post(f"/projects/{PID}/teasers/T1/draft", json={"to": OWNER}, headers=AUTH).json()["id"]
+    first = c.get(f"/projects/{PID}/tracker").json()["teasers"][0]
+    assert first["stages"]["image_made"] is False and first["background"] == "lamp-room-v1-01"
+    (state,) = first["drafts"]
+    assert state["id"] == draft_id and state["status"] == "pending" and state["awaiting"] == ["moderator", "owner"]
+    assert state["current"] is True and state["links_version"] == 1
+
+    c.post(f"/drafts/{draft_id}/review", json={"role": "moderator", "approve": True, "by": "m"}, headers=AUTH)
+    ch = c.post(f"/drafts/{draft_id}/challenge", json={"approve": True}).json()
+    sig = OWNER_KEY.sign_message(encode_defunct(text=ch["message"])).signature.hex()
+    r = c.post(f"/drafts/{draft_id}/review", json={"role": "owner", "approve": True, "message": ch["message"],
+                                                   "signature": sig})  # fmt: skip
+    assert r.status_code == 200 and r.json()["status"] == "approved"
+    first = c.get(f"/projects/{PID}/tracker").json()["teasers"][0]
+    assert first["stages"]["image_made"] is True and first["stages"]["posted"] is False
+    assert c.post(f"/drafts/{draft_id}/challenge", json={"action": "edit", "edit": {"name": "x"}}).status_code == 409
+
+    line = root / "lines" / "keep-it-lit-v1.yaml"  # retired: the quote is no longer final
+    line.write_text(line.read_text().replace("status: approved", "status: retired"))
+    assert c.get(f"/projects/{PID}/tracker").json()["teasers"][0]["stages"]["quote_final"] is False
+    assert c.get("/projects/nope/tracker").status_code == 404

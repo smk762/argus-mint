@@ -68,6 +68,7 @@ Each row names what catches it. **UNENFORCED** rows need a check, not more prose
 | A teaser render carries more than 2 LoRAs (darkroom's limit) | | `test_teasers::test_an_embodied_render_takes_the_identity_lora_and_the_style_lora_and_no_more` |
 | An inpainted image is accepted when darkroom's record names another input image, mask or denoise | | `test_teasers::test_darkroom_client_checks_the_record_names_what_was_sent`, `::test_darkroom_gets_the_input_image_and_mask_the_request_records` |
 | A baked teaser PNG carries a metadata (ancillary) chunk, or two bakes of the same parts differ by a byte | 7 | `test_teasers::test_bake_drops_every_ancillary_chunk_and_is_byte_stable`, `::test_an_embodied_teaser_inpaints_the_identity_onto_the_approved_background` |
+| A teaser's stage is worked out anywhere but mint (a client computes it) | | mint serves it: `test_teasers::test_the_tracker_reports_each_teasers_stages_from_the_files_and_drafts`; the client side is argus-assay's to check |
 | A teaser's text is edited, or a teaser is published as a card | 9 | `test_teasers::test_a_teaser_draft_has_no_card_fields_and_isnt_edited_or_published` |
 | Committed generated files go stale: ABIs, `docs/cli.md`, the wire schema, Python-built fixtures | | CI `contracts` job (`git diff --exit-code src/argus_mint/abi/`), `test_cli_docs::test_cli_docs_are_current`, `test_server::test_wire_schema_is_committed`, `test_fixtures` |
 
