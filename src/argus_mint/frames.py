@@ -37,6 +37,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from argus_mint._codec import canonical, keccak256
+from argus_mint.frame_effects import MAX_EFFECTS, Effect, apply_effects, check_window
 from argus_mint.metadata import CardStyle, FrameRef, SlotStyle, Tint
 
 __all__ = [
@@ -138,6 +139,8 @@ class Frame(BaseModel):
     # slot name -> box; "name" and "bio" are filled by argus-mint
     texts: dict[str, TextSlot] = Field(default_factory=dict)
     style_locked: bool = False  # true: owners can't restyle cards in this frame
+    # applied in order to the art inside the window, before the overlay (argus_mint.frame_effects)
+    effects: tuple[Effect, ...] = Field(default=(), max_length=MAX_EFFECTS)
 
     _overlay_inside = field_validator("overlay")(_inside_path)
 
@@ -168,9 +171,14 @@ class LoadedFrame:
     fonts: dict[str, bytes] = field(default_factory=dict)  # by the path the frame names them with
 
     def hash(self) -> bytes:
-        """keccak256 of the canonical frame (minus ``status``) plus its files' sha256."""
+        """keccak256 of the canonical frame (minus ``status``) plus its files' sha256.
+
+        ``effects`` is left out while empty, so a frame without effects hashes as it did before
+        they existed."""
         doc: dict[str, Any] = {
-            "frame": self.frame.model_dump(mode="json", exclude={"status"}),
+            "frame": self.frame.model_dump(
+                mode="json", exclude={"status"} | ({"effects"} if not self.frame.effects else set())
+            ),
             "overlay_sha256": hashlib.sha256(self.overlay).hexdigest(),
             "fonts_sha256": {p: hashlib.sha256(b).hexdigest() for p, b in sorted(self.fonts.items())},
         }
@@ -264,6 +272,9 @@ def load_frame(path: Path) -> LoadedFrame:
     for label, rect in (("window", frame.window), *frame.texts.items()):
         if rect.x + rect.width > w or rect.y + rect.height > h:
             raise FrameError(f"{path}: {label} {rect.box()} lies outside the {w}x{h} overlay")
+    unusable = check_window(frame.effects, frame.window.width, frame.window.height)
+    if unusable:
+        raise FrameError(f"{path}: {'; '.join(unusable)}")
     return LoadedFrame(frame=frame, overlay=overlay, size=size, fonts=fonts)
 
 
@@ -370,7 +381,8 @@ def _place(
 
 
 def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, style: CardStyle | None = None) -> bytes:
-    """The finished card: ``art`` scaled to cover the window, the overlay on top, then ``texts``.
+    """The finished card: ``art`` scaled to cover the window, the frame's ``effects`` applied to it
+    there, the overlay on top, then ``texts``.
 
     ``texts`` maps the frame's slot names to the text drawn in them; a slot without text is
     left empty, and text for a slot the frame doesn't have is an error. ``style`` tints the
@@ -403,8 +415,11 @@ def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, sty
         image_mod.Resampling.LANCZOS,
     )
     left, top = (scaled.width - win.width) // 2, (scaled.height - win.height) // 2
+    window_art = scaled.crop((left, top, left + win.width, top + win.height))
+    if f.frame.effects:  # on the art's own pixels, inside the window only; noise seeded by the art's sha256
+        window_art = apply_effects(window_art, f.frame.effects, hashlib.sha256(art).digest())
     card = image_mod.new("RGBA", f.size, (0, 0, 0, 0))
-    card.paste(scaled.crop((left, top, left + win.width, top + win.height)), (win.x, win.y))
+    card.paste(window_art, (win.x, win.y))
     overlay = image_mod.open(io.BytesIO(f.overlay)).convert("RGBA")
     if style.tint is not None:
         alpha = overlay.getchannel("A")

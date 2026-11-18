@@ -37,7 +37,7 @@ The style goes into the card's provenance, so the card can be redrawn exactly fr
 
 1. **Lay out.** `POST /frames/{id}/{version}/layout` with `{"texts": {"name": "…", "bio": "…"}}` returns where every line goes, exactly as the bake will draw it.
 2. **Load fonts.** `GET /frames/{id}/{version}/fonts/<path>` serves each font the layout names.
-3. **Preview** in the browser as SVG: the art, the frame overlay (`GET /frames/{id}/{version}/overlay`) with the tint filter, slot backgrounds, then the text.
+3. **Preview** in the browser as SVG: the art, the frame overlay (`GET /frames/{id}/{version}/overlay`) with the tint filter, slot backgrounds, then the text. A frame's [effects](catalogue.md#effects) (lens, scanlines, noise…) aren't drawn in SVG: when the frame has any, the preview says *"effects not previewed: the baked PNG is what's reviewed"*.
 4. **Sign the edit.** `POST /drafts/{id}/challenge` with `{"action": "edit", "edit": {name?, bio?, texts?, style?}}`. The returned message covers the sha256 of exactly that edit. The owner's wallet signs it.
 5. **Bake.** `POST /drafts/{id}/edit` with the same fields plus `message` and `signature`. Any difference from what was signed is refused. argus-mint redraws the card on the same art, with the exact frame the draft was made with (checked by hash), and saves the new image.
 6. **Review again.** The new image needs both approvals ([review.md](review.md)).

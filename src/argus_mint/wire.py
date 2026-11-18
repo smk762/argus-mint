@@ -84,8 +84,8 @@ __all__ = [
 # 1.13 posting (POST /drafts/{id}/posted, GET /posts/ready, the poster token), teasers publish, tracker posted/minted
 # 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
 # 1.15 the identity check on a teaser (AutoCheck.identity, POST /drafts/{id}/identity-check, identity_check)
-# 1.16 a project's own frames (ids <project>/<name>; FrameInfo.project)
-WIRE_VERSION = "1.16"
+# 1.16 a project's own frames (ids <project>/<name>; FrameInfo.project); 1.17 frame effects (Frame.effects)
+WIRE_VERSION = "1.17"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.

@@ -413,6 +413,29 @@
       "title": "BackgroundSetList",
       "type": "object"
     },
+    "Barrel": {
+      "additionalProperties": false,
+      "description": "A lens's bulge: the centre magnified, the window's corners kept where they are.\n\nA pixel at distance ``r`` from the centre (1 at a corner) shows the art at\n``r * (1 + strength * r^2) / (1 + strength)``. 0.1 is mild, 0.3 strong.",
+      "properties": {
+        "strength": {
+          "exclusiveMinimum": 0,
+          "maximum": 0.5,
+          "title": "Strength",
+          "type": "number"
+        },
+        "type": {
+          "const": "barrel",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "strength"
+      ],
+      "title": "Barrel",
+      "type": "object"
+    },
     "BioInfo": {
       "additionalProperties": false,
       "properties": {
@@ -1141,6 +1164,29 @@
       "title": "ChallengeRequest",
       "type": "object"
     },
+    "ChromaticAberration": {
+      "additionalProperties": false,
+      "description": "Colour fringing: red spreads out from the centre and blue pulls in, by ``shift`` pixels at the edges.",
+      "properties": {
+        "shift": {
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Shift",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chromatic_aberration",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "shift"
+      ],
+      "title": "ChromaticAberration",
+      "type": "object"
+    },
     "CreateDraft": {
       "additionalProperties": false,
       "description": "POST /drafts. The template, frame and bio are named by id and version, never by path.\n\nEither render (``variables``, ``seed``, optionally ``model``), or take a pre-rendered\n``library`` entry, whose variables, seed and checkpoint then apply.",
@@ -1810,6 +1856,41 @@
           "default": null,
           "title": "Approved By"
         },
+        "effects": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "barrel": "#/$defs/Barrel",
+                "chromatic_aberration": "#/$defs/ChromaticAberration",
+                "noise": "#/$defs/Noise",
+                "scanlines": "#/$defs/Scanlines",
+                "vignette": "#/$defs/Vignette"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Barrel"
+              },
+              {
+                "$ref": "#/$defs/Scanlines"
+              },
+              {
+                "$ref": "#/$defs/Noise"
+              },
+              {
+                "$ref": "#/$defs/ChromaticAberration"
+              },
+              {
+                "$ref": "#/$defs/Vignette"
+              }
+            ]
+          },
+          "maxItems": 8,
+          "title": "Effects",
+          "type": "array"
+        },
         "id": {
           "pattern": "^(?:[a-z0-9][a-z0-9-]{0,63}/)?[a-z0-9][a-z0-9-]{0,63}$",
           "title": "Id",
@@ -2085,7 +2166,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.16",
+          "default": "1.17",
           "title": "Wire Version",
           "type": "string"
         }
@@ -2604,6 +2685,34 @@
         "name"
       ],
       "title": "LoraRef",
+      "type": "object"
+    },
+    "Noise": {
+      "additionalProperties": false,
+      "description": "Signal noise: each pixel moves by up to ``amount`` of full scale, up or down, evenly spread.\n``monochrome``: the same change in each channel (grain); else each channel its own (colour speckle).",
+      "properties": {
+        "amount": {
+          "exclusiveMinimum": 0,
+          "maximum": 0.5,
+          "title": "Amount",
+          "type": "number"
+        },
+        "monochrome": {
+          "title": "Monochrome",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "noise",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "amount",
+        "monochrome"
+      ],
+      "title": "Noise",
       "type": "object"
     },
     "Pinned": {
@@ -3818,6 +3927,43 @@
       "title": "SavedProjectFile",
       "type": "object"
     },
+    "Scanlines": {
+      "additionalProperties": false,
+      "description": "Dark horizontal lines: ``thickness`` rows in every ``spacing``, darkened by ``opacity``.",
+      "properties": {
+        "opacity": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "spacing": {
+          "maximum": 32,
+          "minimum": 2,
+          "title": "Spacing",
+          "type": "integer"
+        },
+        "thickness": {
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Thickness",
+          "type": "integer"
+        },
+        "type": {
+          "const": "scanlines",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "spacing",
+        "thickness",
+        "opacity"
+      ],
+      "title": "Scanlines",
+      "type": "object"
+    },
     "ScoreBox": {
       "additionalProperties": false,
       "description": "The part of an image proof scored, in the image's own pixels.",
@@ -5020,7 +5166,37 @@
       ],
       "title": "TrainingRecord",
       "type": "object"
+    },
+    "Vignette": {
+      "additionalProperties": false,
+      "description": "Dark corners: from ``start`` (a fraction of the centre-to-corner distance) the art darkens\nsmoothly, to ``strength`` at the corners.",
+      "properties": {
+        "start": {
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "strength": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strength",
+          "type": "number"
+        },
+        "type": {
+          "const": "vignette",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "strength",
+        "start"
+      ],
+      "title": "Vignette",
+      "type": "object"
     }
   },
-  "title": "argus-mint wire 1.16"
+  "title": "argus-mint wire 1.17"
 }

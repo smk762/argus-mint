@@ -75,12 +75,38 @@ A frame is a PNG overlay, transparent inside its **art window**, described by a 
 | `window` | `{x, y, width, height}`: where the art goes. The art is scaled to **cover** the window, centred, and whatever doesn't fit is cropped |
 | `texts` | named text slots |
 | `style_locked` | `true` refuses owner restyling ([customise.md](customise.md)) |
+| `effects` | optional: [effects](#effects) on the art inside the window (lens, scanlines, noise, colour fringing, vignette), applied in order before the overlay goes on |
 
 **Text slots.** Each slot is a box (`x`, `y`, `width`, `height`) with a `font` (a TTF/OTF next to the frame; Pillow's built-in font if unset), `size` and `min_size`, `colour`, `align` (`left | center | right`), `valign` (`top | middle`), `wrap` and `line_spacing`. Text is drawn at `size` if it fits, else at the largest size down to `min_size` that does. If it still doesn't fit, it is clipped and ends in an ellipsis.
 
 argus-mint fills the `name` slot with the card's name and the `bio` slot with the bio. Every other slot (`class`, `stats`…) takes the consumer's display text. That text is shown on the image only and is never a stat a game reads back.
 
 card-green v1 has a landscape art window of about 4:3 (808 × 593), so templates for it render landscape (e.g. 1152 × 896).
+
+### Effects
+
+An overlay only adds pixels on top of the art. A camera or feed look also changes the art itself, so a frame may list `effects`. They are applied in the order listed, to the art once it is scaled to cover the window, inside the window only, and before the overlay and text go on.
+
+```yaml
+effects:
+  - {type: barrel, strength: 0.12}
+  - {type: chromatic_aberration, shift: 2}
+  - {type: scanlines, spacing: 4, thickness: 1, opacity: 0.18}
+  - {type: noise, amount: 0.06, monochrome: true}
+  - {type: vignette, strength: 0.45, start: 0.55}
+```
+
+| Effect | Parameters (all required) | |
+|---|---|---|
+| `barrel` | `strength` (0 < s ≤ 0.5) | a lens's bulge: the centre magnified, the window's corners kept in place. A pixel at distance `r` from the centre (1 at a corner) shows the art at `r × (1 + s·r²) / (1 + s)` |
+| `scanlines` | `spacing` (2–32 px), `thickness` (1–16 px, less than `spacing`), `opacity` (0 < o ≤ 1) | `thickness` dark rows in every `spacing`, blended toward black by `opacity` |
+| `noise` | `amount` (0 < a ≤ 0.5), `monochrome` (bool) | each pixel moves up or down by up to `amount` of full scale, evenly spread; the same in each channel when `monochrome`, else per channel |
+| `chromatic_aberration` | `shift` (1–16 px; under a quarter of the window's smaller side) | red spreads outward and blue pulls in, by `shift` pixels at the edges; green stays |
+| `vignette` | `strength` (0 < s ≤ 1), `start` (0 ≤ t < 1) | from `start` (a fraction of the centre-to-corner distance) the art darkens smoothly, to `strength` at the corners |
+
+- **Reviewed and hashed.** `effects` is part of the frame's YAML, so it is reviewed with the frame and covered by its hash. Order and every parameter count. A frame without effects hashes exactly as it did before effects existed: an empty list is left out of the hash. A parameter out of its bounds, a missing or unknown one, an unknown effect or more than eight effects is refused when the frame loads.
+- **Deterministic.** The same art and frame always give the same bytes (hard rule 7). Only Pillow is used, with fixed lookup tables and resampling. The noise comes from no random-number generator: its bytes are SHAKE-256 of a fixed tag, the **art's sha256**, the effect's place in the list and the channel. Every compose has the art in hand (a draft, an owner's edit redrawn, a frame preview, a teaser's bake), so all of them agree byte for byte. The art is pinned in a token's provenance, so anyone can recompute the noise.
+- **Not previewed in the browser.** argus-assay's SVG preview ([customise.md](customise.md)) draws the art, overlay and text, but not effects. For a frame whose `effects` (in `GET /frames`) isn't empty, it must say so: *"effects not previewed: the baked PNG is what's reviewed"*. The baked PNG is what both reviewers approve, as always. `POST /frames/{id}/{version}/preview` returns the baked PNG with its effects.
 
 ### A project's own frames
 
@@ -115,13 +141,13 @@ uv run --with playwright python scripts/capture_frame.py <project>/frames/src/<n
 - **Playwright isn't a dependency** of argus-mint, not even for its tests: they pass a stub renderer. Without it the script says how to run it.
 - Chromium's text rendering can differ by version, so a rebuild is pixel-for-pixel only with the recorded versions. The committed PNG is what's reviewed and hashed, either way.
 
-The example is [projects/example-teasers/frames](https://github.com/smk762/argus-mint/tree/dev/projects/example-teasers/frames): a harbour-camera look (timestamp, reticle, status, signal) in a few lines of its own CSS, captured to `harbour-feed-v1.png`, full bleed so the background shows through.
+The example is [projects/example-teasers/frames](https://github.com/smk762/argus-mint/tree/dev/projects/example-teasers/frames): a harbour-camera look (timestamp, reticle, status, signal) in a few lines of its own CSS, captured to `harbour-feed-v1.png`, full bleed so the background shows through, with mild effects on the art.
 
 **Using a component kit (e.g. monohud).** [monohud](https://github.com/jshguo-labs/monohud) (MIT) has framework-free `packages/css` (plain CSS; `tokens.generated.css` holds its tokens) and `packages/fx` (TypeScript, so it needs a build before a page can load it). It is young, so pin a commit and review it. Vendor it into the frame's source directory, never into argus-mint:
 
 1. `git clone https://github.com/jshguo-labs/monohud && git -C monohud checkout <sha>` and read what you're taking.
 2. Copy `packages/css/src/*.css` and `packages/css/LICENSE` into `<project>/frames/src/<name>/vendor/monohud/` (and `packages/tokens/LICENSE` if you take its tokens), with the commit in a `COMMIT` file beside them. Check the CSS loads nothing remote (`@import url(http…)`, web fonts); the capture refuses it anyway.
-3. Write `overlay.html` linking the vendored CSS and your own, with `background: transparent`. A static capture has no motion, so leave `fx`'s animations out; for signal distortion use the frame's reviewed effects.
+3. Write `overlay.html` linking the vendored CSS and your own, with `background: transparent`. A static capture has no motion, so leave `fx`'s animations out. For signal distortion use the frame's [effects](#effects) (put them in `capture.json`'s `frame`), which change the art itself, deterministically.
 4. Put `"kit": {"name": "monohud", "commit": "<sha>", "license": "MIT"}` in `capture.json`, capture, and look at the PNG over a background (`POST /frames/{id}/{version}/preview`) before approving it.
 
 ## Bio templates
