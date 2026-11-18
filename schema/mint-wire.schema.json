@@ -815,8 +815,12 @@
           "$ref": "#/$defs/argus_mint__wire__Ref"
         },
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -1078,8 +1082,12 @@
         "texts": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
+              "maxProperties": 16,
+              "patternProperties": {
+                "^[a-z][a-z0-9_]{0,31}$": {
+                  "maxLength": 2000,
+                  "type": "string"
+                }
               },
               "type": "object"
             },
@@ -1276,8 +1284,12 @@
           "default": null
         },
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -1385,7 +1397,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.10",
+          "default": "1.11",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1410,8 +1422,12 @@
       "description": "POST /frames/{id}/{version}/layout: where these texts go, for a browser preview.",
       "properties": {
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -2400,8 +2416,12 @@
           "$ref": "#/$defs/argus_mint__wire__Ref"
         },
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -3036,8 +3056,12 @@
         "texts": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
+              "maxProperties": 16,
+              "patternProperties": {
+                "^[a-z][a-z0-9_]{0,31}$": {
+                  "maxLength": 2000,
+                  "type": "string"
+                }
               },
               "type": "object"
             },
@@ -3219,5 +3243,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.10"
+  "title": "argus-mint wire 1.11"
 }

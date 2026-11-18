@@ -2,15 +2,17 @@
 
 Approval is a human step recorded in the file (hard rule 2): ``status: approved`` plus
 ``approved_by`` and ``approved_at``. This module writes exactly that, editing the YAML as
-text so the file's comments and layout survive, then re-validates the result and restores
-the original if it doesn't load. Only two moves exist: ``draft -> approved`` and
+text so the file's comments and layout survive. The edited text is validated in a temp file
+first and only then renamed over the original, which is never left half-written. Only two moves exist: ``draft -> approved`` and
 ``approved -> retired``. A retired file keeps its approval lines, so its hash, which cards
 already carry, doesn't change.
 """
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -74,10 +76,20 @@ def record_decision(path: Path, decision: Decision, *, by: str, today: date, val
     if decision == "approve":
         text = _set_key(text, "approved_by", _quote(by.strip()), after="status")
         text = _set_key(text, "approved_at", today.isoformat(), after="approved_by")
-    path.write_text(text, encoding="utf-8")
+    # The edit goes to a temp file beside the original (so relative paths in it resolve the same; a
+    # ``.tmp`` suffix, so a registry scanning for *.yaml never sees it), is validated there, and only then renamed over the original: the file is never half-written.
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    tmp = Path(name)
     try:
-        validate(path)
-    except Exception as e:
-        path.write_text(original, encoding="utf-8")
-        raise CatalogueError(f"{path.name} did not validate after the edit, so it was left unchanged: {e}") from e
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            validate(tmp)
+        except Exception as e:
+            raise CatalogueError(f"{path.name} did not validate after the edit, so it was left unchanged: {e}") from e
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
     return new_status

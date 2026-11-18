@@ -22,6 +22,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -45,16 +46,24 @@ class DarkroomError(Exception):
 
 def final_prompt(req: RenderRequest) -> str:
     """The prompt darkroom will send to ComfyUI: the template prompt, then trigger words not
-    already present, comma-separated (darkroom's ``assemble_prompt``)."""
+    already present, comma-separated (darkroom's ``assemble_prompt``, from 0.2.0).
+
+    Present means as a whole word or phrase, in any case, in the prompt or the trigger words
+    already added: ``sks`` inside ``tasks`` is not the trigger, and ``Foo`` after ``foo`` is the same one.
+    """
     body = req.prompt.strip()
-    present = body.casefold()
     extra: list[str] = []
     for lora in req.loras:
         for word in lora.trigger_words:
             w = word.strip()
-            if w and w.casefold() not in present and w not in extra:
+            if w and not _has_phrase(", ".join((body, *extra)), w):
                 extra.append(w)
     return ", ".join(part for part in (body, *extra) if part)
+
+
+def _has_phrase(text: str, phrase: str) -> bool:
+    """Whether ``phrase`` is in ``text`` with no word character either side of it, ignoring case."""
+    return re.search(rf"(?<!\w){re.escape(phrase.casefold())}(?!\w)", text.casefold()) is not None
 
 
 def request_body(
@@ -274,8 +283,10 @@ class DarkroomClient:
                 raise DarkroomError(f"darkroom refused the request: {resp.text}")
             resp.raise_for_status()
             verdict = resp.json()
-        except httpx.HTTPError as e:
+        except (httpx.HTTPError, ValueError) as e:
             raise DarkroomError(f"darkroom text check failed: {e}") from e
+        if not isinstance(verdict, dict):
+            raise DarkroomError(f"darkroom's text check answered with a {type(verdict).__name__}, not an object")
         if verdict.get("outcome") == "ok":
             return True, ""
         refusal = verdict.get("refusal") or {}
@@ -305,7 +316,10 @@ class DarkroomClient:
                     resp.raise_for_status()
                     for event, data in _sse_events(resp.iter_lines()):
                         if event == "complete":
-                            return data["record"]
+                            record = data.get("record") if isinstance(data, dict) else None
+                            if not isinstance(record, dict):
+                                return "darkroom's complete event carried no record"
+                            return record
                         if event == "error":
                             return str(data.get("detail", "unknown error"))
                     return "the stream ended without a record"
@@ -319,7 +333,11 @@ class DarkroomClient:
             return "darkroom rendered a different prompt"
         if r.get("seed") != req.seed:
             return f"darkroom used seed {r.get('seed')}, not {req.seed}"
-        if (record.get("guard") or {}).get("enforcing_policy", self.policy) != self.policy:
+        guard = record.get("guard")
+        enforced = guard.get("enforcing_policy") if isinstance(guard, dict) else None
+        if enforced is None:
+            return "darkroom record does not state its enforcing policy"
+        if enforced != self.policy:
             return "darkroom enforced a different policy"
         return None
 
@@ -328,6 +346,8 @@ class DarkroomClient:
             outcome = self._stream(req)
         except httpx.HTTPError as e:
             return GenResult.error(f"darkroom unreachable or failed: {e}")
+        except ValueError as e:  # an event whose data isn't JSON
+            return GenResult.error(f"darkroom sent a malformed event: {e}")
         if isinstance(outcome, str):
             return GenResult.error(outcome)
         record = outcome

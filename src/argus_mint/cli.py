@@ -35,6 +35,7 @@ from argus_mint.keys import KEY_ENV, KeyLoadError, load_signer
 from argus_mint.library import Library, LibraryError
 from argus_mint.library import build as build_library
 from argus_mint.library import describe as describe_library
+from argus_mint.metadata import ipfs_uri
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
 from argus_mint.render import GenResult, RenderError, render_for_review
 from argus_mint.templates import (
@@ -307,21 +308,14 @@ def sample(
         entry: dict[str, Any] = {"n": i, "variables": values}
         try:
             r = render_for_review(client, t, values, seed + i, model, _parse_loras(lora))
-            b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
-        except (DarkroomError, BioFailed) as e:
-            if isinstance(e, BioFailed):
-                entry |= {"error": str(e), "bio_attempts": bio_attempts(e.attempts)}
-                results.append(entry)
-                typer.echo(f"{i}: {e}", err=True)
-                continue
-            raise _fail(str(e)) from e
-        except BioError as e:
+        except DarkroomError as e:
             raise _fail(str(e)) from e
         except RenderError as e:
             entry |= {"error": str(e), "attempts": [a.to_json() for a in e.attempts]}
             results.append(entry)
             typer.echo(f"{i}: {e}", err=True)
             continue
+        # The render passed its checks: keep it, whatever happens to the bio.
         art = out / f"{i:02d}-{r.seed}.png"
         art.write_bytes(r.image)
         entry |= {
@@ -330,6 +324,16 @@ def sample(
             "attempts": [a.to_json() for a in r.attempts],
             "art": str(art),
         }
+        b = None
+        try:
+            b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
+        except DarkroomError as e:
+            raise _fail(str(e)) from e
+        except BioFailed as e:  # the framed preview is drawn without a bio
+            entry |= {"error": str(e), "bio_attempts": bio_attempts(e.attempts)}
+            typer.echo(f"{i}: {e}", err=True)
+        except BioError as e:
+            raise _fail(str(e)) from e
         if b is not None:
             entry |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
         if lf is not None:
@@ -405,6 +409,8 @@ def draft(
             raise _fail(f"library entry {lib_entry.id} shows {lib_entry.variables}; leave --var out or match it", 2)
         if model not in (None, lib_entry.model):
             raise _fail(f"library entry {lib_entry.id} was rendered with {lib_entry.model}, not {model}", 2)
+        if lora:
+            raise _fail(f"library entry {lib_entry.id} was rendered without chosen LoRAs; leave --lora out", 2)
     if bio and not darkroom:
         raise _fail("--bio needs --darkroom: darkroom's text check screens every bio", 2)
     extra = _parse_texts(text)
@@ -506,13 +512,16 @@ def publish(
     deadline: Annotated[int | None, typer.Option(help="Voucher deadline (unix seconds); overrides --ttl")] = None,
     ipfs_api: IpfsOpt = None,
     account: AccountOpt = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Pin locally (no IPFS); allow a throwaway signer")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Pin locally (no IPFS) and sign with a throwaway key, never the real one")
+    ] = False,
 ) -> None:
     """Step 3 of 3: pin an approved draft, build its metadata and sign the mint voucher; print JSON.
 
     Refuses a draft the moderator and the owner haven't both approved, or whose files changed
     since. A live run pins via --ipfs-api and signs with --account (a Foundry keystore) or
-    $ARGUS_MINT_SIGNER_KEY. Send the result on-chain with `argus-mint submit`.
+    $ARGUS_MINT_SIGNER_KEY. A dry run signs with a throwaway key, so its voucher can't mint.
+    Send a live result on-chain with `argus-mint submit`.
     """
     try:
         resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
@@ -523,8 +532,10 @@ def publish(
         check_publishable(d, art, image)
     except DraftError as e:
         raise _fail(str(e)) from e
+    # A dry run never touches the real key: its local pins and maybe placeholder art must not
+    # come out as a voucher the Card contract would accept.
     try:
-        key = load_signer(account)
+        key = None if dry_run else load_signer(account)
     except KeyLoadError as e:
         raise _fail(str(e)) from e
     if not dry_run:
@@ -607,6 +618,10 @@ def _read_input(path: Path) -> str:
 @app.command()
 def submit(
     mint_json: Annotated[Path, typer.Argument(help="JSON printed by `argus-mint publish` ('-' for stdin)")],
+    card: Annotated[
+        str,
+        typer.Option(envvar="ARGUS_MINT_CARD", help="The Card contract you mean to mint on; the voucher must name it"),
+    ],
     network: NetworkOpt = "base-sepolia",
     rpc_url: RpcOpt = None,
     account: AccountOpt = None,
@@ -614,7 +629,8 @@ def submit(
     """Send a signed mint voucher to its Card contract; print the new token id.
 
     Any account may submit a voucher (normally the player's wallet); it pays the gas and the
-    voucher's price. The card goes to the voucher's `to` address, not the sender.
+    voucher's price. The card goes to the voucher's `to` address, not the sender. The voucher
+    names its contract, and the checks run against it, so it must be the --card you trust.
     """
     try:
         data = json.loads(_read_input(mint_json))
@@ -625,6 +641,8 @@ def submit(
         raise _fail(f"not a `publish` output: {e}") from e
     if data.get("dry_run"):
         raise _fail("this voucher is from a dry run (local pins, maybe placeholder art); publish it live first")
+    if not isinstance(dom.get("verifyingContract"), str) or dom["verifyingContract"].lower() != card.lower():
+        raise _fail(f"the voucher is for contract {dom.get('verifyingContract')}, not the Card {card}", 2)
     chain, net, w3 = _chain(network, rpc_url)
     if dom["chainId"] != net.chain_id:
         raise _fail(f"the voucher is for chain {dom['chainId']}, but {net.name} is chain {net.chain_id}")
@@ -675,7 +693,10 @@ def freeze(
     After this, tokenURI returns URI, wallets and explorers can show the card, and the
     metadata can no longer be refreshed.
     """
-    uri = uri if uri.startswith("ipfs://") else f"ipfs://{uri}"
+    try:
+        uri = ipfs_uri(uri.strip().removeprefix("ipfs://"))  # a freeze is for good: refuse anything but a CID
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--uri") from e
     chain, net, w3 = _chain(network, rpc_url)
     c = chain.contract(w3, "Card", card)
     if c.functions.isFrozen(token_id).call():

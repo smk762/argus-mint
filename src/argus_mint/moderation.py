@@ -42,7 +42,8 @@ class WordFilter:
             raise RuntimeError('the word filter needs better-profanity: pip install "argus-mint[server]"') from e
         self._filter = Profanity()
         self._filter.load_censor_words()
-        terms = [t.strip() for t in extra_terms or [] if t.strip() and not t.strip().startswith("#")]
+        # better-profanity compares lower-cased words with its list as stored: store ours lower-cased too.
+        terms = [t.strip().lower() for t in extra_terms or [] if t.strip() and not t.strip().startswith("#")]
         if terms:
             self._filter.add_censor_words(terms)
 

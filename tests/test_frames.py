@@ -108,7 +108,9 @@ def test_repo_example_frames_are_valid():
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1] / "frames"
-    for f in root.glob("*.yaml"):
+    files = sorted([*root.rglob("*.yaml"), *root.rglob("*.yml")])
+    assert files, f"no example frames found under {root}"
+    for f in files:
         assert load_frame(f).frame.status in ("draft", "approved", "retired")
 
 
@@ -155,7 +157,9 @@ def test_existing_demo_metadata_still_hashes_to_its_voucher():
     from argus_mint.metadata import content_hash
 
     root = Path(__file__).resolve().parents[1] / "demo"
-    for f in [*root.glob("base-sepolia/mint-*.json"), *root.glob("base/mint-*.json")]:
+    files = [*root.glob("base-sepolia/mint-*.json"), *root.glob("base/mint-*.json")]
+    assert files, f"no demo mint files found under {root}"
+    for f in files:
         out = json.loads(f.read_text())
         assert Provenance.model_validate(out["metadata"]["provenance"]).to_json() == out["metadata"]["provenance"]
         assert "0x" + content_hash(out["metadata"]).hex() == out["voucher"]["content_hash"]
@@ -195,3 +199,37 @@ def test_locked_frames_refuse_styles(tmp_path):
     with pytest.raises(FrameError, match="can't be restyled"):
         compose(f, ART, {}, CardStyle.model_validate({"tint": {"colour": "#000000"}}))
     assert compose(f, ART, {}, CardStyle())  # a plain style is no style
+
+
+@pytest.mark.parametrize("bad", ["/etc/passwd", "../secret.png", "a/../../b.png", "C:/x.png", "a\\b.png"])
+def test_frame_files_must_stay_in_the_frame_directory(tmp_path, bad):
+    with pytest.raises(FrameError, match="inside the frame's directory"):
+        load_frame(_frame(tmp_path, overlay=bad))
+    slot = {"x": 10, "y": 300, "width": 280, "height": 60, "font": bad}
+    with pytest.raises(FrameError, match="inside the frame's directory"):
+        load_frame(_frame(tmp_path, texts={"name": slot}))
+
+
+def test_a_symlink_out_of_the_frame_directory_is_refused(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "o.png").write_bytes(_png((300, 420), (1, 2, 3, 255), WINDOW))
+    inside = tmp_path / "frame"
+    inside.mkdir()
+    (inside / "link.png").symlink_to(outside / "o.png")
+    path = _frame(inside, overlay="link.png")
+    with pytest.raises(FrameError, match="outside the frame's directory"):
+        load_frame(path)
+
+
+def test_unreadable_or_oversized_art_is_a_frame_error(tmp_path, monkeypatch):
+    import argus_mint.frames as frames_mod
+
+    f = load_frame(_frame(tmp_path))
+    with pytest.raises(FrameError, match="larger than"):
+        monkeypatch.setattr(frames_mod, "MAX_ART_PIXELS", 63 * 63)
+        compose(f, ART)
+    monkeypatch.undo()
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 100)  # 64x64 is now a "decompression bomb"
+    with pytest.raises(FrameError, match="not a readable image"):
+        compose(f, ART)

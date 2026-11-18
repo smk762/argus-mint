@@ -141,3 +141,9 @@ def test_repo_example_templates_are_valid():
         assert t.status in ("draft", "approved", "retired")
         if t.status == "approved":  # approval is a recorded human step
             assert t.approved_by and t.approved_at
+
+
+def test_a_lora_option_cannot_repeat_an_always_applied_lora(template_doc):
+    # Choosing it would send the renderer the same LoRA twice, stacking its weight.
+    with pytest.raises(ValueError, match="already applied"):
+        Template.model_validate({**template_doc, "lora_options": [{"name": "fantasy-portrait", "weights": [0.5]}]})

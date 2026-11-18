@@ -123,7 +123,7 @@ argus-mint publish drafts/unit-17 --card 0x… --ipfs-api http://127.0.0.1:5001 
 On-chain, each step signs with a Foundry keystore account (`--account` / `$ARGUS_MINT_ACCOUNT`) or `$ARGUS_MINT_SIGNER_KEY`:
 
 ```bash
-argus-mint submit unit-17.json                                        # send the voucher to Card.mint
+argus-mint submit unit-17.json --card 0x…                             # send the voucher to Card.mint
 argus-mint freeze --card 0x… --token-id 1 --uri <metadata cid>        # fix tokenURI at ipfs://…
 argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Merkle root into the Ledger
 ```
