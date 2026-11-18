@@ -45,6 +45,7 @@ from argus_mint.backgrounds import (
 from argus_mint.cards import CardDraft, DraftError, DraftStore
 from argus_mint.darkroom import DarkroomError
 from argus_mint.frames import FrameError, LoadedFrame
+from argus_mint.posting import is_current
 from argus_mint.projects import ProjectBundle, ProjectError, Scene, file_strings, load_bundle, load_project
 from argus_mint.render import RenderError, RenderFailed
 from argus_mint.spoilers import SpoilerList
@@ -332,8 +333,10 @@ def add_teaser_routes(
         """Per teaser of the newest approved links: which stages it has reached, and its drafts.
 
         ``quote_final``: its line is approved. ``concept_chosen``: its identity and scene are.
-        ``image_made``: a draft made from these same files is approved (or published). ``posted``
-        and ``minted`` are always false until posting and minting teasers exist (#52).
+        ``image_made``: a draft made from these same files is approved (or published). ``posted``:
+        a draft of the teaser has a post recorded. ``minted``: a draft of it is published (pinned,
+        with metadata and a signed voucher). Those two count any draft of the number, current or
+        not: a post or a voucher that happened stays a fact.
         """
         b = bundle(pid)
         links = b.current_teasers()
@@ -353,13 +356,15 @@ def add_teaser_routes(
         items: list[TeaserProgress] = []
         for number, link in sorted((links.teasers if links else {}).items(), key=lambda kv: int(kv[0][1:])):
             states = []
+            posted = False
             for draft_id, d in mine:
                 t = d.teaser
                 assert t is not None
                 if t.number != number:
                     continue
-                current = ((t.line.id, t.line.version), (t.identity.id, t.identity.version),
-                           (t.scene.id, t.scene.version)) == (link.line.key, link.identity.key, link.scene.key)  # fmt: skip
+                current = is_current(t, links)
+                if drafts.posts(draft_id):
+                    posted = True
                 states.append(
                     TeaserDraftState(
                         id=draft_id,
@@ -378,8 +383,8 @@ def add_teaser_routes(
                         quote_final=approved(b.lines, link.line.key),
                         concept_chosen=approved(b.identities, link.identity.key) and approved(b.scenes, link.scene.key),
                         image_made=any(s.current and s.status in ("approved", "published") for s in states),
-                        posted=False,
-                        minted=False,
+                        posted=posted,
+                        minted=any(s.status == "published" for s in states),
                     ),
                     background=link.background,
                     drafts=states,

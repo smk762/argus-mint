@@ -25,6 +25,9 @@ For the review flow these commands drive, see [drafts.md](drafts.md) and [review
 | [`argus-mint anchor`](#argus-mint-anchor) | Build a Merkle tree over LEAVES and anchor its root in the Ledger (COMMITTER_ROLE). |
 | [`argus-mint serve`](#argus-mint-serve) | Serve drafts, reviews and publishing over HTTP for argus-studio and argus-assay. |
 | [`argus-mint schema`](#argus-mint-schema) | Write (or --check) the HTTP wire schema that argus-studio and argus-assay pin. |
+| [`argus-mint export`](#argus-mint-export) | Write each approved teaser of PROJECT as T<n>.png (the reviewed bytes) and T<n>.json (its record). |
+| [`argus-mint teasers`](#argus-mint-teasers) | Teaser projects: anchoring posted teasers. |
+| [`argus-mint teasers anchor`](#argus-mint-teasers-anchor) | Anchor the image sha256s of PROJECT's posted teasers that no earlier anchor holds (COMMITTER_ROLE). |
 | [`argus-mint library`](#argus-mint-library) | Pre-rendered portraits, for a demo without a GPU. |
 | [`argus-mint library build`](#argus-mint-library-build) | Render COUNT combinations of TEMPLATE on each checkpoint, same variables and seeds on each. |
 | [`argus-mint library list`](#argus-mint-library-list) | Summarise a library: template, checkpoints, entries. |
@@ -245,7 +248,7 @@ argus-mint anchor [OPTIONS] LEAVES
 
 Serve drafts, reviews and publishing over HTTP for argus-studio and argus-assay.
 
-Configured by ARGUS_MINT_* variables (README: Configuration): DRAFTS_DIR, SAMPLES_DIR, LIBRARY_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR, DARKROOM_URL, POLICY, WRITER_URL, WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY, NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, SIWE_DOMAIN, SIWE_URI, CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST.
+Configured by ARGUS_MINT_* variables (README: Configuration): DRAFTS_DIR, SAMPLES_DIR, LIBRARY_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR, DARKROOM_URL, POLICY, WRITER_URL, WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY, NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, POSTER_TOKEN, SIWE_DOMAIN, SIWE_URI, CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST, PROJECTS_DIR, SPOILERS, BACKGROUNDS_DIR.
 
 ```
 argus-mint serve [OPTIONS]
@@ -269,6 +272,52 @@ argus-mint schema [OPTIONS]
 |---|---|---|---|---|
 | `--check` |  |  |  | Fail if the committed schema is out of date |
 | `--path` |  | `schema/mint-wire.schema.json` |  | Schema file |
+
+## argus-mint export
+
+Write each approved teaser of PROJECT as T<n>.png (the reviewed bytes) and T<n>.json (its record).
+
+The record: the draft, each linked file by id, version and hash, the background, the frame and texts, the render (seeds, checkpoint, LoRAs, the inpainting input), the reviews, the posts and the anchors holding the image (with its Merkle proof). For a number with several approved drafts, the newest posted one is written, else the newest.
+
+```
+argus-mint export [OPTIONS] PROJECT
+```
+
+| Argument / option | Required | Default | Env | Help |
+|---|---|---|---|---|
+| `PROJECT` | yes |  |  | Project id |
+| `--out` | yes |  |  | Directory for T<n>.png and T<n>.json |
+| `--drafts` |  | `drafts` | `ARGUS_MINT_DRAFTS_DIR` | The server's drafts directory |
+| `--anchors` |  | `anchors` | `ARGUS_MINT_ANCHORS_DIR` | Where each project's anchors and trees are kept |
+| `--backgrounds` |  |  | `ARGUS_MINT_BACKGROUNDS_DIR` | Backgrounds directory (adds their seeds) |
+
+## argus-mint teasers
+
+Teaser projects: anchoring posted teasers.
+
+Subcommands: `anchor`.
+
+## argus-mint teasers anchor
+
+Anchor the image sha256s of PROJECT's posted teasers that no earlier anchor holds (COMMITTER_ROLE).
+
+Each leaf's value is the 32-byte sha256 of a posted teaser's PNG (the reviewed image, byte for byte), hashed as any `anchor` leaf is. The tree is written before the transaction is sent; the anchor (epoch, root, leaves, tx, tree path) is then recorded in <anchors>/<project>/anchors.json.
+
+```
+argus-mint teasers anchor [OPTIONS] PROJECT
+```
+
+| Argument / option | Required | Default | Env | Help |
+|---|---|---|---|---|
+| `PROJECT` | yes |  |  | Project id |
+| `--ledger` | yes |  |  | Ledger contract address |
+| `--epoch` | yes |  |  | Epoch to anchor (once per epoch) |
+| `--tree` |  |  |  | Write the tree here (default: <anchors>/<project>/epoch-<N>-tree.json) |
+| `--drafts` |  | `drafts` | `ARGUS_MINT_DRAFTS_DIR` | The server's drafts directory |
+| `--anchors` |  | `anchors` | `ARGUS_MINT_ANCHORS_DIR` | Where each project's anchors and trees are kept |
+| `--network` |  | `base-sepolia` |  | base \| base-sepolia \| anvil |
+| `--rpc-url` |  |  | `ARGUS_MINT_RPC_URL` | JSON-RPC URL (default: the network's public endpoints) |
+| `--account` |  |  | `ARGUS_MINT_ACCOUNT` | Foundry keystore account (name in ~/.foundry/keystores, or a path); password from $ARGUS_MINT_KEYSTORE_PASSWORD_FILE or a prompt. Default: $ARGUS_MINT_SIGNER_KEY |
 
 ## argus-mint library
 
