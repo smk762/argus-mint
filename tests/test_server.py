@@ -210,7 +210,7 @@ def test_cross_site_writes_and_read_only(setup, owner):
     assert ro.get("/health").json()["capabilities"] == {
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
         "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False, "library": False,
-        "check_templates": False, "author_catalogue": False, "backgrounds": False, "teasers": False,
+        "check_templates": False, "author_catalogue": False, "backgrounds": False, "teasers": False, "post": False,
         "identity_training": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403

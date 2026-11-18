@@ -505,7 +505,7 @@ def test_a_frame_that_isnt_approved_is_refused(world):
         _make(root, frames, store, renderer=Stub())
 
 
-def test_a_teaser_draft_has_no_card_fields_and_isnt_edited_or_published(world):
+def test_a_teaser_draft_has_no_card_fields_and_isnt_edited_or_published_as_a_card(world):
     root, frames, store = world
     bg, _ = rendered_background(store, root, "lamp-room")
     choose(root, "T1", bg.id)
@@ -521,7 +521,8 @@ def test_a_teaser_draft_has_no_card_fields_and_isnt_edited_or_published(world):
         d.provenance(None)
     with pytest.raises(DraftError, match="reviewed line"):
         edit_text(d, made.art, load_frame(frames / "example-teaser-v1.yaml"), role="owner", by=OWNER, name="x")
-    with pytest.raises(DraftError, match="isn't published as a card"):
+    # Publishing is optional and comes after both approvals (test_posting has the teaser's metadata).
+    with pytest.raises(DraftError, match="still needs approval"):
         publish(d, made.art, made.image, pinner=None, signer=None, chain_id=1, card="0x0")  # type: ignore[arg-type]
 
 

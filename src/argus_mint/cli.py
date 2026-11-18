@@ -731,6 +731,14 @@ def anchor(
         tree = merkle.build(values)
     except (OSError, ValueError) as e:
         raise _fail(f"bad leaves: {e}") from e
+    typer.echo(json.dumps(_anchor_tree(tree, ledger, epoch, tree_out, network, rpc_url, account), indent=2))
+
+
+def _anchor_tree(
+    tree: merkle.Tree, ledger: str, epoch: int, tree_out: Path | None, network: str, rpc_url: str | None,
+    account: str | None,
+) -> dict[str, Any]:  # fmt: skip
+    """Anchor ``tree``'s root for ``epoch`` (checked first), writing the tree dump before sending."""
     if len(tree) > 2**32 - 1:
         raise _fail("too many leaves for one anchor (uint32 count)")
     chain, net, w3 = _chain(network, rpc_url)
@@ -739,18 +747,19 @@ def anchor(
     if at:
         raise _fail(f"epoch {epoch} is already anchored (root {hex0x(bytes(root))}, {count} leaves)")
     if tree_out is not None:  # written before sending, so a landed anchor always has its tree
+        tree_out.parent.mkdir(parents=True, exist_ok=True)
         tree_out.write_text(json.dumps(tree.dump(), indent=2) + "\n")
     sender = _sender(account)
     receipt = _transact(chain, w3, c, c.functions.anchor(epoch, tree.root, len(tree)), sender)
-    out = {
+    return {
         **_tx(net, receipt, sender),
+        "chain_id": net.chain_id,
         "ledger": c.address,
         "epoch": epoch,
         "root": hex0x(tree.root),
         "count": len(tree),
         "tree": str(tree_out) if tree_out else None,
     }
-    typer.echo(json.dumps(out, indent=2))
 
 
 # --- service: the card workflow over HTTP, and its wire schema ------------------------------
@@ -772,8 +781,8 @@ def serve(
     Configured by ARGUS_MINT_* variables (README: Configuration): DRAFTS_DIR, SAMPLES_DIR,
     LIBRARY_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR, DARKROOM_URL, POLICY, WRITER_URL,
     WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY,
-    NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, SIWE_DOMAIN, SIWE_URI,
-    CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST.
+    NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, POSTER_TOKEN, SIWE_DOMAIN, SIWE_URI,
+    CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST, PROJECTS_DIR, SPOILERS, BACKGROUNDS_DIR.
     """
     try:
         import uvicorn
@@ -811,6 +820,100 @@ def schema(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     typer.echo(str(path), err=True)
+
+
+# --- teasers: anchoring what was posted, exporting the record --------------------------------
+
+teasers_app = typer.Typer(help="Teaser projects: anchoring posted teasers.", no_args_is_help=True)
+app.add_typer(teasers_app, name="teasers")
+
+DraftsOpt = Annotated[
+    Path, typer.Option(envvar="ARGUS_MINT_DRAFTS_DIR", help="The server's drafts directory")
+]  # fmt: skip
+AnchorsOpt = Annotated[
+    Path, typer.Option(envvar="ARGUS_MINT_ANCHORS_DIR", help="Where each project's anchors and trees are kept")
+]
+
+
+@teasers_app.command("anchor")
+def teasers_anchor(
+    project: Annotated[str, typer.Argument(help="Project id")],
+    ledger: Annotated[str, typer.Option(help="Ledger contract address")],
+    epoch: Annotated[int, typer.Option(help="Epoch to anchor (once per epoch)", min=0, max=2**64 - 1)],
+    tree_out: Annotated[
+        Path | None,
+        typer.Option("--tree", help="Write the tree here (default: <anchors>/<project>/epoch-<N>-tree.json)"),
+    ] = None,
+    drafts: DraftsOpt = Path("drafts"),
+    anchors: AnchorsOpt = Path("anchors"),
+    network: NetworkOpt = "base-sepolia",
+    rpc_url: RpcOpt = None,
+    account: AccountOpt = None,
+) -> None:
+    """Anchor the image sha256s of PROJECT's posted teasers that no earlier anchor holds (COMMITTER_ROLE).
+
+    Each leaf's value is the 32-byte sha256 of a posted teaser's PNG (the reviewed image, byte
+    for byte), hashed as any `anchor` leaf is. The tree is written before the transaction is
+    sent; the anchor (epoch, root, leaves, tx, tree path) is then recorded in
+    <anchors>/<project>/anchors.json.
+    """
+    from argus_mint.cards import DraftStore
+    from argus_mint.posting import AnchorError, AnchorRecord, AnchorStore, anchor_leaves, leaf_value, teaser_drafts
+
+    store = AnchorStore(anchors)
+    try:
+        done = store.load(project)
+        leaves = anchor_leaves(teaser_drafts(DraftStore(drafts), project), done)
+    except (AnchorError, DraftError) as e:
+        raise _fail(str(e)) from e
+    if not leaves:
+        raise _fail(f"project {project} has no posted teaser that isn't anchored already")
+    tree = merkle.build([leaf_value(x) for x in leaves])
+    tree_out = (tree_out or store.default_tree(project, epoch)).resolve()
+    out = _anchor_tree(tree, ledger, epoch, tree_out, network, rpc_url, account)
+    from datetime import UTC, datetime
+
+    record = AnchorRecord(
+        epoch=epoch, root=out["root"], count=out["count"], leaves=tuple(leaves), tree=str(tree_out),
+        network=out["network"], chain_id=out["chain_id"], ledger=out["ledger"], tx=out["tx"], block=out["block"],
+        sender=out["from"], anchored_at=datetime.now(UTC),
+    )  # fmt: skip
+    try:
+        store.add(project, record)
+    except (AnchorError, OSError) as e:  # the root landed: say so, and what to keep
+        raise _fail(f"anchored ({out['tx']}) but the record couldn't be written: {e}; the tree is {tree_out}") from e
+    typer.echo(json.dumps(out | {"project": project, "leaves": [x.model_dump() for x in leaves]}, indent=2))
+
+
+@app.command("export")
+def export_cmd(
+    project: Annotated[str, typer.Argument(help="Project id")],
+    out: Annotated[Path, typer.Option(help="Directory for T<n>.png and T<n>.json")],
+    drafts: DraftsOpt = Path("drafts"),
+    anchors: AnchorsOpt = Path("anchors"),
+    backgrounds: Annotated[
+        Path | None, typer.Option(envvar="ARGUS_MINT_BACKGROUNDS_DIR", help="Backgrounds directory (adds their seeds)")
+    ] = None,
+) -> None:
+    """Write each approved teaser of PROJECT as T<n>.png (the reviewed bytes) and T<n>.json (its record).
+
+    The record: the draft, each linked file by id, version and hash, the background, the frame and
+    texts, the render (seeds, checkpoint, LoRAs, the inpainting input), the reviews, the posts and
+    the anchors holding the image (with its Merkle proof). For a number with several approved
+    drafts, the newest posted one is written, else the newest.
+    """
+    from argus_mint.backgrounds import BackgroundStore
+    from argus_mint.cards import DraftStore
+    from argus_mint.posting import AnchorError, AnchorStore, export_teasers, teaser_drafts
+
+    try:
+        summary = export_teasers(
+            teaser_drafts(DraftStore(drafts), project), AnchorStore(anchors).load(project), out,
+            BackgroundStore(backgrounds) if backgrounds else None,
+        )  # fmt: skip
+    except (AnchorError, DraftError) as e:
+        raise _fail(str(e)) from e
+    typer.echo(json.dumps({"project": project, "out": str(out), "teasers": summary}, indent=2))
 
 
 # --- the pre-rendered library: cards without a GPU ------------------------------------------

@@ -696,6 +696,11 @@
           "title": "Owner Review",
           "type": "boolean"
         },
+        "post": {
+          "default": false,
+          "title": "Post",
+          "type": "boolean"
+        },
         "publish": {
           "title": "Publish",
           "type": "boolean"
@@ -1311,6 +1316,13 @@
           "title": "Id",
           "type": "string"
         },
+        "posts": {
+          "items": {
+            "$ref": "#/$defs/Post"
+          },
+          "title": "Posts",
+          "type": "array"
+        },
         "published": {
           "anyOf": [
             {
@@ -1362,6 +1374,34 @@
         "total"
       ],
       "title": "DraftList",
+      "type": "object"
+    },
+    "DraftPosts": {
+      "additionalProperties": false,
+      "description": "A draft's posts, in the order recorded (the answer to POST /drafts/{id}/posted).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image_sha256": {
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "posts": {
+          "items": {
+            "$ref": "#/$defs/Post"
+          },
+          "title": "Posts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "image_sha256",
+        "posts"
+      ],
+      "title": "DraftPosts",
       "type": "object"
     },
     "DraftSummary": {
@@ -2411,6 +2451,103 @@
       "title": "Pinned",
       "type": "object"
     },
+    "Post": {
+      "additionalProperties": false,
+      "description": "One posting of a draft's image, as reported by whoever posted it (argus-herald).\n\n``sha256`` is of the bytes that were posted, and must be the draft's ``image_sha256``: a teaser\nPNG is baked with no metadata chunks, so a copy stripped of metadata hashes the same.\n``by`` says which token recorded it.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "enum": [
+            "poster",
+            "moderator"
+          ],
+          "title": "By",
+          "type": "string"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "where": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Where",
+          "type": "string"
+        }
+      },
+      "required": [
+        "where",
+        "at",
+        "sha256",
+        "recorded_at",
+        "by"
+      ],
+      "title": "Post",
+      "type": "object"
+    },
+    "PostRequest": {
+      "additionalProperties": false,
+      "description": "POST /drafts/{id}/posted: a post of an approved teaser's image (poster or moderator token).\n\n``sha256`` is of the bytes posted and must equal the draft's ``image_sha256``.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "where": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Where",
+          "type": "string"
+        }
+      },
+      "required": [
+        "where",
+        "at",
+        "sha256"
+      ],
+      "title": "PostRequest",
+      "type": "object"
+    },
     "ProjectChecks": {
       "additionalProperties": false,
       "description": "What stands between a project's files and approval.\n\n``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is\nfalse when no darkroom is configured: then nothing can be approved.",
@@ -2695,6 +2832,142 @@
         "typed_data"
       ],
       "title": "PublishResult",
+      "type": "object"
+    },
+    "ReadyTeaser": {
+      "additionalProperties": false,
+      "description": "One approved teaser, as GET /posts/ready lists it for a poster (argus-herald).\n\n``image_url`` is the draft's image route, relative to argus-mint's base URL; its bytes hash to\n``image_sha256``. ``posted`` is true once a post is recorded; such a teaser stays listed.\n``current`` is false for a draft made from another line, identity or scene than the\nproject's current teaser links name for that number (a newer draft supersedes it).",
+      "properties": {
+        "alt": {
+          "title": "Alt",
+          "type": "string"
+        },
+        "approved_at": {
+          "format": "date-time",
+          "title": "Approved At",
+          "type": "string"
+        },
+        "attribution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Attribution"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "current": {
+          "title": "Current",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image_sha256": {
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "image_url": {
+          "title": "Image Url",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Label"
+        },
+        "number": {
+          "title": "Number",
+          "type": "string"
+        },
+        "posted": {
+          "title": "Posted",
+          "type": "boolean"
+        },
+        "posts": {
+          "items": {
+            "$ref": "#/$defs/Post"
+          },
+          "title": "Posts",
+          "type": "array"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "approved",
+            "published"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "project",
+        "title",
+        "number",
+        "status",
+        "current",
+        "created_at",
+        "approved_at",
+        "image_url",
+        "image_sha256",
+        "alt",
+        "quote",
+        "attribution",
+        "label",
+        "posted",
+        "posts"
+      ],
+      "title": "ReadyTeaser",
+      "type": "object"
+    },
+    "ReadyTeasers": {
+      "additionalProperties": false,
+      "description": "GET /posts/ready: approved (and published) teaser drafts, newest first, paged.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReadyTeaser"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "ReadyTeasers",
       "type": "object"
     },
     "Rect": {

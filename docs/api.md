@@ -10,6 +10,7 @@ The request and response shapes are pinned in [schema/mint-wire.schema.json](htt
 |---|---|
 | anyone | reads, the frame layout and preview, owner challenges |
 | **moderator** | `Authorization: Bearer <ARGUS_MINT_MODERATOR_TOKEN>`. 403 if the server has no token set, 401 if it's wrong |
+| **poster** | `Authorization: Bearer <ARGUS_MINT_POSTER_TOKEN>` (argus-herald's). Accepted by `POST /drafts/{id}/posted` only, where the moderator token works too; every other route refuses it (401). It must differ from the moderator token |
 | **owner** | a signed EIP-4361 challenge from the wallet the card is minted to (`message` + `signature` in the body). See [review.md](review.md) |
 
 Writes from a browser origin the server wasn't told about (`ARGUS_MINT_CORS_ORIGINS`) are refused, and with `ARGUS_MINT_READ_ONLY` every write is. Server-to-server calls send no `Origin` and are allowed.
@@ -51,6 +52,7 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 | `author_catalogue` | moderator token set, projects directory writable, not read-only |
 | `backgrounds` | moderator token and darkroom, not read-only |
 | `teasers` | moderator token set, not read-only (painting an embodied identity in also needs darkroom) |
+| `post` | a poster or moderator token set, not read-only |
 | `identity_training` | moderator token, darkroom, curator, lens, forge and proof, the shared exports and LoRA directories, not read-only |
 
 ## Catalogue
@@ -92,6 +94,13 @@ Training an embodied identity's LoRA ([projects.md](projects.md#training-an-iden
 | `POST /projects/{id}/identities/{identity}/{version}/training/{step}` | moderator | start one step as a job (202), `step` one of `candidates`, `select`, `caption`, `train`, `evaluate`, `pin`. 409 unless the step before it is done, nothing of this training is queued or running, and the step isn't done; 503 when training isn't set up |
 | `GET /projects/{id}/identities/{identity}/{version}/training/candidates/{n}` | | candidate `n`'s PNG |
 
+Posting ([projects.md](projects.md#posting)):
+
+| Endpoint | Auth | |
+|---|---|---|
+| `GET /posts/ready` | | `{items, total}`: approved teaser drafts, newest first; each `{id, project, title, number, status, current, created_at, approved_at, image_url, image_sha256, alt, quote, attribution, label, posted, posts}`. `?project=`, `?limit=`, `?offset=` |
+| `POST /drafts/{id}/posted` | poster or moderator | `{where, url, at, sha256}`: 201 `{id, image_sha256, posts}` (200 for a post already recorded). 409 when `sha256` isn't the draft's image, or the draft isn't an approved teaser |
+
 ## Library
 
 | Endpoint | Auth | |
@@ -106,14 +115,14 @@ See [drafts.md](drafts.md) and [review.md](review.md).
 | Endpoint | Auth | |
 |---|---|---|
 | `GET /drafts` | | `{items, total}`, newest first. `?status=pending\|approved\|rejected\|published`, `?limit=` (1–200, default 50), `?offset=` |
-| `GET /drafts/{id}` | | `{id, status, awaiting, draft, published}`. `draft.kind` is `card` or `teaser` |
+| `GET /drafts/{id}` | | `{id, status, awaiting, draft, published, posts}`. `draft.kind` is `card` or `teaser` |
 | `GET /drafts/{id}/image` | | the card image the reviewers approve (PNG) |
 | `GET /drafts/{id}/art` | | the unframed render (PNG) |
 | `POST /drafts` | moderator | make a draft (201) |
 | `POST /drafts/{id}/challenge` | | the sign-in message for the owner's wallet |
 | `POST /drafts/{id}/review` | moderator or owner | record a decision |
 | `POST /drafts/{id}/edit` | owner | change text or style; the card is redrawn and reviewed again |
-| `POST /drafts/{id}/publish` | moderator | pin and sign an approved draft |
+| `POST /drafts/{id}/publish` | moderator | pin and sign an approved draft, a card or a teaser |
 
 ### `POST /drafts`
 

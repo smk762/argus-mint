@@ -195,26 +195,48 @@ def publish(
     ttl: int = 3600,
 ) -> dict[str, Any]:
     """Pin an approved draft, build its metadata and sign the voucher. Raises ``DraftError``/``NotApproved``
-    (before anything leaves the machine) or ``PinError``."""
-    if draft.kind != "card" or draft.asset_id is None:
-        raise DraftError("a teaser isn't published as a card: posting and minting teasers come later (#52)")
+    (before anything leaves the machine) or ``PinError``.
+
+    Optional for either kind: a draft can be posted, published, both or neither. The kind decides
+    the metadata: a card's provenance (:meth:`CardDraft.provenance`), or a teaser's
+    (:meth:`CardDraft.teaser_provenance`, described by its alt text, with its derived asset id).
+    """
+    if draft.kind == "teaser" and (draft.teaser is None or draft.frame is None):  # pragma: no cover - the model refuses
+        raise DraftError("a teaser draft needs its teaser record and frame")
+    if draft.kind == "card" and draft.asset_id is None:  # pragma: no cover - the model refuses
+        raise DraftError("a card draft needs its asset_id")
     check_publishable(draft, art, image)
     req = draft.request
-    stem = f"{req.template_id}-v{req.template_version}-{req.seed}"
-    art_cid = pinner.pin_bytes(art, f"{stem}-art.png") if draft.frame is not None else None
-    image_cid = pinner.pin_bytes(image, f"{stem}.png")
-    doc = card_metadata(
-        name=draft.name,
-        description=draft.description,
-        image_cid=image_cid,
-        external_url=draft.external_url,
-        attributes=[],
-        provenance=draft.provenance(art_cid),
-    )
+    if draft.kind == "teaser":
+        t = draft.teaser
+        assert t is not None
+        stem = f"{t.project.id}-{t.number}-{draft.image_sha256[:12]}"
+        art_cid = pinner.pin_bytes(art, f"{stem}-art.png")
+        image_cid = pinner.pin_bytes(image, f"{stem}.png")
+        doc = card_metadata(
+            name=draft.name,
+            description=draft.description or t.alt,
+            image_cid=image_cid,
+            external_url=draft.external_url,
+            attributes=[],
+            provenance=draft.teaser_provenance(art_cid),
+        )
+    else:
+        stem = f"{req.template_id}-v{req.template_version}-{req.seed}"
+        art_cid = pinner.pin_bytes(art, f"{stem}-art.png") if draft.frame is not None else None
+        image_cid = pinner.pin_bytes(image, f"{stem}.png")
+        doc = card_metadata(
+            name=draft.name,
+            description=draft.description,
+            image_cid=image_cid,
+            external_url=draft.external_url,
+            attributes=[],
+            provenance=draft.provenance(art_cid),
+        )
     metadata_cid = pinner.pin_json(doc, f"{stem}-metadata.json")
     voucher = MintVoucher(
         to=draft.to,
-        asset_id=draft.asset_id,
+        asset_id=draft.mint_asset_id(),
         content_hash=content_hash(doc),
         price=price,
         deadline=deadline if deadline is not None else int(time.time()) + ttl,

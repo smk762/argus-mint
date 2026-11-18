@@ -11,11 +11,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from argus_mint.backgrounds import Background, BackgroundSet
 from argus_mint.bios import BioTemplate
-from argus_mint.cards import CardDraft
+from argus_mint.cards import CardDraft, Post
 from argus_mint.frames import Frame
 from argus_mint.metadata import CardStyle
 from argus_mint.templates import LoraChoice, Template
@@ -27,7 +27,11 @@ __all__ = [
     "IdentityTrainingView",
     "BackgroundSetList",
     "CreateTeaserDraft",
+    "DraftPosts",
+    "PostRequest",
     "ProjectTracker",
+    "ReadyTeaser",
+    "ReadyTeasers",
     "TeaserDraftState",
     "TeaserProgress",
     "TeaserStages",
@@ -77,6 +81,7 @@ __all__ = [
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
 # 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts);
 # 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker;
+# 1.13 posting (POST /drafts/{id}/posted, GET /posts/ready, the poster token), teasers publish, tracker posted/minted
 # 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
 WIRE_VERSION = "1.14"
 
@@ -113,6 +118,7 @@ class Capabilities(_Wire):
     author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
     backgrounds: bool = False  # scene backgrounds can be rendered: darkroom configured, token set, not read-only
     teasers: bool = False  # teaser drafts: moderator token set, not read-only (embodied ones need darkroom too)
+    post: bool = False  # posts can be recorded: a poster or moderator token set, not read-only
     # an embodied identity's LoRA can be trained here: darkroom, curator, lens, forge and proof configured,
     # the shared exports and LoRA directories set, moderator token set, not read-only
     identity_training: bool = False
@@ -225,6 +231,7 @@ class DraftDetail(_Wire):
     awaiting: list[str]
     draft: CardDraft
     published: PublishResult | None = None
+    posts: list[Post] = Field(default_factory=list)  # each posting of the image, in the order recorded
 
 
 class TextEdit(_Wire):
@@ -518,8 +525,8 @@ class TeaserStages(_Wire):
     quote_final: bool  # its line is approved
     concept_chosen: bool  # its identity and scene are approved
     image_made: bool  # a draft made from the current line, identity and scene is approved or published
-    posted: bool = False  # reserved: posting teasers comes later (#52)
-    minted: bool = False  # reserved: minting teasers comes later (#52)
+    posted: bool = False  # a draft of this teaser has a post recorded
+    minted: bool = False  # a draft of this teaser is published (pinned, metadata, signed voucher)
 
 
 class TeaserDraftState(_Wire):
@@ -554,6 +561,67 @@ class CreateTeaserDraft(_Wire):
     """POST /projects/{id}/teasers/{n}/draft. Everything else comes from the project's reviewed files."""
 
     to: str  # the owner, who signs the review
+
+
+class PostRequest(_Wire):
+    """POST /drafts/{id}/posted: a post of an approved teaser's image (poster or moderator token).
+
+    ``sha256`` is of the bytes posted and must equal the draft's ``image_sha256``.
+    """
+
+    where: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,31}$")  # the platform, e.g. "bluesky"
+    url: str | None = Field(default=None, max_length=2048)  # http(s); none when the platform gives none
+    at: AwareDatetime  # when it was posted, with its time zone
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("url")
+    @classmethod
+    def _http(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("https://", "http://")):
+            raise ValueError("a post's url is an http(s) URL")
+        return v
+
+
+class DraftPosts(_Wire):
+    """A draft's posts, in the order recorded (the answer to POST /drafts/{id}/posted)."""
+
+    id: str
+    image_sha256: str
+    posts: list[Post]
+
+
+class ReadyTeaser(_Wire):
+    """One approved teaser, as GET /posts/ready lists it for a poster (argus-herald).
+
+    ``image_url`` is the draft's image route, relative to argus-mint's base URL; its bytes hash to
+    ``image_sha256``. ``posted`` is true once a post is recorded; such a teaser stays listed.
+    ``current`` is false for a draft made from another line, identity or scene than the
+    project's current teaser links name for that number (a newer draft supersedes it).
+    """
+
+    id: str
+    project: str
+    title: str  # the project's working title, as the draft was named with it
+    number: str
+    status: Literal["approved", "published"]
+    current: bool
+    created_at: datetime
+    approved_at: datetime  # the last approval of the current image
+    image_url: str
+    image_sha256: str
+    alt: str
+    quote: str  # as shown on the image (the line's published text)
+    attribution: str | None  # the project's attribution line, when it has one
+    label: str | None  # the "generated image" label, when the project draws it
+    posted: bool
+    posts: list[Post]
+
+
+class ReadyTeasers(_Wire):
+    """GET /posts/ready: approved (and published) teaser drafts, newest first, paged."""
+
+    items: list[ReadyTeaser]
+    total: int
 
 
 TrainingStepStatus = Literal["not_started", "queued", "running", "done", "failed"]
@@ -608,5 +676,8 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     BackgroundDecision,
     CreateTeaserDraft,
     ProjectTracker,
+    PostRequest,
+    DraftPosts,
+    ReadyTeasers,
     IdentityTrainingView,
 )

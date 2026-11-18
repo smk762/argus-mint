@@ -150,7 +150,8 @@ argus-mint serve --host 127.0.0.1 --port 8108 --cors http://localhost:3108   # d
 | `POST /drafts` | render, write the bio, frame: a new pending draft (moderator token) |
 | `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs: `{action: "review", approve}` to approve or reject, or `{action: "edit", edit: {name?, bio?, texts?, style?}}` for an edit. An edit's message covers the sha256 of exactly that edit |
 | `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
-| `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
+| `POST /drafts/{id}/publish` | pin and sign an approved draft, a card or a teaser (moderator token) |
+| `GET /posts/ready`, `POST /drafts/{id}/posted` | approved teasers to post, and recording a post (poster or moderator token), [docs/projects.md](docs/projects.md#posting) |
 | `POST /drafts/{id}/edit` | the owner changes the card's text or style, with the signed edit challenge (`message`, `signature`) and the same `name`, `bio`, `texts` and `style` it was issued for; any difference is refused. Works on a rejected draft too, not on a published one. The card is redrawn on the same art and needs both approvals again. The moderator only approves or rejects |
 | `POST /frames/{id}/{version}/layout`, `GET /frames/{id}/{version}/fonts/…` | where each line of text goes, and the frame's fonts, so a browser can preview a restyled card as SVG before it is baked |
 | `GET /library`, `GET /library/{id}/image[?thumb=w]` | pre-rendered portraits; `POST /drafts` with `library: <id>` makes a card from one without a GPU |
@@ -194,12 +195,12 @@ Any colours are allowed; if the owner wants black on black, so be it. A frame ca
 The browser previews a restyle as SVG from `/layout` and the fonts, using the same tint matrix as the server. argus-mint bakes the PNG when the owner confirms, and that PNG is what gets reviewed and published. Provenance records the style, so the card can be redrawn exactly. Edited text never reaches a model, so an edited bio goes through the word filter rather than darkroom.
 
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
-- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`, `PROJECTS_DIR` (teaser projects, [docs/projects.md](docs/projects.md)), `BACKGROUNDS_DIR` (their rendered scene backgrounds), `TRAINING_DIR` (identity training records and candidates).
+- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`, `PROJECTS_DIR` (teaser projects, [docs/projects.md](docs/projects.md)), `BACKGROUNDS_DIR` (their rendered scene backgrounds), `ANCHORS_DIR` (each project's anchors of posted teasers, for `argus-mint teasers anchor` and `export`), `TRAINING_DIR` (identity training records and candidates).
 - **Backends:** `DARKROOM_URL`, `POLICY` (darkroom's enforcing policy, default `default`, the SFW one), `WRITER_URL`, `WRITER_KEY` (its bearer token), `IPFS_API`.
 - **Identity training** ([docs/projects.md](docs/projects.md#training-an-identity)): `CURATOR_URL`, `LENS_URL`, `FORGE_URL`, `PROOF_URL`, plus `TRAINING_EXPORTS_DIR` (the exports volume curator, forge and proof share, as argus-mint sees it) and `LORAS_DIR` (the LoRA directory darkroom and proof load from). All six set, with darkroom and the moderator token, turn on `capabilities.identity_training`.
 - **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`. Keystores are looked up in `KEYSTORE_DIR` (default `~/.foundry/keystores`).
 - **Chain and metadata:** `NETWORK`, `CARD`, `CONSUMER` (the consumer named in card metadata, default `argus-mint`), `VOUCHER_TTL` (seconds a signed voucher stays valid, default 3600).
-- **Access:** `MODERATOR_TOKEN`, `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.
+- **Access:** `MODERATOR_TOKEN`, `POSTER_TOKEN` (argus-herald's: records posts of approved teasers and nothing else), `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.
 - **Moderation:** `AUTO_MODERATE`, `BLOCKLIST` (above), `SPOILERS` (the private spoiler list for teaser projects, outside any repository).
 
 Like the other suite services, it binds to localhost and refuses writes from browser origins it wasn't told about.

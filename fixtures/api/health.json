@@ -27,6 +27,7 @@
     "author_catalogue": true,
     "backgrounds": true,
     "teasers": true,
+    "post": true,
     "identity_training": false
   },
   "backends": {
