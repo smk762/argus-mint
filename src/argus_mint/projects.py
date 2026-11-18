@@ -45,6 +45,7 @@ from argus_mint.templates import LoraRef, Sampling, family
 __all__ = [
     "GuardVerdict",
     "Identity",
+    "IdentityTraining",
     "Line",
     "Project",
     "ProjectBundle",
@@ -185,6 +186,44 @@ class Reference(BaseModel):
         return self
 
 
+_TRIGGER = r"^[a-z][a-z0-9_]{2,31}$"
+
+
+class IdentityTraining(BaseModel):
+    """How an embodied identity's LoRA is trained (``training.py``): reviewed with the identity.
+
+    ``model``/``sampling``/``width``/``height`` render the candidates through darkroom and the
+    proof run's images (one checkpoint, named as darkroom and proof both load it); ``base_model``
+    is the same checkpoint as argus-forge names it (its default when unset). Of ``candidates``
+    renders, curator's selection gives ``train`` training images and ``held_out`` references,
+    never the same image twice. ``trigger`` goes first in every caption and in the pinned LoRA's
+    trigger words.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    model: str = Field(min_length=1)  # darkroom (and proof) checkpoint
+    base_model: str | None = Field(default=None, min_length=1)  # forge's name for it; None: forge's default
+    sampling: Sampling
+    width: int = Field(default=1024, gt=0, le=4096)
+    height: int = Field(default=1024, gt=0, le=4096)
+    candidates: int = Field(default=60, ge=8, le=200)
+    train: int = Field(default=30, ge=4, le=150)
+    held_out: int = Field(default=8, ge=2, le=50)
+    trigger: str = Field(pattern=_TRIGGER)
+    caption_style: Literal["photo", "anime"] = "photo"  # lens's target_style
+    max_attempts: int = Field(default=4, ge=1, le=16)
+    proof_seeds: int = Field(default=8, ge=1, le=64)
+
+    @model_validator(mode="after")
+    def _counts(self) -> IdentityTraining:
+        if self.train + self.held_out > self.candidates:
+            raise ValueError(
+                f"train ({self.train}) and held_out ({self.held_out}) need more than {self.candidates} candidates"
+            )
+        return self
+
+
 class Identity(_Reviewed):
     """Someone a teaser speaks for.
 
@@ -192,6 +231,13 @@ class Identity(_Reviewed):
     ``lora`` once one has passed proof. ``viewpoint``: the image is what they see; ``frame``
     (a reviewed overlay, such as a security feed) is what makes it theirs, and nothing is
     painted in.
+
+    ``lora``, ``proof_run`` and ``proof_export`` are pinned together, from a training run that
+    passed (``training.py``): the LoRA, proof's run, and the export holding the held-out
+    references proof scored against (a directory name under proof's ``ARGUS_PROOF_EXPORTS_DIR``).
+    ``check_metric`` is the proof metric this identity is checked on (``identity``: ArcFace, for
+    a face; ``likeness``: DINOv2, for anything else) and ``min_score`` its threshold, unset
+    until the pilot sets one.
     """
 
     project: str = Field(pattern=_ID_PATTERN)
@@ -202,9 +248,20 @@ class Identity(_Reviewed):
     frame: Ref | None = None  # the overlay of a viewpoint identity
     lora: LoraRef | None = None  # pinned from proof's manifest once a training run passes
     proof_run: str | None = Field(default=None, min_length=1, max_length=128)  # the run that passed it
+    proof_export: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+    check_metric: Literal["identity", "likeness"] | None = None
+    min_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    training: IdentityTraining | None = None
     references: tuple[Reference, ...] = ()
 
     GUARDED = ("prompt",)
+    # Added after identities were first written: left out of the hash while unset, so an
+    # identity's hash (and every teaser draft that records it) is what it was.
+    UNHASHED_WHEN_UNSET: ClassVar[tuple[str, ...]] = ("proof_export", "check_metric", "min_score", "training")
+
+    def hash(self) -> bytes:
+        unset = {f for f in self.UNHASHED_WHEN_UNSET if getattr(self, f) is None}
+        return keccak256(canonical(self.model_dump(mode="json", exclude={"status", "guard", *unset})))
 
     @model_validator(mode="after")
     def _presence_fits(self) -> Identity:
@@ -220,8 +277,10 @@ class Identity(_Reviewed):
                 raise ValueError("a viewpoint identity needs its frame")
             if self.lora is not None:
                 raise ValueError("a viewpoint identity isn't painted in, so it takes no LoRA")
-        if (self.lora is None) != (self.proof_run is None):
-            raise ValueError("a LoRA and the proof run that passed it go together")
+            if self.training is not None:
+                raise ValueError("a viewpoint identity isn't painted in, so nothing is trained for it")
+        if len({self.lora is None, self.proof_run is None, self.proof_export is None}) != 1:
+            raise ValueError("a LoRA, the proof run that passed it and proof's export (its references) go together")
         files = [r.file for r in self.references]
         if len(set(files)) != len(files):
             raise ValueError("a reference is listed twice")

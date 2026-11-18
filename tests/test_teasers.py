@@ -318,7 +318,9 @@ def test_an_embodied_render_takes_the_identity_lora_and_the_style_lora_and_no_mo
     b = load_bundle(REPO / "projects" / PID)
     keeper = b.identities[("keeper", 1)][0]
     style = LoraRef(name="lantern-style.safetensors", weight=0.7)
-    pinned = keeper.model_copy(update={"lora": LoraRef(name="keeper.safetensors"), "proof_run": "run-1"})
+    pinned = keeper.model_copy(
+        update={"lora": LoraRef(name="keeper.safetensors"), "proof_run": "run-1", "proof_export": "e1"}
+    )
     project = b.project.model_copy(update={"style_lora": style})
     assert teaser_loras(b.project, keeper) == ()
     assert [x.name for x in teaser_loras(project, pinned)] == ["keeper.safetensors", "lantern-style.safetensors"]

@@ -4,7 +4,7 @@ A teaser is an image with a quote on it, made to show an upcoming story before t
 
 A teaser is drawn in layers: a **background** from a scene, then the **identity** painted into it (or, for a viewpoint identity, its frame over the top), then the **quote**.
 
-> Training identities and checking a teaser's identity are on the way ([epic #47](https://github.com/smk762/argus-mint/issues/47)). This page covers the project's files, the checks on them, their review, backgrounds, teaser drafts, posting, anchoring, minting and the export, which are here now.
+> Checking a teaser's identity is on the way ([epic #47](https://github.com/smk762/argus-mint/issues/47)). This page covers the project's files, the checks on them, their review, backgrounds, teaser drafts, training an identity's LoRA, posting, anchoring, minting and the export, which are here now.
 
 ## Files
 
@@ -13,7 +13,7 @@ One directory per project, under `ARGUS_MINT_PROJECTS_DIR` (default `projects`).
 | File | Holds |
 |---|---|
 | `project.yaml` | `title` (the working title), `attribution` (a fixed line under each quote, or `null` for none), `generated_label`, the `frames` teasers may use, the SingGuard `policy` (default `default`, darkroom's SFW one), and the checkpoint `family` (default `sdxl`; painting a figure in is SDXL-only for now) |
-| `identities/*.yaml` | Who a teaser speaks for. Its `voice`, and its `presence`: **`embodied`** (painted in from `prompt`, and kept consistent by a `lora` once a training run passes argus-proof, recorded as `proof_run`) or **`viewpoint`** (nobody painted in: the image is what they see, and their `frame`, such as a security-feed overlay, says so). It also lists `references`, each with its `file`, `sha256` and `provenance`: an argus-cortex `Provenance` record (see [References](#references)) |
+| `identities/*.yaml` | Who a teaser speaks for. Its `voice`, and its `presence`: **`embodied`** (painted in from `prompt`, and kept consistent by a `lora` once a training run passes argus-proof, pinned with its `proof_run` and `proof_export`; see [Training an identity](#training-an-identity)) or **`viewpoint`** (nobody painted in: the image is what they see, and their `frame`, such as a security-feed overlay, says so). It also lists `references`, each with its `file`, `sha256` and `provenance`: an argus-cortex `Provenance` record (see [References](#references)) |
 | `scenes/*.yaml` | A setting: checkpoint, sampling, size, a fixed `prompt`, how many `backgrounds` to render for review, and the `character_area` where a figure may be painted in (left out when nobody is) |
 | `lines/*.yaml` | One quote each. `text` is verbatim from its `source` and never edited. `published` is what goes on the image (typos fixed, nothing else), and defaults to `text`. No model writes or reads a line |
 | `teasers/<project>-v<n>.json` | The teaser links, one file per version, with the project's id. The teasers by number (`T1`, `T2`…): for each, its `line`, `identity`, `scene` and `frame` (by id and version), its `alt` text, and the chosen `background` once there is one |
@@ -66,7 +66,7 @@ references:
 - A `consented` reference shows a real person. Its consent record, `<release_sha256>.json` in `ARGUS_MINT_CONSENT_DIR`, must be the one its provenance names (same release and subject), must bind this image (its `sha256` is in the record's `reference_images`), and must cover `training` of the subject's face on the day it is checked: not revoked, not expired.
 - Records are read fresh each time, so a revocation counts at once. They name a person, so the directory stays private: nothing serves, logs or copies a record, and a problem names the reference's file and cortex's refusal code, never the subject.
 
-An identity with a reference problem is reported in `checks.problems` and can't be approved (409).
+An identity with a reference problem is reported in `checks.problems` and can't be approved (409). Consent can be revoked or expire after approval, so [training](#training-an-identity) checks again whenever it uses the references: `select` (before the anchors go to curator and the held-out ones into proof's export) and `evaluate` (before proof scores against them) stop with the reason if any reference can't be used that day.
 
 ### The spoiler list
 
@@ -95,6 +95,9 @@ An approved or retired file never changes: the author saves a new version.
 | `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}` |
 | `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft (201) |
 | `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: each teaser's stages and drafts |
+| `GET /projects/{id}/identities/{identity}/{version}/training` | | the training record and each step's status |
+| `POST /projects/{id}/identities/{identity}/{version}/training/{step}` | moderator | start one training step (202) |
+| `GET /projects/{id}/identities/{identity}/{version}/training/candidates/{n}` | | a candidate's PNG |
 | `GET /posts/ready` | | approved teaser drafts to post ([below](#posting)) |
 | `POST /drafts/{id}/posted` | poster or moderator | `{where, url, at, sha256}`: record a post |
 
@@ -142,6 +145,65 @@ The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser`
 
 Each teaser also lists its chosen `background` and its drafts, newest first: `{id, status, awaiting, created_at, links_version, background, current}`. `current` is false for a draft made from another line, identity or scene than the current links name. With no approved links, `links_version` is `null` and `teasers` is empty.
 
+## Training an identity
+
+An embodied identity keeps its look from one teaser to the next through its own LoRA. argus-mint runs the training through the suite and keeps a record of every step; the moderator advances it one step at a time, and approves the result like any other file.
+
+### What the identity file says
+
+The identity names how it is trained, and is reviewed with it:
+
+```yaml
+check_metric: identity      # proof's metric: identity (ArcFace) for a face, likeness (DINOv2) otherwise
+min_score: null             # its threshold; unset until the pilot sets one
+training:
+  model: sdxl/base.safetensors   # the checkpoint, as darkroom and proof name it
+  base_model: null               # the same checkpoint as argus-forge names it (null: forge's default, SDXL base 1.0)
+  sampling: {sampler: dpmpp_2m, scheduler: karras, steps: 28, cfg: 6}
+  width: 1024
+  height: 1024
+  candidates: 60                 # renders curator chooses from
+  train: 30                      # training images
+  held_out: 8                    # references, never trained on
+  trigger: kpr_keeper            # first in every caption; the LoRA's trigger word
+  caption_style: photo           # lens's target_style (photo or anime)
+  max_attempts: 4                # per candidate, for safety rejections
+  proof_seeds: 8                 # images proof renders with the LoRA
+```
+
+`check_metric`, `min_score` and `training` are left out of the identity's hash while unset, so identities written before them hash as they did. Once a run passes, `lora`, `proof_run` and `proof_export` are pinned, always all three: the LoRA, proof's run, and proof's export holding the held-out references (a directory name under proof's `ARGUS_PROOF_EXPORTS_DIR`). The per-teaser identity check (#51) scores against that export on `check_metric`, with `min_score`.
+
+### The steps
+
+`POST /projects/{id}/identities/{identity}/{version}/training/{step}` (moderator) starts one step as a job. The step is in the path, so each request names the one step meant: no step starts the next, and nothing runs unattended. A step is refused (409) unless the step before it is `done`, nothing of this training is queued or running, and the step itself isn't done (a finished step never runs again; a failed one may, and resumes what it can). Every step also needs the project and identity approved, an embodied identity with `training` and `check_metric` and no LoRA yet, no spoiler rule matching the identity, and a fresh passing SingGuard verdict on its prompt.
+
+| Step | Who | What |
+|---|---|---|
+| `candidates` | darkroom | `training.candidates` renders of the identity's `prompt` and `negative` on `training.model`, no LoRA, at `batch` priority. Candidate *n*'s seed is derived from the project, identity, version and *n*. A safety rejection is retried with the next derived seed, up to `max_attempts`, and every attempt is recorded; one refused every time is final. Refused (409) up front when darkroom's `/models` has no LoRA-free workflow for the checkpoint. A failed step keeps what rendered: running it again renders only the rest |
+| `select` | argus-curator | The candidates (and the identity's references not marked `held_out`, as anchors) are uploaded (`POST /upload`) and scanned with faces and MiVOLO on, anchored on those references (`POST /scan/folder`, `faces.reference_paths`). Curator's `face_source` filter (`POST /scan/{id}/select`) keeps one adult identity, one face per image, within 0.4 of it; pose and expression checks are off, since a training set wants variety. mint ranks the kept images by their distance, takes the closest `train + held_out`, and spreads `held_out` of them evenly through that ranking as references; the rest train. Curator exports both (`POST /export`, by `selection`) into the shared volume, and mint copies the training manifest into the proof export so proof's held-out check sees the training set. The identity's `held_out` references join proof's references. A sha256 check refuses any reference that is a training image |
+| `caption` | argus-lens | `POST /caption/batch` with the training images (never the references), `target_style` from `caption_style`, `target_backend` the project's family. mint takes each image's `training` caption (lens's sidecars hold its `identity` caption, the wrong one for a character LoRA), puts the trigger word first, and writes `<image>.txt` beside it |
+| `train` | argus-forge | Only a forge whose `/health` says `training: enabled` (the trusted GPU host). `POST /config` (kohya, the trigger, `collect_captions: false`, `dry_run: false`), then `POST /run`, polled through `GET /run/{id}`. The LoRA (`<export>/forge/kohya/output/<name>.safetensors`) is hashed and copied into the LoRA directory as `mint/<name>.safetensors`. A run an earlier try started is followed, not started again |
+| `evaluate` | argus-proof | `POST /run/stream`: the LoRA on `training.model`, the trigger and the identity's prompt, `proof_seeds` seeds, against the proof export. Then `GET /report/{run}`. It **passes** when proof's verdict passed and isn't pending a person's ratings, `check_metric`'s mean was scored, and it is at least `min_score` when one is set. `likeness` carries no weight in proof's verdict, so a likeness identity needs a `min_score` to pass |
+| `pin` | | The report is read again, so ratings given in proof's review since count. Refused unless it passes, and unless `GET /report/{run}/manifest` names exactly the LoRA forge trained (name and sha256). Then a **draft** identity version (the next number) is saved with `lora` (and the trigger word), `proof_run` and `proof_export`, through the same checks as any save. The approved file trained from never changes |
+
+The pinned version is reviewed like any project file. Approving an identity with a `lora` is refused (409) unless a training record shows a passing run pinned exactly that LoRA, run and export into that version, so a LoRA can't be approved by writing its name into a file.
+
+**A face, for now.** Curator measures consistency only between faces (`face_source`). A `likeness` identity (no humanlike face) is refused at `select`, and the record says why; the pilot's identity is a face.
+
+### The record
+
+`GET /projects/{id}/identities/{identity}/{version}/training` returns `{project, identity, version, steps, next, record}`. `steps` is each step's status as mint works it out (`not_started`, `queued`, `running`, `done`, `failed`; a job a restart cut off reads as failed) and `next` is the one step the moderator may start now. The record keeps every run of every step (`runs`: its inputs, the sibling's scan or run id, its outputs and error), the candidates (seed, request, attempts, sha256), the selection (curator's scan id, the training and held-out files and their sha256), the captions, the LoRA (name, sha256, forge's run), proof's evaluation (run, score, verdict, reasons) and what was pinned. Records live under `ARGUS_MINT_TRAINING_DIR` (default `training`): `<project>/<identity>-v<version>/record.json` and `candidates/`.
+
+### Deployment: the shared volumes
+
+Curator, forge and proof read and write files, not uploads (lens takes uploads), so the training needs two volumes they share with argus-mint:
+
+- **The exports volume.** Curator's export root (`ARGUS_CURATOR_EXPORT_ROOT`), forge's export root (`ARGUS_FORGE_EXPORT_ROOT`) and proof's exports directory (`ARGUS_PROOF_EXPORTS_DIR`) are the same directory, mounted at the same path in all three (curator's manifest records absolute paths), and mounted in argus-mint at `ARGUS_MINT_TRAINING_EXPORTS_DIR`. It holds `mint-<project>-<identity>-v<version>` (the training images, captions, curator's manifest and forge's output) and `…-proof` (`references/` and a copy of the training manifest).
+- **The LoRA directory.** The `loras/` directory darkroom's ComfyUI and proof (`PROOF_MODELS_DIR/loras`) load from, mounted in argus-mint at `ARGUS_MINT_LORAS_DIR`.
+
+Curator takes the candidates by `POST /upload` into `mint/<project>/<identity>-v<version>` under its source root. Forge trains only with `ARGUS_FORGE_READONLY=0`, its train image and a GPU: the trusted host.
+
+`capabilities.identity_training` is true when darkroom, `ARGUS_MINT_CURATOR_URL`, `ARGUS_MINT_LENS_URL`, `ARGUS_MINT_FORGE_URL`, `ARGUS_MINT_PROOF_URL`, both directories and the moderator token are set, and the server isn't read-only. When it is false, an embodied identity is painted in from its prompt alone: its file has no `lora`, and its teaser drafts record that.
 ## Posting
 
 argus-herald posts approved teasers; argus-mint never pushes to it. Herald, on a laptop, polls `GET /posts/ready`, fetches each image from its `image_url`, posts it, and reports the post with `POST /drafts/{id}/posted`.
@@ -252,3 +314,5 @@ Publishing is optional for any approved draft, a card or a teaser: `POST /drafts
 `capabilities.backgrounds` is true when the moderator token and a darkroom are set and the server isn't read-only. `capabilities.teasers` is true when the moderator token is set and the server isn't read-only (an embodied teaser also needs darkroom).
 
 `capabilities.author_catalogue` is true when the moderator token is set, the projects directory is writable, and the server isn't read-only.
+
+`capabilities.identity_training`: see [Training an identity](#training-an-identity).

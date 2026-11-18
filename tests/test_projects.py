@@ -100,14 +100,48 @@ def test_viewpoint_identity_needs_its_frame_and_takes_no_lora() -> None:
     with pytest.raises(ValueError, match="needs its frame"):
         Identity(**base)
     with pytest.raises(ValueError, match="no LoRA"):
-        Identity(**base, frame={"id": "f", "version": 1}, lora={"name": "x.safetensors"}, proof_run="r1")
+        Identity(
+            **base, frame={"id": "f", "version": 1}, lora={"name": "x.safetensors"}, proof_run="r1", proof_export="e"
+        )
 
 
-def test_lora_comes_with_the_proof_run_that_passed_it() -> None:
+def test_lora_comes_with_the_proof_run_that_passed_it_and_its_references() -> None:
     base = {"id": "a", "version": 1, "status": "draft", "project": "p", "voice": "v", "presence": "embodied"}
-    with pytest.raises(ValueError, match="go together"):
-        Identity(**base, prompt="someone", lora={"name": "x.safetensors"})
-    assert Identity(**base, prompt="someone", lora={"name": "x.safetensors"}, proof_run="r1").proof_run == "r1"
+    for partial in (
+        {"lora": {"name": "x.safetensors"}},
+        {"lora": {"name": "x.safetensors"}, "proof_run": "r1"},
+        {"proof_run": "r1", "proof_export": "e"},
+        {"proof_export": "e"},
+    ):
+        with pytest.raises(ValueError, match="go together"):
+            Identity(**base, prompt="someone", **partial)
+    pinned = Identity(**base, prompt="someone", lora={"name": "x.safetensors"}, proof_run="r1", proof_export="e")
+    assert (pinned.proof_run, pinned.proof_export) == ("r1", "e")
+
+
+def test_fields_added_for_training_leave_an_identitys_hash_as_it_was_while_unset() -> None:
+    base = {"id": "a", "version": 1, "status": "draft", "project": "p", "voice": "v", "presence": "embodied"}
+    plain = Identity(**base, prompt="someone")
+    old = {k: v for k, v in plain.model_dump(mode="json").items()
+           if k not in ("status", "guard", *Identity.UNHASHED_WHEN_UNSET)}  # fmt: skip
+    from argus_mint._codec import canonical, keccak256
+
+    assert plain.hash() == keccak256(canonical(old))
+    assert Identity(**base, prompt="someone", check_metric="identity").hash() != plain.hash()
+
+
+def test_training_settings_are_checked() -> None:
+    base = {"id": "a", "version": 1, "status": "draft", "project": "p", "voice": "v"}
+    sampling = {"sampler": "euler", "scheduler": "normal", "steps": 20, "cfg": 5}
+    training = {"model": "sdxl/x.safetensors", "sampling": sampling, "trigger": "kpr_keeper"}
+    ident = Identity(**base, presence="embodied", prompt="someone", training=training)
+    assert ident.training is not None and (ident.training.candidates, ident.training.train) == (60, 30)
+    with pytest.raises(ValueError, match="need more than"):
+        Identity(**base, presence="embodied", prompt="x", training={**training, "candidates": 20, "train": 15})
+    with pytest.raises(ValueError, match="trigger"):
+        Identity(**base, presence="embodied", prompt="x", training={**training, "trigger": "Has Space"})
+    with pytest.raises(ValueError, match="nothing is trained"):
+        Identity(**base, presence="viewpoint", frame={"id": "f", "version": 1}, training=training)
 
 
 def test_a_reference_carries_a_provenance_record() -> None:

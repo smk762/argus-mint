@@ -118,7 +118,14 @@ def add_project_routes(
     lock: threading.Lock,
     frame_keys: Callable[[], set[tuple[str, int]]],
     consent_dir: Path | None = None,
-) -> None:
+    vouch: Callable[[str, Identity], str | None] | None = None,
+) -> Callable[[str, str, str, int, dict[str, Any]], SavedProjectFile]:
+    """Add the routes; returns the save function (``save(pid, kind, id, version, doc)``) the
+    route uses, so a training run's pin saves its draft identity through the same checks.
+
+    ``vouch(pid, identity)``: why an identity's pinned LoRA may not be approved (no passing
+    training run pinned it), or None.
+    """
     can_guard = hasattr(darkroom, "check_text")
     consent = ConsentStore(consent_dir) if consent_dir is not None else None
 
@@ -232,6 +239,9 @@ def add_project_routes(
         authorization: Annotated[str | None, Header()] = None,
     ) -> SavedProjectFile:
         require_token(authorization)
+        return save(pid, kind, item_id, version, body.doc)
+
+    def save(pid: str, kind: str, item_id: str, version: int, given_doc: dict[str, Any]) -> SavedProjectFile:
         if kind not in KINDS:
             raise HTTPException(404, f"no project file kind {kind!r}")
         root = project_root(pid)
@@ -239,16 +249,16 @@ def add_project_routes(
             raise HTTPException(422, "an id is lower-case letters, digits and hyphens, and a version is 1 or more")
         if kind in _OWN_ID and item_id != pid:
             raise HTTPException(422, f"a {kind} file's id is the project's own ({pid})")
-        given = [k for k in REVIEW_KEYS if k in body.doc]
+        given = [k for k in REVIEW_KEYS if k in given_doc]
         if given:
             raise HTTPException(422, f"a saved file is a draft, checked here: leave out {', '.join(given)}")
         for key, want in (("id", item_id), ("version", version), *((("project", pid),) if kind != "project" else ())):
-            if key in body.doc and body.doc[key] != want:
-                raise HTTPException(422, f"`{key}` is {body.doc[key]!r} in the file but {want!r} in the path")
+            if key in given_doc and given_doc[key] != want:
+                raise HTTPException(422, f"`{key}` is {given_doc[key]!r} in the file but {want!r} in the path")
         doc = {"id": item_id, "version": version, "status": "draft"}
         if kind != "project":
             doc["project"] = pid
-        doc |= {k: v for k, v in body.doc.items() if k not in doc}
+        doc |= {k: v for k, v in given_doc.items() if k not in doc}
         spec = KINDS[kind]
         try:
             obj = spec.model.model_validate(doc)
@@ -336,6 +346,10 @@ def add_project_routes(
                 )
                 if unapproved:
                     raise HTTPException(409, "teasers link files that aren't approved: " + ", ".join(unapproved))
+            if kind == "identity" and obj.lora is not None:
+                why = vouch(pid, obj) if vouch is not None else "LoRAs are pinned by a training run"
+                if why:
+                    raise HTTPException(409, f"the identity's LoRA can't be approved: {why}")
             policy = b.project.policy if kind != "project" else obj.policy
             _fresh, missing = fresh_verdicts(obj, policy)
             if missing and not can_guard:
@@ -364,3 +378,5 @@ def add_project_routes(
         b = bundle(pid)
         obj, path = table(b, kind)[(item_id, version)]
         return project_file(b, kind, obj, path)
+
+    return save

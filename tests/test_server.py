@@ -109,8 +109,13 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.13" and h["chain_id"] == 84532 and h["card"] == CARD
-    assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library", "check_templates"))
+    assert h["wire_version"] == "1.14" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert all(
+        v
+        for k, v in h["capabilities"].items()
+        if k not in ("auto_moderate", "library", "check_templates", "identity_training")
+    )
+    assert h["capabilities"]["identity_training"] is False  # no curator, lens, forge or proof here
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
     assert frames[0]["width"] == 300 and set(frames[0]["frame"]["texts"]) == {"name", "bio"}
@@ -206,6 +211,7 @@ def test_cross_site_writes_and_read_only(setup, owner):
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
         "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False, "library": False,
         "check_templates": False, "author_catalogue": False, "backgrounds": False, "teasers": False, "post": False,
+        "identity_training": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403
 
