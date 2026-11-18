@@ -19,12 +19,14 @@
 ``POST /frames/{id}/{version}/layout``   where each line of text goes, for a browser's SVG preview
 ``GET  /frames/{id}/{version}/fonts/…``  the fonts a frame names, for that preview
 ``POST /{templates,frames,bios}/{id}/{version}/review``  approve a draft or retire an approved file
+``GET  /posts/ready``  ``POST /drafts/{id}/posted``  approved teasers to post, and recording a post
 =====================================  =============================================================================
 
 Who may do what: the moderator token (``ARGUS_MINT_MODERATOR_TOKEN``) creates drafts, reviews
 as the moderator and publishes. The owner reviews by signing an EIP-4361 message with the
 wallet the card is minted to; the message names the draft, the decision and the image's
-sha256, and its nonce works once. Neither role can act as the other.
+sha256, and its nonce works once. Neither role can act as the other. The poster token
+(``ARGUS_MINT_POSTER_TOKEN``, argus-herald's) records posts and does nothing else.
 
 Reads are open to the configured CORS origins. Writes from any other browser origin are
 refused (cortex's ``WriteGuard``: CORS alone is not a write boundary), and with
@@ -47,7 +49,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import structlog
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
@@ -78,6 +80,7 @@ from argus_mint.library import Library, LibraryError
 from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
+from argus_mint.server_posts import add_post_routes
 from argus_mint.server_projects import add_project_routes
 from argus_mint.server_teasers import add_teaser_routes
 from argus_mint.spoilers import load_spoilers
@@ -149,6 +152,7 @@ class Settings:
     consumer: str = "argus-mint"
     voucher_ttl: int = 3600
     moderator_token: str = ""
+    poster_token: str = ""  # records posts (POST /drafts/{id}/posted) and nothing else
     siwe_domain: str = ""  # the UI's host[:port], as the owner's wallet shows it
     siwe_uri: str = ""  # default https://<siwe_domain>
     cors_origins: tuple[str, ...] = LOCAL_ORIGINS
@@ -186,6 +190,7 @@ class Settings:
             consumer=get("CONSUMER", "argus-mint"),
             voucher_ttl=int(get("VOUCHER_TTL", "3600")),
             moderator_token=get("MODERATOR_TOKEN"),
+            poster_token=get("POSTER_TOKEN"),
             siwe_domain=get("SIWE_DOMAIN"),
             siwe_uri=get("SIWE_URI"),
             cors_origins=origins or LOCAL_ORIGINS,
@@ -262,6 +267,8 @@ def create_app(
 ) -> FastAPI:
     """The app. Clients can be injected (tests); otherwise they are built from ``settings``."""
     cfg = settings or Settings.from_env()
+    if cfg.poster_token and secrets.compare_digest(cfg.poster_token.encode(), cfg.moderator_token.encode()):
+        raise ValueError("the poster token must differ from the moderator token: it only records posts")
     net = networks.get(cfg.network)
     store = DraftStore(cfg.drafts_dir)
     lock = threading.Lock()  # one writer at a time over the drafts directory
@@ -297,6 +304,7 @@ def create_app(
     signer_configured = signer is not None or bool(cfg.account or os.environ.get("ARGUS_MINT_SIGNER_KEY"))
     writable = not cfg.read_only
     has_token = bool(cfg.moderator_token)
+    has_poster = bool(cfg.poster_token)
 
     def capabilities() -> Capabilities:
         return Capabilities(
@@ -319,6 +327,7 @@ def create_app(
             and os.access(cfg.projects_dir, os.W_OK),
             backgrounds=writable and has_token and darkroom is not None,
             teasers=writable and has_token,
+            post=writable and (has_token or has_poster),
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -342,6 +351,21 @@ def create_app(
         given, expected = token.strip().encode(), cfg.moderator_token.encode()  # bytes: str refuses non-ASCII
         if scheme.lower() != "bearer" or not secrets.compare_digest(given, expected):
             raise HTTPException(401, "a valid moderator token is required", headers={"WWW-Authenticate": "Bearer"})
+
+    def require_poster(authorization: str | None) -> Literal["poster", "moderator"]:
+        """The poster token or the moderator token; which one it was. Only the posting route asks."""
+        if not (has_token or has_poster):
+            raise HTTPException(403, "no poster or moderator token is configured on this server")
+        scheme, _, token = (authorization or "").partition(" ")
+        given = token.strip().encode()
+        if scheme.lower() == "bearer":
+            if has_token and secrets.compare_digest(given, cfg.moderator_token.encode()):
+                return "moderator"
+            if has_poster and secrets.compare_digest(given, cfg.poster_token.encode()):
+                return "poster"
+        raise HTTPException(
+            401, "a valid poster or moderator token is required", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     def yaml_files(root: Path) -> list[Path]:
         return sorted([*root.rglob("*.yaml"), *root.rglob("*.yml")]) if root.is_dir() else []
@@ -403,6 +427,7 @@ def create_app(
             awaiting=d.awaiting(),
             draft=d,
             published=PublishResult.model_validate(pub) if pub else None,
+            posts=list(store.posts(draft_id)),
         )
 
     lib_cache: dict[str, Any] = {"mtime": None, "lib": None}
@@ -960,6 +985,7 @@ def create_app(
         detail=detail,
         status_of=status_of,
     )
+    add_post_routes(app, drafts=store, projects_dir=cfg.projects_dir, require_poster=require_poster, lock=lock)
     return app
 
 

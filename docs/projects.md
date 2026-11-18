@@ -1,10 +1,10 @@
 # Teaser projects
 
-A teaser is an image with a quote on it, made to show an upcoming story before the story is out. Like a card, it is built only from reviewed parts, and its image is reviewed by the moderator and the owner before it goes anywhere. Posting it, minting it, both or neither come later and are optional.
+A teaser is an image with a quote on it, made to show an upcoming story before the story is out. Like a card, it is built only from reviewed parts, and its image is reviewed by the moderator and the owner before it goes anywhere. Once approved it can be posted (through argus-herald), minted, both or neither: each is optional.
 
 A teaser is drawn in layers: a **background** from a scene, then the **identity** painted into it (or, for a viewpoint identity, its frame over the top), then the **quote**.
 
-> Training identities, checking a teaser's identity, and posting or minting teasers are on the way ([epic #47](https://github.com/smk762/argus-mint/issues/47)). This page covers the project's files, the checks on them, their review, backgrounds and teaser drafts, which are here now.
+> Training identities and checking a teaser's identity are on the way ([epic #47](https://github.com/smk762/argus-mint/issues/47)). This page covers the project's files, the checks on them, their review, backgrounds, teaser drafts, posting, anchoring, minting and the export, which are here now.
 
 ## Files
 
@@ -73,6 +73,8 @@ An approved or retired file never changes: the author saves a new version.
 | `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}` |
 | `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft (201) |
 | `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: each teaser's stages and drafts |
+| `GET /posts/ready` | | approved teaser drafts to post ([below](#posting)) |
+| `POST /drafts/{id}/posted` | poster or moderator | `{where, url, at, sha256}`: record a post |
 
 ## Backgrounds
 
@@ -102,7 +104,7 @@ Then the layers:
 2. **The frame**, with the line's published text in its `quote` slot, the project's `attribution` in `attribution` when it is set, and "generated image" in `label` when `generated_label` is on. A frame without a slot the teaser needs is refused. [frames/example-teaser-v1.yaml](https://github.com/smk762/argus-mint/tree/dev/frames/example-teaser-v1.yaml) is a full-bleed example: the window is the whole canvas.
 3. **The PNG** is baked opaque, with only its critical chunks (`IHDR`, `IDAT`, `IEND`): no text, time, colour-profile or size metadata. Stripping metadata (argus-herald does) changes no byte, so its sha256 stays the one reviewed.
 
-The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash, `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Publishing a teaser as a card is refused; posting and minting teasers come later.
+The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash, `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Once both approve, it can be [posted](#posting), [minted](#minting), both or neither.
 
 ## The tracker
 
@@ -113,11 +115,117 @@ The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser`
 | `quote_final` | the teaser's line is approved |
 | `concept_chosen` | its identity and its scene are approved |
 | `image_made` | a teaser draft made from the current line, identity and scene is approved (or published) |
-| `posted`, `minted` | always `false` for now: posting and minting teasers come later |
+| `posted` | a draft of the teaser (current or not) has a post recorded |
+| `minted` | a draft of the teaser (current or not) is published: pinned, with metadata and a signed voucher. Whether the voucher was then sent on-chain is the Card contract's to say |
 
 Each teaser also lists its chosen `background` and its drafts, newest first: `{id, status, awaiting, created_at, links_version, background, current}`. `current` is false for a draft made from another line, identity or scene than the current links name. With no approved links, `links_version` is `null` and `teasers` is empty.
 
+## Posting
+
+argus-herald posts approved teasers; argus-mint never pushes to it. Herald, on a laptop, polls `GET /posts/ready`, fetches each image from its `image_url`, posts it, and reports the post with `POST /drafts/{id}/posted`.
+
+### `GET /posts/ready`
+
+No auth (a read). Approved teaser drafts (`approved` or `published`), newest first by `created_at`, paged with `?limit=` (1–200, default 50) and `?offset=`; `?project=<id>` keeps one project's. A draft that already has posts stays listed, with `posted: true`, so a poster can skip it.
+
+```json
+{
+  "items": [
+    {
+      "id": "3f9c0e1a2b4d5e6f",
+      "project": "example-teasers",
+      "title": "Lantern Coast",
+      "number": "T1",
+      "status": "approved",
+      "current": true,
+      "created_at": "2026-11-18T09:00:00Z",
+      "approved_at": "2026-11-18T09:20:00Z",
+      "image_url": "/drafts/3f9c0e1a2b4d5e6f/image",
+      "image_sha256": "9b1f…",
+      "alt": "An old lighthouse keeper in an oilskin coat stands beside the great brass lens on a rainy night.",
+      "quote": "Forty years I've kept it lit, and not once has the sea said thank you.",
+      "attribution": null,
+      "label": "generated image",
+      "posted": false,
+      "posts": []
+    }
+  ],
+  "total": 1
+}
+```
+
+- `image_url` is relative to argus-mint's base URL. Its bytes hash to `image_sha256`, the image both reviewers approved. The PNG has no metadata chunks, so stripping metadata leaves the hash as it is.
+- `alt` is the teaser's alt text from the links; `quote` the line's published text as drawn; `attribution` and `label` what the project draws (`null` when it doesn't).
+- `current` is false for a draft made from another line, identity or scene than the current links name for that number (a newer draft supersedes it). Such a draft is still approved and still listed.
+- `title` is the project's working title, as the draft was named with it (`<title> T<n>`).
+- `approved_at` is the last approval of the current image.
+
+### `POST /drafts/{id}/posted`
+
+Auth: `Authorization: Bearer <ARGUS_MINT_POSTER_TOKEN>` (or the moderator token). The poster token is accepted here and nowhere else.
+
+```json
+{"where": "bluesky", "url": "https://bsky.app/profile/…/post/…", "at": "2026-11-18T09:30:00Z", "sha256": "9b1f…"}
+```
+
+- `where`: the platform, lower case (`^[a-z0-9][a-z0-9._-]{0,31}$`).
+- `url`: the post, `http(s)`, or `null` when there is none.
+- `at`: when it was posted, with a time zone.
+- `sha256`: of the bytes posted. It must equal the draft's `image_sha256`.
+
+A draft can have several posts (one per platform, or reposts). Each is kept in the draft's directory, in `posts.json`, with `recorded_at` and `by` (`poster` or `moderator`). The answer is `{id, image_sha256, posts}`: 201 for a new post, 200 when the same post (`where`, `url`, `at`, `sha256`) was already recorded, so a retry records nothing twice. `GET /drafts/{id}` also lists the `posts`.
+
+| Code | When |
+|---|---|
+| 401 | no token, or not the poster's or the moderator's |
+| 403 | the server has neither token set |
+| 404 / 400 | no such draft / a malformed id |
+| 409 | `sha256` isn't the draft's image; the draft isn't a teaser; it isn't approved (pending or rejected); its image on disk differs from the one reviewed |
+| 422 | a malformed body: `where`, `url`, `at` without a time zone, `sha256` |
+
+## Anchoring
+
+`argus-mint teasers anchor <project> --ledger 0x… --epoch N [--tree FILE]` anchors a Merkle root of the project's posted teasers in the Ledger, the way `argus-mint anchor` does for any leaves (the same `merkle` and Ledger code, the same pre-check that the epoch is free, the tree written before the transaction is sent, the account from `--account` or `$ARGUS_MINT_SIGNER_KEY`, never a key on the command line).
+
+- **Leaves:** each posted, approved teaser of the project whose image no earlier anchor holds. A leaf's value is the 32-byte sha256 of the posted PNG (the reviewed image), and its hash is OpenZeppelin's `StandardMerkleTree` `["bytes32"]` leaf, `keccak256(keccak256(sha256))`. Anyone holding the image can rebuild the leaf and check its proof against the anchored root (`Ledger.verify`). An image posted from two drafts is one leaf.
+- **Batches:** each run anchors what's new since the last, on a new epoch. With nothing new it refuses.
+- **Kept with the project, outside the repo:** under `ARGUS_MINT_ANCHORS_DIR` (default `anchors`), `<project>/anchors.json` lists every anchor (`epoch`, `root`, `count`, `leaves` with each draft and number, `tree`, `network`, `chain_id`, `ledger`, `tx`, `block`, `sender`) and `<project>/epoch-<N>-tree.json` is the tree (or `--tree`). It reads the drafts from `ARGUS_MINT_DRAFTS_DIR`, so run it where the server's drafts are.
+
+## Minting
+
+Publishing is optional for any approved draft, a card or a teaser: `POST /drafts/{id}/publish` or `argus-mint publish`, as for a card ([drafts.md](drafts.md#publishing)). For a teaser:
+
+- **Asset id:** `keccak256(utf8("argus-mint/teaser/<project>/<T n>"))` (`metadata.teaser_asset_id`). Every draft of a teaser has the same one, so a teaser mints once on a Card contract.
+- **Metadata:** the same document as a card's (`name`, `description`, `image`, `attributes: []`, `provenance`), with `description` the alt text and a teaser's `provenance`:
+
+```json
+{
+  "kind": "teaser",
+  "project": {"id": "example-teasers", "version": 1, "hash": "0x…"},
+  "links": {"id": "example-teasers", "version": 1, "hash": "0x…"},
+  "number": "T1",
+  "line": {"id": "keep-it-lit", "version": 1, "hash": "0x…"},
+  "identity": {"id": "keeper", "version": 1, "hash": "0x…"},
+  "scene": {"id": "lamp-room", "version": 1, "hash": "0x…"},
+  "presence": "embodied",
+  "background": {"id": "lamp-room-v1-01", "sha256": "…"},
+  "frame": {"id": "example-teaser", "version": 1, "hash": "0x…"},
+  "art": "ipfs://<the unframed art>",
+  "asset_id": "0x…",
+  "inpaint": {"seed": 123, "attempts": 1, "model": "sdxl/…", "loras": [{"name": "…", "weight": 0.8}],
+              "image_sha256": "<the background's>", "mask_sha256": "…", "denoise": 1}
+}
+```
+
+`inpaint` is there for an embodied identity only (`loras` left out when there are none); a viewpoint teaser's art is the background itself. The voucher's `contentHash` is `metadata.content_hash()`, as for a card. A card's metadata is unchanged by any of this.
+
+## Export
+
+`argus-mint export <project> --out DIR` writes, for each teaser number with an approved draft, `T<n>.png` (byte for byte the reviewed image) and `T<n>.json`, its record: the draft id and status, each linked file by id, version and hash, the background (with its seeds, checkpoint and LoRAs when `--backgrounds` or `ARGUS_MINT_BACKGROUNDS_DIR` is given), the frame and texts, the render (template, final seed, every attempt's seed, checkpoint, LoRAs, the inpainting input), `made_with`, the reviews, the posts and each anchor holding the image, with its Merkle proof. For a number with several approved drafts, the newest posted one is written, else the newest.
+
 ## Capabilities
+
+`capabilities.post` is true when a poster or moderator token is set and the server isn't read-only.
 
 `capabilities.backgrounds` is true when the moderator token and a darkroom are set and the server isn't read-only. `capabilities.teasers` is true when the moderator token is set and the server isn't read-only (an embodied teaser also needs darkroom).
 

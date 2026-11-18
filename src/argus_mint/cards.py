@@ -28,10 +28,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from argus_mint._codec import Bytes32
-from argus_mint.metadata import BioRef, CardStyle, FrameRef, Provenance
+from argus_mint.metadata import (
+    BackgroundRef,
+    BioRef,
+    CardStyle,
+    FileRef,
+    FrameRef,
+    InpaintRef,
+    LoraUse,
+    Provenance,
+    TeaserProvenance,
+    teaser_asset_id,
+)
 from argus_mint.templates import RenderRequest
 
 __all__ = [
@@ -44,6 +55,7 @@ __all__ = [
     "DraftStore",
     "DraftError",
     "NotApproved",
+    "Post",
     "Review",
     "TeaserFile",
     "TeaserRecord",
@@ -113,6 +125,31 @@ class AutoCheck(BaseModel):
     passed: bool
     checks: tuple[str, ...]  # what was checked, in words
     held: tuple[str, ...] = ()  # why a person must look instead
+
+
+class Post(BaseModel):
+    """One posting of a draft's image, as reported by whoever posted it (argus-herald).
+
+    ``sha256`` is of the bytes that were posted, and must be the draft's ``image_sha256``: a teaser
+    PNG is baked with no metadata chunks, so a copy stripped of metadata hashes the same.
+    ``by`` says which token recorded it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    where: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,31}$")  # the platform, e.g. "bluesky"
+    url: str | None = Field(default=None, max_length=2048)  # the post itself, when there is one
+    at: AwareDatetime  # when it was posted
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    recorded_at: datetime
+    by: Literal["poster", "moderator"]
+
+    @field_validator("url")
+    @classmethod
+    def _http(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("https://", "http://")):
+            raise ValueError("a post's url is an http(s) URL")
+        return v
 
 
 class TeaserFile(BaseModel):
@@ -220,10 +257,56 @@ class CardDraft(BaseModel):
         done = {r.role for r in self.reviews if r.image_sha256 == self.image_sha256}
         return [r for r in REVIEWERS if r not in done]
 
+    def mint_asset_id(self) -> bytes:
+        """The asset id a voucher names: a card's own, or a teaser's derived one (:func:`teaser_asset_id`)."""
+        if self.kind == "teaser":
+            assert self.teaser is not None
+            return teaser_asset_id(self.teaser.project.id, self.teaser.number)
+        assert self.asset_id is not None
+        return self.asset_id
+
+    def teaser_provenance(self, art_cid: str) -> TeaserProvenance:
+        """A teaser's provenance: its record (each linked file, the background), the frame, the
+        unframed art and, for an embodied identity, the inpainting request."""
+        if self.kind != "teaser" or self.teaser is None or self.frame is None:
+            raise DraftError("only a teaser has teaser provenance")
+        t, req = self.teaser, self.request
+
+        def ref(f: TeaserFile) -> FileRef:
+            return FileRef(id=f.id, version=f.version, hash=f.hash)
+
+        inpaint = None
+        if t.presence == "embodied":
+            if req.init_image is None or req.init_image.mask_sha256 is None:
+                raise DraftError("an embodied teaser's request names no inpainting input")
+            inpaint = InpaintRef(
+                seed=req.seed,
+                attempts=len(self.attempts),
+                model=req.model,
+                loras=tuple(LoraUse(name=x.name, weight=x.weight) for x in req.loras) or None,
+                image_sha256=req.init_image.sha256,
+                mask_sha256=req.init_image.mask_sha256,
+                denoise=req.init_image.denoise,
+            )
+        return TeaserProvenance(
+            project=ref(t.project),
+            links=ref(t.links),
+            number=t.number,
+            line=ref(t.line),
+            identity=ref(t.identity),
+            scene=ref(t.scene),
+            presence=t.presence,
+            background=BackgroundRef(id=t.background.id, sha256=t.background.sha256),
+            frame=self.frame,
+            art=f"ipfs://{art_cid}",
+            asset_id=teaser_asset_id(t.project.id, t.number),
+            inpaint=inpaint,
+        )
+
     def provenance(self, art_cid: str | None) -> Provenance:
         """The card's provenance. ``art_cid`` (the unframed render) is required for a framed card."""
         if self.kind != "card" or self.asset_id is None or self.consumer is None:
-            raise DraftError("a teaser has no card provenance: posting and minting teasers come later (#52)")
+            raise DraftError("a teaser has no card provenance: its metadata is built from teaser_provenance")
         return Provenance.for_render(
             self.request,
             attempts=len(self.attempts),
@@ -334,6 +417,7 @@ def load_draft(directory: Path) -> tuple[CardDraft, bytes, bytes]:
 
 
 PUBLISHED_FILE = "publish.json"
+POSTS_FILE = "posts.json"
 _DRAFT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
 
 
@@ -341,7 +425,8 @@ class DraftStore:
     """Drafts as directories under ``root``, addressed by id (the HTTP server's view).
 
     Ids are validated before they touch the filesystem, so a request can't name a path.
-    A published draft also holds ``publish.json``: the pins, metadata and signed voucher.
+    A published draft also holds ``publish.json``: the pins, metadata and signed voucher. A posted
+    one holds ``posts.json``: each post, in the order recorded.
     """
 
     def __init__(self, root: Path):
@@ -380,6 +465,22 @@ class DraftStore:
     def save_published(self, draft_id: str, result: dict[str, Any]) -> None:
         f = self.path(draft_id) / PUBLISHED_FILE
         write_atomic(f, json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+
+    def posts(self, draft_id: str) -> tuple[Post, ...]:
+        f = self.path(draft_id) / POSTS_FILE
+        if not f.is_file():
+            return ()
+        try:
+            return tuple(Post.model_validate(p) for p in json.loads(f.read_text(encoding="utf-8"))["posts"])
+        except (ValueError, KeyError, TypeError, ValidationError) as e:
+            raise DraftError(f"{f}: {e}") from e
+
+    def add_post(self, draft_id: str, post: Post) -> tuple[Post, ...]:
+        """Append ``post`` (the caller holds the drafts lock). Returns every post of the draft."""
+        posts = (*self.posts(draft_id), post)
+        doc = {"posts": [p.model_dump(mode="json") for p in posts]}
+        write_atomic(self.path(draft_id) / POSTS_FILE, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+        return posts
 
 
 class DraftNotFound(DraftError):

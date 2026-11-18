@@ -4,7 +4,10 @@ A card starts as a **draft**: local files that nobody outside the service has se
 
 ```
 draft  →  review (moderator + owner)  →  publish (pin, metadata, signed voucher)  →  mint (on-chain, by the owner's wallet)
+                                      ↘  post (a teaser, through argus-herald)
 ```
+
+Publishing and posting are both optional, and either can come first.
 
 ## Making a draft
 
@@ -40,7 +43,7 @@ Each draft also records what made it, in `made_with`: `{"argus-mint": <version>}
 
 ## What a draft records
 
-`GET /drafts/{id}` returns `{id, status, awaiting, draft, published}`. The `draft` record holds:
+`GET /drafts/{id}` returns `{id, status, awaiting, draft, published, posts}`. `posts` lists each recorded post of a teaser ([projects.md](projects.md#posting)), kept beside the draft in `posts.json`. The `draft` record holds:
 
 | Field | What it is |
 |---|---|
@@ -80,11 +83,11 @@ A bio is written the same way: a reply that darkroom's text check flags, or that
 
 ## Publishing
 
-`POST /drafts/{id}/publish` (moderator token), or `argus-mint publish`, takes an **approved** draft and:
+`POST /drafts/{id}/publish` (moderator token), or `argus-mint publish`, takes an **approved** draft, a card or a teaser, and:
 
 1. checks the art and card image still hash to what was reviewed, and that both reviewers approved;
 2. pins the unframed art (framed cards only) and the card image to IPFS;
-3. builds the canonical ERC-721 metadata, whose `provenance` names the template, seed, attempt count, variables, checkpoint, LoRAs, frame, bio template and style;
+3. builds the canonical ERC-721 metadata. A card's `provenance` names the template, seed, attempt count, variables, checkpoint, LoRAs, frame, bio template and style. A teaser's names the teaser record instead ([projects.md](projects.md#minting)), and its asset id is derived from its project and number;
 4. signs an EIP-712 mint voucher for the owner's address, with the metadata's content hash, a price (default 0) and a deadline (default: now plus `ARGUS_MINT_VOUCHER_TTL`, 3600 s).
 
 The result goes in `published` on the draft: the signer, the render summary, the reviews, the metadata and its CID, the voucher, the signature and the typed data. A draft publishes **once**. Placeholder art is refused.
