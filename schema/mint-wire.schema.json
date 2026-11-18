@@ -719,7 +719,7 @@
         "bio": {
           "anyOf": [
             {
-              "$ref": "#/$defs/argus_mint__wire__Ref"
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -748,7 +748,7 @@
         "frame": {
           "anyOf": [
             {
-              "$ref": "#/$defs/argus_mint__wire__Ref"
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -812,7 +812,7 @@
           "default": null
         },
         "template": {
-          "$ref": "#/$defs/argus_mint__wire__Ref"
+          "$ref": "#/$defs/Ref"
         },
         "texts": {
           "maxProperties": 16,
@@ -933,7 +933,7 @@
         "frame": {
           "anyOf": [
             {
-              "$ref": "#/$defs/argus_mint__wire__Ref"
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -963,7 +963,7 @@
           "type": "string"
         },
         "template": {
-          "$ref": "#/$defs/argus_mint__wire__Ref"
+          "$ref": "#/$defs/Ref"
         },
         "to": {
           "title": "To",
@@ -1504,7 +1504,7 @@
           "type": "array"
         },
         "template": {
-          "$ref": "#/$defs/argus_mint__wire__Ref"
+          "$ref": "#/$defs/Ref"
         }
       },
       "required": [
@@ -1682,7 +1682,7 @@
     },
     "ProjectDetail": {
       "additionalProperties": false,
-      "description": "GET /projects/{id}: every file of a project, its teaser links and their checks.\n\n``checks.guard`` holds only verdicts already made (on save or approval); a text not yet\nchecked has none.",
+      "description": "GET /projects/{id}: every file of a project (teaser links included, kind ``teasers``) and their checks.\n\n``checks.guard`` holds the verdicts stored in the files that still hold; a text with none\nhasn't been checked since it (or the project's policy) last changed.",
       "properties": {
         "checks": {
           "$ref": "#/$defs/ProjectChecks"
@@ -1697,22 +1697,11 @@
         "id": {
           "title": "Id",
           "type": "string"
-        },
-        "teasers": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TeaserLinks"
-            },
-            {
-              "type": "null"
-            }
-          ]
         }
       },
       "required": [
         "id",
         "files",
-        "teasers",
         "checks"
       ],
       "title": "ProjectDetail",
@@ -1743,7 +1732,8 @@
             "project",
             "identity",
             "scene",
-            "line"
+            "line",
+            "teasers"
           ],
           "title": "Kind",
           "type": "string"
@@ -1933,6 +1923,26 @@
         "height"
       ],
       "title": "Rect",
+      "type": "object"
+    },
+    "Ref": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "Ref",
       "type": "object"
     },
     "RenderRequest": {
@@ -2342,7 +2352,7 @@
         "bio": {
           "anyOf": [
             {
-              "$ref": "#/$defs/argus_mint__wire__Ref"
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -2360,7 +2370,7 @@
         "frame": {
           "anyOf": [
             {
-              "$ref": "#/$defs/argus_mint__wire__Ref"
+              "$ref": "#/$defs/Ref"
             },
             {
               "type": "null"
@@ -2413,7 +2423,7 @@
           "default": null
         },
         "template": {
-          "$ref": "#/$defs/argus_mint__wire__Ref"
+          "$ref": "#/$defs/Ref"
         },
         "texts": {
           "maxProperties": 16,
@@ -2499,7 +2509,7 @@
     },
     "SaveProjectFile": {
       "additionalProperties": false,
-      "description": "POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.\n\n``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved\nfile is always a draft. An approved or retired file never changes; save a new version.",
+      "description": "POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.\n\n``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved\nfile is always a draft, and ``guard`` is written by the server alone. An approved or\nretired file never changes; save a new version.",
       "properties": {
         "doc": {
           "additionalProperties": true,
@@ -2513,20 +2523,6 @@
       "title": "SaveProjectFile",
       "type": "object"
     },
-    "SaveTeasers": {
-      "additionalProperties": false,
-      "description": "POST /projects/{id}/teasers: replace teasers.json.",
-      "properties": {
-        "teasers": {
-          "$ref": "#/$defs/TeaserLinks"
-        }
-      },
-      "required": [
-        "teasers"
-      ],
-      "title": "SaveTeasers",
-      "type": "object"
-    },
     "SavedProjectFile": {
       "additionalProperties": false,
       "properties": {
@@ -2534,14 +2530,7 @@
           "$ref": "#/$defs/ProjectChecks"
         },
         "file": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ProjectFile"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/$defs/ProjectFile"
         }
       },
       "required": [
@@ -2691,76 +2680,6 @@
         }
       },
       "title": "SlotStyle",
-      "type": "object"
-    },
-    "TeaserLink": {
-      "additionalProperties": false,
-      "description": "One teaser: a reviewed line, identity, scene and frame, and the image's alt text.",
-      "properties": {
-        "alt": {
-          "maxLength": 1000,
-          "minLength": 1,
-          "title": "Alt",
-          "type": "string"
-        },
-        "background": {
-          "anyOf": [
-            {
-              "maxLength": 64,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Background"
-        },
-        "frame": {
-          "$ref": "#/$defs/argus_mint__projects__Ref"
-        },
-        "identity": {
-          "$ref": "#/$defs/argus_mint__projects__Ref"
-        },
-        "line": {
-          "$ref": "#/$defs/argus_mint__projects__Ref"
-        },
-        "scene": {
-          "$ref": "#/$defs/argus_mint__projects__Ref"
-        }
-      },
-      "required": [
-        "line",
-        "identity",
-        "scene",
-        "frame",
-        "alt"
-      ],
-      "title": "TeaserLink",
-      "type": "object"
-    },
-    "TeaserLinks": {
-      "additionalProperties": false,
-      "description": "``teasers.json``: the project's teasers by number.",
-      "properties": {
-        "project": {
-          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
-          "title": "Project",
-          "type": "string"
-        },
-        "teasers": {
-          "additionalProperties": {
-            "$ref": "#/$defs/TeaserLink"
-          },
-          "title": "Teasers",
-          "type": "object"
-        }
-      },
-      "required": [
-        "project"
-      ],
-      "title": "TeaserLinks",
       "type": "object"
     },
     "Template": {
@@ -2948,7 +2867,7 @@
           "type": "array"
         },
         "template": {
-          "$ref": "#/$defs/argus_mint__wire__Ref"
+          "$ref": "#/$defs/Ref"
         }
       },
       "required": [
@@ -2989,7 +2908,7 @@
     },
     "TextCheck": {
       "additionalProperties": false,
-      "description": "SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).",
+      "description": "SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).\n\nThe verdict is stored in the file's ``guard`` block and holds while the text and the policy\nare the ones it judged.",
       "properties": {
         "detail": {
           "default": "",
@@ -3198,48 +3117,6 @@
         "colour"
       ],
       "title": "Tint",
-      "type": "object"
-    },
-    "argus_mint__projects__Ref": {
-      "additionalProperties": false,
-      "description": "A reviewed file named by id and version, never by path.",
-      "properties": {
-        "id": {
-          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
-          "title": "Id",
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "title": "Version",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "version"
-      ],
-      "title": "Ref",
-      "type": "object"
-    },
-    "argus_mint__wire__Ref": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "title": "Id",
-          "type": "string"
-        },
-        "version": {
-          "minimum": 1,
-          "title": "Version",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "id",
-        "version"
-      ],
-      "title": "Ref",
       "type": "object"
     }
   },

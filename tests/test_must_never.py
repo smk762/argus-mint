@@ -6,6 +6,7 @@ Each test names the rule it holds. If one fails, the rule was broken: fix the ch
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
-PURE_CORE = ("_codec", "templates", "metadata", "merkle", "vouchers", "siwe")
+PURE_CORE = ("_codec", "templates", "metadata", "merkle", "vouchers", "siwe", "projects", "spoilers")
 NETWORK_MODULES = (
     "httpx",
     "requests",
@@ -36,7 +37,8 @@ def test_the_pure_core_imports_no_network_client():
         + "".join(f"import argus_mint.{m}\n" for m in PURE_CORE)
         + f"print(json.dumps(sorted(m for m in {list(NETWORK_MODULES)!r} if m in sys.modules)))"
     )
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}  # this tree's code, whatever is installed
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env).stdout
     assert json.loads(out) == [], "a pure-core module pulled in a network client"
 
 

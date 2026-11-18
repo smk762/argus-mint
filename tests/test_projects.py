@@ -9,17 +9,21 @@ from pathlib import Path
 
 import pytest
 
-from argus_mint.catalogue import record_decision
+from argus_mint.catalogue import record_decision, record_guard
 from argus_mint.projects import (
+    GuardVerdict,
     Identity,
     Line,
     ProjectError,
     Reference,
     Scene,
+    fresh_verdicts,
     load_bundle,
     load_identity,
     load_line,
+    load_teasers,
     problems,
+    text_sha256,
 )
 from argus_mint.spoilers import SpoilerError, load_spoilers, parse
 
@@ -35,12 +39,15 @@ def project(tmp_path: Path) -> Path:
     return root
 
 
+TEASERS = Path("teasers") / "example-teasers-v1.json"
+
+
 def _teasers(root: Path) -> dict:
-    return json.loads((root / "teasers.json").read_text())
+    return json.loads((root / TEASERS).read_text())
 
 
 def _write_teasers(root: Path, doc: dict) -> None:
-    (root / "teasers.json").write_text(json.dumps(doc))
+    (root / TEASERS).write_text(json.dumps(doc))
 
 
 # -- the example ----------------------------------------------------------------------------------
@@ -51,7 +58,9 @@ def test_example_project_loads_without_problems() -> None:
     assert b.id == b.project.id == "example-teasers"
     assert {k[0] for k in b.identities} == {"keeper", "lamp"}
     assert {k[0] for k in b.scenes} == {"lamp-room", "shoreline"}
-    assert b.teasers is not None and set(b.teasers.teasers) == {"T1", "T2"}
+    links, _ = b.teasers[("example-teasers", 1)]
+    assert set(links.teasers) == {"T1", "T2"} and links.status == "draft"
+    assert b.current_teasers() is None  # nothing approved yet
     assert problems(b, FRAMES) == []
 
 
@@ -151,7 +160,7 @@ def test_teaser_must_name_files_that_exist(project: Path) -> None:
     doc = _teasers(project)
     doc["teasers"]["T1"]["line"] = {"id": "missing", "version": 1}
     _write_teasers(project, doc)
-    assert any(p.startswith("T1: no line missing v1") for p in problems(load_bundle(project), FRAMES))
+    assert "example-teasers-v1.json: T1: no line missing v1" in problems(load_bundle(project), FRAMES)
 
 
 def test_line_voice_must_match_identity(project: Path) -> None:
@@ -232,3 +241,62 @@ def test_no_spoiler_file_means_no_rules_but_a_missing_one_is_an_error(tmp_path: 
     assert load_spoilers(None).hits("anything") == []
     with pytest.raises(SpoilerError):
         load_spoilers(tmp_path / "nope.txt")
+
+
+# -- teaser links are reviewed; SingGuard verdicts live in each file -------------------------------
+
+
+def test_a_lone_teasers_json_is_refused_with_the_way_forward(project: Path) -> None:
+    (project / "teasers.json").write_text("{}")
+    with pytest.raises(ProjectError, match="teasers/example-teasers-v1.json"):
+        load_bundle(project)
+
+
+def test_teaser_links_take_the_projects_id(project: Path) -> None:
+    doc = _teasers(project) | {"id": "other"}
+    _write_teasers(project, doc)
+    with pytest.raises(ProjectError, match="project's id"):
+        load_bundle(project)
+
+
+def test_teaser_links_are_approved_like_any_reviewed_file(project: Path) -> None:
+    path = project / TEASERS
+    record_decision(path, "approve", by="author", today=date(2026, 11, 18), validate=load_teasers)
+    links = load_teasers(path)
+    assert links.status == "approved" and links.approved_by == "author"
+    assert load_bundle(project).current_teasers() == links
+    with pytest.raises(Exception, match="only a draft"):
+        record_decision(path, "approve", by="author", today=date(2026, 11, 18), validate=load_teasers)
+
+
+def _verdict(field: str, text: str, policy: str = "default", passed: bool = True) -> GuardVerdict:
+    return GuardVerdict(
+        field=field, sha256=text_sha256(text), policy=policy, passed=passed, checked_at="2026-11-18T00:00:00Z"
+    )
+
+
+def test_a_stored_verdict_holds_only_for_the_text_and_policy_it_judged() -> None:
+    base = {"id": "tide", "version": 1, "status": "draft", "project": "p", "voice": "v", "source": "s"}
+    line = Line(
+        **base, text="The tide keeps no appointments.", guard=(_verdict("text", "The tide keeps no appointments."),)
+    )
+    fresh, missing = fresh_verdicts(line, "default")
+    assert list(fresh) == ["text"] and missing == []
+    assert fresh_verdicts(line, "adult")[1] == [("text", line.text)]  # another policy: judge again
+    edited = line.model_copy(update={"text": "Changed."})
+    assert fresh_verdicts(edited, "default")[1] == [("text", "Changed.")]  # another text: judge again
+    assert line.hash() == line.model_copy(update={"guard": ()}).hash()  # verdicts aren't hashed
+
+
+def test_record_guard_keeps_the_rest_of_a_yaml_file(project: Path) -> None:
+    path = project / "lines" / "keep-it-lit-v1.yaml"
+    before = path.read_text()
+    line = load_line(path)
+    v = [_verdict("text", line.text).model_dump(mode="json")]
+    record_guard(path, v, validate=load_line)
+    record_guard(path, v, validate=load_line)  # replaces the block, doesn't add another
+    after = path.read_text()
+    assert after.startswith(before.rstrip("\n")) and after.count("guard:") == 1
+    assert load_line(path).guard[0].field == "text"
+    record_guard(path, [], validate=load_line)
+    assert path.read_text().rstrip("\n") == before.rstrip("\n")

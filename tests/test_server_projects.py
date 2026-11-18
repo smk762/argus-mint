@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -76,7 +77,9 @@ def test_capability_and_listing(make):
     detail = c.get(f"/projects/{PID}").json()
     kinds = sorted((f["kind"], f["id"]) for f in detail["files"])
     assert ("identity", "keeper") in kinds and ("project", PID) in kinds
-    assert set(detail["teasers"]["teasers"]) == {"T1", "T2"}
+    assert ("teasers", PID) in kinds
+    links = next(f for f in detail["files"] if f["kind"] == "teasers")
+    assert links["file"] == f"teasers/{PID}-v1.json" and set(links["doc"]["teasers"]) == {"T1", "T2"}
     assert detail["checks"]["problems"] == []
 
 
@@ -94,9 +97,13 @@ def test_save_writes_a_draft_and_checks_it(make):
     body = r.json()
     assert body["file"]["status"] == "draft" and body["file"]["file"] == "lines/tide-v1.yaml"
     assert body["checks"]["guard"] == [{"field": "line tide v1: text", "passed": True, "detail": ""}]
-    assert guard.calls == [(LINE["text"], "safe")]  # under the project's policy
+    assert guard.calls == [(LINE["text"], "default")]  # under the project's policy
     on_disk = yaml.safe_load((root / "lines" / "tide-v1.yaml").read_text())
     assert on_disk["status"] == "draft" and on_disk["project"] == PID
+    # the verdict is kept in the file: field, the text's sha256, the policy, the outcome
+    [v] = on_disk["guard"]
+    assert v["field"] == "text" and v["policy"] == "default" and v["passed"] is True
+    assert v["sha256"] == hashlib.sha256(LINE["text"].encode()).hexdigest()
 
 
 def test_save_needs_the_token_and_refuses_review_fields(make):
@@ -104,6 +111,11 @@ def test_save_needs_the_token_and_refuses_review_fields(make):
     assert _save(c, "line", "tide", 1, LINE, auth={}).status_code == 401
     r = _save(c, "line", "tide", 1, {**LINE, "status": "approved"})
     assert r.status_code == 422 and "draft" in r.json()["detail"]
+    forged = [
+        {"field": "text", "sha256": "0" * 64, "policy": "default", "passed": True, "checked_at": "2026-11-18T00:00:00Z"}
+    ]
+    r = _save(c, "line", "tide", 1, {**LINE, "guard": forged})  # verdicts are SingGuard's, never a client's
+    assert r.status_code == 422 and "guard" in r.json()["detail"]
 
 
 def test_save_refuses_a_mismatch_with_the_path(make):
@@ -172,18 +184,87 @@ def test_project_ids_are_checked_before_any_path_is_built(make):
     assert c.get("/projects/Bad_Id").status_code == 404
 
 
+def _links(root: Path, version: int = 1) -> dict:
+    doc = json.loads((root / "teasers" / f"{PID}-v{version}.json").read_text())
+    drop = ("id", "version", "project", "status", "approved_by", "approved_at", "guard")
+    return {k: v for k, v in doc.items() if k not in drop}
+
+
 def test_save_teasers_checks_alt_text_and_cross_file_problems(make):
-    c, guard, root = make()
-    doc = json.loads((root / "teasers.json").read_text())
+    c, _, root = make()
+    doc = _links(root)
     doc["teasers"]["T2"]["alt"] = "please refuse"
     doc["teasers"]["T1"]["line"] = {"id": "every-boat", "version": 1}  # wrong voice
-    r = c.post(f"/projects/{PID}/teasers", json={"teasers": doc}, headers=AUTH)
+    r = _save(c, "teasers", PID, 2, doc)
     assert r.status_code == 200, r.text
+    assert r.json()["file"]["file"] == f"teasers/{PID}-v2.json"
     checks = r.json()["checks"]
     assert any("voice" in p for p in checks["problems"])
-    assert {"field": "teaser T2: alt", "passed": False, "detail": "rule-7"} in checks["guard"]
-    other = {**doc, "project": "elsewhere"}
-    assert c.post(f"/projects/{PID}/teasers", json={"teasers": other}, headers=AUTH).status_code == 422
+    assert {"field": f"teasers {PID} v2: T2.alt", "passed": False, "detail": "rule-7"} in checks["guard"]
+    assert _save(c, "teasers", "elsewhere", 3, doc).status_code == 422  # links take the project's id
+    assert _save(c, "teasers", PID, 3, {**doc, "project": "elsewhere"}).status_code == 422
+
+
+def _off_the_spoiler_list(root):
+    for f in (root / "scenes" / "lamp-room-v1.yaml", root / "teasers" / f"{PID}-v1.json"):
+        f.write_text(f.read_text().replace("brass lens", "great lens"))
+
+
+def _approve_everything_the_links_name(c):
+    for kind, item in (("line", "keep-it-lit"), ("line", "every-boat"), ("identity", "keeper"), ("identity", "lamp"),
+                       ("scene", "lamp-room"), ("scene", "shoreline")):  # fmt: skip
+        r = _approve(c, kind, item, 1)
+        assert r.status_code == 200, (kind, item, r.text)
+
+
+def test_teaser_links_are_reviewed_and_only_link_approved_files(make):
+    c, _, root = make()
+    r = _approve(c, "teasers", PID, 1)
+    assert r.status_code == 409 and r.json()["detail"] == "held by spoiler rule 1"  # T1's alt names the lens
+    _off_the_spoiler_list(root)
+    r = _approve(c, "teasers", PID, 1)
+    assert r.status_code == 409 and "aren't approved" in r.json()["detail"]
+    assert "line keep-it-lit v1" in r.json()["detail"]
+    _approve_everything_the_links_name(c)
+    r = _approve(c, "teasers", PID, 1)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved" and r.json()["doc"]["approved_by"] == "author"
+    stored = json.loads((root / "teasers" / f"{PID}-v1.json").read_text())
+    assert {v["field"] for v in stored["guard"]} == {"T1.alt", "T2.alt"}  # verdicts kept in the file
+    r = _save(c, "teasers", PID, 1, _links(root))
+    assert r.status_code == 409 and "new version" in r.json()["detail"]
+
+
+def test_stored_verdicts_outlive_the_server_and_an_edit_drops_them(make):
+    c, guard, _ = make()
+    _save(c, "line", "tide", 1, LINE)
+    assert guard.calls == [(LINE["text"], "default")]
+    c2, guard2, _ = make()  # a restart: a new app, nothing in memory
+    assert {"field": "line tide v1: text", "passed": True, "detail": ""} in c2.get(f"/projects/{PID}").json()["checks"][
+        "guard"
+    ]
+    assert _approve(c2, "line", "tide", 1).status_code == 200
+    assert guard2.calls == []  # the stored verdict stood: SingGuard wasn't asked again
+    _save(c2, "line", "tide", 2, {**LINE, "text": "A changed line."})
+    assert guard2.calls == [("A changed line.", "default")]
+
+
+def test_a_stored_pass_approves_even_without_a_darkroom(make):
+    c, _, _ = make()
+    _save(c, "line", "tide", 1, LINE)
+    offline, _, _ = make(guard=False)
+    assert _approve(offline, "line", "tide", 1).status_code == 200
+
+
+def test_approval_judges_a_hand_written_file_and_keeps_the_verdict(make):
+    c, guard, root = make()
+    path = root / "lines" / "every-boat-v1.yaml"
+    path.write_text("# the lamp speaks\n" + path.read_text())
+    assert "guard:" not in path.read_text()
+    assert _approve(c, "line", "every-boat", 1).status_code == 200
+    assert len(guard.calls) == 1
+    text = path.read_text()
+    assert "guard:" in text and text.startswith("#")  # the author's comments are kept
 
 
 def test_unreadable_spoiler_file_fails_at_start(make, tmp_path):

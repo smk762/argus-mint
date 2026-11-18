@@ -67,7 +67,7 @@ See [catalogue.md](catalogue.md).
 
 ## Teaser projects
 
-See [projects.md](projects.md): `GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/files/{kind}/{item}/{version}` (save a draft), `POST /projects/{id}/teasers`, and `POST /projects/{id}/files/{kind}/{item}/{version}/review`. Writes need the moderator token.
+See [projects.md](projects.md): `GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/files/{kind}/{item}/{version}` (save a draft, teaser links included), and `POST /projects/{id}/files/{kind}/{item}/{version}/review`. Writes need the moderator token.
 
 ## Library
 
