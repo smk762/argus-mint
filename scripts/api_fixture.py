@@ -274,9 +274,14 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
         sample.raise_for_status()
         job_id = sample.json()["id"]
         for _ in range(500):
-            if c.get(f"/samples/{job_id}").json()["status"] in ("done", "failed"):
+            status = c.get(f"/samples/{job_id}").json()["status"]
+            if status in ("done", "failed"):
                 break
             time.sleep(0.02)
+        else:
+            raise TimeoutError(f"sample job {job_id} is still {status}; no fixtures written")
+        if status != "done":
+            raise RuntimeError(f"sample job {job_id} {status}: {c.get(f'/samples/{job_id}').json()}; no fixtures written")
 
         if OUT.exists():
             shutil.rmtree(OUT)

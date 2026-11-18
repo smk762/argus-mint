@@ -202,6 +202,9 @@ class Template(BaseModel):
         names = [o.name for o in self.lora_options]
         if len(set(names)) != len(names):
             raise ValueError("a LoRA option appears twice")
+        always = {x.name for x in self.loras} & set(names)
+        if always:
+            raise ValueError(f"LoRA option(s) {sorted(always)} are already applied by the template's own loras")
         allowed = (self.model, *self.models)
         for o in self.lora_options:
             stray = [m for m in o.models if m not in allowed]
@@ -269,7 +272,7 @@ class Template(BaseModel):
                 raise TemplateError(f"LoRA {c.name!r} allows weights {list(option.weights)}, not {weight}")
             if option.models and model not in option.models:
                 raise TemplateError(f"LoRA {c.name!r} doesn't pair with {model}")
-            if any(p.name == c.name for p in picked):
+            if any(p.name == c.name for p in (*self.loras, *picked)):
                 raise TemplateError(f"LoRA {c.name!r} chosen twice")
             picked.append(LoraRef(name=option.name, weight=weight, trigger_words=option.trigger_words))
         return (*self.loras, *picked)

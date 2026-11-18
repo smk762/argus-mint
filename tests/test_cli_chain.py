@@ -53,7 +53,15 @@ def _voucher(tmp_path, template_doc, card, to, asset="unit-17"):
     )
     assert result.exit_code == 0, result.output
     out = json.loads(result.stdout)
-    out["dry_run"] = False  # stand-in for a live render; the chain doesn't care about the art
+    # Stand-in for a live publish (the chain doesn't care about the art): a dry run signs with a
+    # throwaway key, so sign the voucher again with anvil account 0, as a live run would.
+    from argus_mint.vouchers import Domain, MintVoucher, sign
+
+    domain = Domain(chain_id=out["typed_data"]["domain"]["chainId"], verifying_contract=card)
+    out["signature"] = (
+        "0x" + sign(MintVoucher.model_validate(out["voucher"]), domain, Account.from_key(ANVIL_KEY0)).hex()
+    )
+    out["dry_run"] = False
     voucher = tmp_path / f"{asset}.json"
     voucher.write_text(json.dumps(out))
     return voucher
@@ -64,14 +72,18 @@ def test_submit_and_freeze(w3, deploy, anvil_url, ops, tmp_path, template_doc):
     card = deploy("Card", "Cards", "CARD", "", admin, admin, admin, admin, 0)
     voucher = _voucher(tmp_path, template_doc, card.address, player)
 
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 0, result.output
     out = json.loads(result.stdout)
     assert out["token_id"] == 1 and out["from"] == admin and out["to"] == player
     assert card.functions.ownerOf(1).call() == player
     assert out["metadata_uri"].startswith("ipfs://")
 
-    again = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    again = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert again.exit_code == 1 and "already minted as token 1" in again.output
 
     freeze = ["freeze", "--card", card.address, "--token-id", "1", "--uri", CID, *_chain_args(anvil_url, ops)]
@@ -88,18 +100,24 @@ def test_submit_refuses_dry_runs_wrong_chain_and_bad_signers(w3, deploy, anvil_u
     card = deploy("Card", "Cards", "CARD", "", admin, outsider.address, admin, admin, 0)  # admin can't sign
     voucher = _voucher(tmp_path, template_doc, card.address, w3.eth.accounts[3])
 
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 1 and "does not hold SIGNER_ROLE" in result.output
 
     dry = json.loads(voucher.read_text()) | {"dry_run": True}
     voucher.write_text(json.dumps(dry))
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 1 and "dry run" in result.output
 
     other_chain = json.loads(voucher.read_text()) | {"dry_run": False}
     other_chain["typed_data"]["domain"]["chainId"] = 84532
     voucher.write_text(json.dumps(other_chain))
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 1 and "chain 84532" in result.output
 
 

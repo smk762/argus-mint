@@ -9,9 +9,9 @@ major it doesn't know.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from argus_mint.bios import BioTemplate
 from argus_mint.cards import CardDraft
@@ -57,8 +57,18 @@ __all__ = [
 # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
-# 1.9 drafts record what made them (made_with)
-WIRE_VERSION = "1.9"
+# 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts)
+WIRE_VERSION = "1.10"
+
+MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
+# Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
+SlotTexts = Annotated[
+    dict[
+        Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,31}$")],
+        Annotated[str, StringConstraints(max_length=2000)],
+    ],
+    Field(max_length=MAX_SLOTS),
+]
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -144,7 +154,7 @@ class CreateDraft(_Wire):
     external_url: str | None = None
     frame: Ref | None = None
     bio: Ref | None = None
-    texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot
+    texts: SlotTexts = Field(default_factory=dict)  # consumer display text by frame slot
     style: CardStyle | None = None  # the owner's choices, if the consumer collected them up front
 
 
@@ -190,7 +200,7 @@ class TextEdit(_Wire):
 
     name: str | None = Field(default=None, max_length=120)
     bio: str | None = Field(default=None, max_length=2000)
-    texts: dict[str, str] | None = None
+    texts: SlotTexts | None = None
     style: CardStyle | None = None
 
 
@@ -253,7 +263,7 @@ class SampleRequest(_Wire):
     variables: dict[str, str] = Field(default_factory=dict)  # fixed values; the rest vary
     seed: int = Field(default=0, ge=0, le=2**32 - 1)  # picks the combinations, and the first render seed
     name: str = Field(default="Sample", min_length=1, max_length=120)
-    texts: dict[str, str] = Field(default_factory=dict)
+    texts: SlotTexts = Field(default_factory=dict)
     style: CardStyle | None = None
 
 
@@ -300,7 +310,7 @@ class FramePreviewRequest(_Wire):
     art: ArtSource
     name: str = Field(default="Sample", min_length=1, max_length=120)
     bio: str | None = Field(default=None, max_length=2000)
-    texts: dict[str, str] = Field(default_factory=dict)
+    texts: SlotTexts = Field(default_factory=dict)
     style: CardStyle | None = None
 
 
@@ -336,7 +346,7 @@ class CatalogueEntry(_Wire):
 class LayoutRequest(_Wire):
     """POST /frames/{id}/{version}/layout: where these texts go, for a browser preview."""
 
-    texts: dict[str, str]
+    texts: SlotTexts
 
 
 class LineLayout(_Wire):

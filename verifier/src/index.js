@@ -95,9 +95,15 @@ export function drandRoundTime(round, chain = QUICKNET) {
  */
 export function verifyDrandBeacon(beacon, { publicKey = QUICKNET.publicKey } = {}) {
   const strip = (h) => (h.startsWith("0x") ? h.slice(2) : h);
-  const round = BigInt(beacon.round);
-  if (round < 1n || round >= 1n << 64n) return { ok: false, randomness: null };
-  const sig = hexToBytes(strip(beacon.signature));
+  const rejected = { ok: false, randomness: null };
+  let round, sig;
+  try {
+    round = BigInt(beacon.round);
+    sig = hexToBytes(strip(beacon.signature)); // throws on a non-string, odd-length or non-hex signature
+  } catch {
+    return rejected; // untrusted JSON: a malformed beacon is a rejection, not a crash
+  }
+  if (round < 1n || round >= 1n << 64n) return rejected;
   const msg = new Uint8Array(8);
   new DataView(msg.buffer).setBigUint64(0, round, false);
   const randomness = bytesToHex(sha256(sig));
@@ -108,7 +114,9 @@ export function verifyDrandBeacon(beacon, { publicKey = QUICKNET.publicKey } = {
   } catch {
     ok = false; // malformed point encodings
   }
-  if (beacon.randomness !== undefined && strip(beacon.randomness).toLowerCase() !== randomness) ok = false;
+  if (beacon.randomness !== undefined) {
+    if (typeof beacon.randomness !== "string" || strip(beacon.randomness).toLowerCase() !== randomness) ok = false;
+  }
   return { ok, randomness: ok ? "0x" + randomness : null };
 }
 
@@ -173,16 +181,35 @@ export async function readCommitment(rpcUrl, ledger, epoch, { fetch: f = fetch, 
   return { hash: toHex(wordAt(out, 0)), committedAt: Number(toBigInt(wordAt(out, 1))) };
 }
 
-/** The secret from the epoch's Revealed event, or null if it hasn't been revealed. */
-export async function readRevealedSecret(rpcUrl, ledger, epoch, { fetch: f = fetch, fromBlock = "0x0" } = {}) {
+/** A block for JSON-RPC: a number becomes a hex quantity; a tag ("latest", "safe"…) or hex stays as it is. */
+const blockTag = (b) => (typeof b === "number" || typeof b === "bigint" ? "0x" + BigInt(b).toString(16) : b);
+
+/**
+ * The secret from the epoch's Revealed event, or null if it hasn't been revealed (as of `block`,
+ * like readCommitment). Logs a reorg removed don't count.
+ */
+export async function readRevealedSecret(
+  rpcUrl,
+  ledger,
+  epoch,
+  { fetch: f = fetch, fromBlock = "0x0", block = "latest" } = {},
+) {
   const logs = await rpc(
     rpcUrl,
     "eth_getLogs",
-    [{ address: ledger, fromBlock, toBlock: "latest", topics: [TOPIC_REVEALED, toHex(word(checkEpoch(epoch)))] }],
+    [
+      {
+        address: ledger,
+        fromBlock: blockTag(fromBlock),
+        toBlock: blockTag(block),
+        topics: [TOPIC_REVEALED, toHex(word(checkEpoch(epoch)))],
+      },
+    ],
     f,
   );
-  if (!logs.length) return null;
-  const data = fromHex(logs[0].data); // abi.encode(bytes): offset, length, bytes
+  const live = logs.filter((l) => l.removed !== true);
+  if (!live.length) return null;
+  const data = fromHex(live[0].data); // abi.encode(bytes): offset, length, bytes
   const offset = Number(toBigInt(wordAt(data, 0)));
   const len = Number(toBigInt(data.slice(offset, offset + 32)));
   return toHex(data.slice(offset + 32, offset + 32 + len));

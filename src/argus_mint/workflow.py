@@ -123,6 +123,8 @@ def create_draft(
         check_style(frame, style)
     if (image is None) == (renderer is None):
         raise ValueError("give exactly one of renderer or image (a library entry comes with its image)")
+    if library is not None and image is None:
+        raise ValueError("a library entry needs its image, not a renderer")
     if library is not None and loras:
         raise ValueError("a library entry was rendered without chosen LoRAs; render instead")
     if library is not None and model not in (None, library.model):
@@ -132,7 +134,6 @@ def create_draft(
     if bio is not None:
         check_bio(bio, values, template)
     if library is not None:
-        assert image is not None
         if sha256_hex(image) != library.sha256:
             raise LibraryError(f"library image {library.id} differs from the one rendered")
         if values != library.variables:
@@ -208,7 +209,7 @@ def publish(
         attributes=[],
         provenance=draft.provenance(art_cid),
     )
-    metadata_cid = pinner.pin_json(doc, f"{req.template_id}-metadata.json")
+    metadata_cid = pinner.pin_json(doc, f"{stem}-metadata.json")
     voucher = MintVoucher(
         to=draft.to,
         asset_id=draft.asset_id,

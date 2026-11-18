@@ -165,7 +165,7 @@ argus-mint review [OPTIONS] DRAFT_DIR
 
 Step 3 of 3: pin an approved draft, build its metadata and sign the mint voucher; print JSON.
 
-Refuses a draft the moderator and the owner haven't both approved, or whose files changed since. A live run pins via --ipfs-api and signs with --account (a Foundry keystore) or $ARGUS_MINT_SIGNER_KEY. Send the result on-chain with `argus-mint submit`.
+Refuses a draft the moderator and the owner haven't both approved, or whose files changed since. A live run pins via --ipfs-api and signs with --account (a Foundry keystore) or $ARGUS_MINT_SIGNER_KEY. A dry run signs with a throwaway key, so its voucher can't mint. Send a live result on-chain with `argus-mint submit`.
 
 ```
 argus-mint publish [OPTIONS] DRAFT_DIR
@@ -182,13 +182,13 @@ argus-mint publish [OPTIONS] DRAFT_DIR
 | `--deadline` |  |  |  | Voucher deadline (unix seconds); overrides --ttl |
 | `--ipfs-api` |  |  | `ARGUS_MINT_IPFS_API` | Kubo RPC URL for pinning, e.g. http://127.0.0.1:5001 |
 | `--account` |  |  | `ARGUS_MINT_ACCOUNT` | Foundry keystore account (name in ~/.foundry/keystores, or a path); password from $ARGUS_MINT_KEYSTORE_PASSWORD_FILE or a prompt. Default: $ARGUS_MINT_SIGNER_KEY |
-| `--dry-run` |  |  |  | Pin locally (no IPFS); allow a throwaway signer |
+| `--dry-run` |  |  |  | Pin locally (no IPFS) and sign with a throwaway key, never the real one |
 
 ## argus-mint submit
 
 Send a signed mint voucher to its Card contract; print the new token id.
 
-Any account may submit a voucher (normally the player's wallet); it pays the gas and the voucher's price. The card goes to the voucher's `to` address, not the sender.
+Any account may submit a voucher (normally the player's wallet); it pays the gas and the voucher's price. The card goes to the voucher's `to` address, not the sender. The voucher names its contract, and the checks run against it, so it must be the --card you trust.
 
 ```
 argus-mint submit [OPTIONS] MINT_JSON
@@ -197,6 +197,7 @@ argus-mint submit [OPTIONS] MINT_JSON
 | Argument / option | Required | Default | Env | Help |
 |---|---|---|---|---|
 | `MINT_JSON` | yes |  |  | JSON printed by `argus-mint publish` ('-' for stdin) |
+| `--card` | yes |  | `ARGUS_MINT_CARD` | The Card contract you mean to mint on; the voucher must name it |
 | `--network` |  | `base-sepolia` |  | base \| base-sepolia \| anvil |
 | `--rpc-url` |  |  | `ARGUS_MINT_RPC_URL` | JSON-RPC URL (default: the network's public endpoints) |
 | `--account` |  |  | `ARGUS_MINT_ACCOUNT` | Foundry keystore account (name in ~/.foundry/keystores, or a path); password from $ARGUS_MINT_KEYSTORE_PASSWORD_FILE or a prompt. Default: $ARGUS_MINT_SIGNER_KEY |

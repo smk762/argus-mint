@@ -157,7 +157,8 @@ class Settings:
         env = dict(os.environ if env is None else env)
 
         def get(name: str, default: str = "") -> str:
-            return env.get(PREFIX + name, default).strip()
+            # Set but empty (compose's ${VAR:-}) counts as unset: the default applies.
+            return env.get(PREFIX + name, "").strip() or default
 
         origins = tuple(o.strip() for o in get("CORS_ORIGINS").split(",") if o.strip())
         return cls(
@@ -495,7 +496,7 @@ def create_app(
 
     @app.get("/library/{entry_id}/image")
     def library_image(entry_id: str, thumb: Annotated[int, Query(ge=0, le=1024)] = 0) -> Response:
-        """The entry's PNG, or with ``thumb=<width>`` a JPEG preview of that width."""
+        """The entry's PNG, or with ``thumb=<width>`` a JPEG preview at least that wide (``Library.thumbnail``)."""
         lib = library()
         if lib is None:
             raise HTTPException(404, "no pre-rendered library is served here")
