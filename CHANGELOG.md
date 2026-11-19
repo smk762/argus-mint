@@ -4,6 +4,8 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-19
+
 ### Added
 
 - **Frame effects (wire 1.17, #63, epic #47).** A frame may list `effects`, applied in order in `frames.compose` to the art once it covers the window, inside the window only, before the overlay and text: `barrel` (`strength`), `scanlines` (`spacing`, `thickness`, `opacity`), `noise` (`amount`, `monochrome`), `chromatic_aberration` (`shift`) and `vignette` (`strength`, `start`), each with every parameter required and bounded, at most eight (`frame_effects.py`). They are part of the frame's YAML, so reviewed with it and in its hash; an empty list is left out of the hash, so every frame without effects keeps its hash. Pillow only (no numpy; the `frames` extra is unchanged). Byte-stable: the noise is SHAKE-256 of a fixed tag, the art's sha256 and the effect's place, so the same art and frame give the same PNG in any compose (draft, edit redraw, preview, teaser bake), and the tests pin each effect's output. The browser's SVG preview can't draw effects; argus-assay should say "effects not previewed: the baked PNG is what's reviewed" for a frame with any. The example harbour-camera frame has mild ones. [docs/catalogue.md](docs/catalogue.md#effects).
