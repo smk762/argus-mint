@@ -79,6 +79,9 @@ def model_slug(model: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-")[:60]
 
 
+THUMB_WIDTHS = (96, 192, 320, 384, 640, 1024)  # the preview widths served (and cached)
+
+
 def pick_variable_sets(t: Template, count: int, seed: int) -> list[dict[str, str]]:
     """``count`` diverse combinations, deterministic for ``seed``.
 
@@ -138,7 +141,7 @@ class Library:
         return self.manifest.entries
 
     def entry(self, entry_id: str) -> LibraryEntry:
-        if not _ENTRY_ID.match(entry_id) or entry_id not in self._by_id:
+        if not _ENTRY_ID.fullmatch(entry_id) or entry_id not in self._by_id:
             raise LibraryError(f"no library entry {entry_id!r}")
         return self._by_id[entry_id]
 
@@ -153,7 +156,14 @@ class Library:
         return data
 
     def thumbnail(self, entry_id: str, width: int = 384) -> bytes:
-        """A JPEG preview (cached beside the image). Never used for a card."""
+        """A JPEG preview (cached beside the image). Never used for a card.
+
+        ``width`` is rounded up to the next of :data:`THUMB_WIDTHS`, so the cache holds a few
+        sizes per entry however many widths are asked for; one above the largest is refused.
+        """
+        if not 0 < width <= THUMB_WIDTHS[-1]:
+            raise LibraryError(f"a thumbnail is 1 to {THUMB_WIDTHS[-1]} pixels wide, not {width}")
+        width = next(w for w in THUMB_WIDTHS if w >= width)
         e = self.entry(entry_id)
         cached = self.root / "thumbs" / f"{e.id}-{width}.jpg"
         if cached.is_file():

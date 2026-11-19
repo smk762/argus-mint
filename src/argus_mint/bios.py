@@ -55,6 +55,7 @@ WRITER_KEY_ENV = "ARGUS_MINT_WRITER_KEY"  # bearer token for the bio writer, if 
 NAME_TOKEN = re.compile(r"\{\s*name\s*\}", re.IGNORECASE)
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
 _SENTENCE_END = re.compile(r"[.!?…](?=\s|$)")
+_DIGIT = re.compile(r"\d")  # any script's digits: a bio holds no numbers (hard rule 4)
 
 
 class BioError(ValueError):
@@ -230,13 +231,17 @@ class Bio:
 def clean(raw: str, max_chars: int) -> str:
     """Tidy a model's reply: one paragraph, no wrapping quotes, cut at a sentence end if too long."""
     text = " ".join(raw.split()).strip().strip('"“”').strip()
+    if max_chars <= 0:
+        return ""
     if len(text) <= max_chars:
         return text
     head = text[:max_chars]
     ends = [m.end() for m in _SENTENCE_END.finditer(head)]
     if ends and ends[-1] >= max_chars // 3:
         return head[: ends[-1]]
-    return head.rsplit(" ", 1)[0].rstrip(",;:—-") + "…"
+    # Cut at a word, leaving room for the ellipsis (a head with no space is cut mid-word).
+    cut = head.rsplit(" ", 1)[0] if " " in head else head[: max_chars - 1]
+    return cut.rstrip(",;:—-") + "…"
 
 
 def write_bio(
@@ -267,10 +272,19 @@ def write_bio(
             temperature=bt.temperature,
             max_tokens=bt.max_tokens,
         )
-        text = clean(NAME_TOKEN.sub("{name}", raw), bt.max_chars)
+        tokened = NAME_TOKEN.sub("{name}", raw)
+        text = clean(tokened, bt.max_chars)
+        # max_chars holds for the finished bio: shrink the budget until the name fits too.
+        budget = bt.max_chars
+        while (over := len(text.replace("{name}", name)) - bt.max_chars) > 0 and budget > 0:
+            budget -= over
+            text = clean(tokened, budget)
         stray = re.sub(r"\{name\}", "", text)
         if "{" in stray or "}" in stray or not text:
             attempts.append(BioAttempt("unusable", "stray braces or empty", text))
+            continue
+        if _DIGIT.search(text):  # hard rule 4: a bio is flavour, never a number a game could read as a stat
+            attempts.append(BioAttempt("unusable", "contains a number", text))
             continue
         ok, detail = guard.check_text(text)  # still holds the {name} token: the name never reaches a model
         if not ok:

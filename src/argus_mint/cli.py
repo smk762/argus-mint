@@ -35,6 +35,7 @@ from argus_mint.keys import KEY_ENV, KeyLoadError, load_signer
 from argus_mint.library import Library, LibraryError
 from argus_mint.library import build as build_library
 from argus_mint.library import describe as describe_library
+from argus_mint.metadata import ipfs_uri
 from argus_mint.pin import KuboPinner, LocalPinner, PinError, Pinner
 from argus_mint.render import GenResult, RenderError, render_for_review
 from argus_mint.templates import (
@@ -307,21 +308,14 @@ def sample(
         entry: dict[str, Any] = {"n": i, "variables": values}
         try:
             r = render_for_review(client, t, values, seed + i, model, _parse_loras(lora))
-            b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
-        except (DarkroomError, BioFailed) as e:
-            if isinstance(e, BioFailed):
-                entry |= {"error": str(e), "bio_attempts": bio_attempts(e.attempts)}
-                results.append(entry)
-                typer.echo(f"{i}: {e}", err=True)
-                continue
-            raise _fail(str(e)) from e
-        except BioError as e:
+        except DarkroomError as e:
             raise _fail(str(e)) from e
         except RenderError as e:
             entry |= {"error": str(e), "attempts": [a.to_json() for a in e.attempts]}
             results.append(entry)
             typer.echo(f"{i}: {e}", err=True)
             continue
+        # The render passed its checks: keep it, whatever happens to the bio.
         art = out / f"{i:02d}-{r.seed}.png"
         art.write_bytes(r.image)
         entry |= {
@@ -330,6 +324,16 @@ def sample(
             "attempts": [a.to_json() for a in r.attempts],
             "art": str(art),
         }
+        b = None
+        try:
+            b = write_bio(bio_writer, client, bt, values, t, name, review=True) if bt and bio_writer else None
+        except DarkroomError as e:
+            raise _fail(str(e)) from e
+        except BioFailed as e:  # the framed preview is drawn without a bio
+            entry |= {"error": str(e), "bio_attempts": bio_attempts(e.attempts)}
+            typer.echo(f"{i}: {e}", err=True)
+        except BioError as e:
+            raise _fail(str(e)) from e
         if b is not None:
             entry |= {"bio": b.text, "bio_attempts": bio_attempts(b.attempts)}
         if lf is not None:
@@ -405,6 +409,8 @@ def draft(
             raise _fail(f"library entry {lib_entry.id} shows {lib_entry.variables}; leave --var out or match it", 2)
         if model not in (None, lib_entry.model):
             raise _fail(f"library entry {lib_entry.id} was rendered with {lib_entry.model}, not {model}", 2)
+        if lora:
+            raise _fail(f"library entry {lib_entry.id} was rendered without chosen LoRAs; leave --lora out", 2)
     if bio and not darkroom:
         raise _fail("--bio needs --darkroom: darkroom's text check screens every bio", 2)
     extra = _parse_texts(text)
@@ -506,13 +512,16 @@ def publish(
     deadline: Annotated[int | None, typer.Option(help="Voucher deadline (unix seconds); overrides --ttl")] = None,
     ipfs_api: IpfsOpt = None,
     account: AccountOpt = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Pin locally (no IPFS); allow a throwaway signer")] = False,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Pin locally (no IPFS) and sign with a throwaway key, never the real one")
+    ] = False,
 ) -> None:
     """Step 3 of 3: pin an approved draft, build its metadata and sign the mint voucher; print JSON.
 
     Refuses a draft the moderator and the owner haven't both approved, or whose files changed
     since. A live run pins via --ipfs-api and signs with --account (a Foundry keystore) or
-    $ARGUS_MINT_SIGNER_KEY. Send the result on-chain with `argus-mint submit`.
+    $ARGUS_MINT_SIGNER_KEY. A dry run signs with a throwaway key, so its voucher can't mint.
+    Send a live result on-chain with `argus-mint submit`.
     """
     try:
         resolved_chain_id = chain_id if chain_id is not None else networks.get(network).chain_id
@@ -523,8 +532,10 @@ def publish(
         check_publishable(d, art, image)
     except DraftError as e:
         raise _fail(str(e)) from e
+    # A dry run never touches the real key: its local pins and maybe placeholder art must not
+    # come out as a voucher the Card contract would accept.
     try:
-        key = load_signer(account)
+        key = None if dry_run else load_signer(account)
     except KeyLoadError as e:
         raise _fail(str(e)) from e
     if not dry_run:
@@ -607,6 +618,10 @@ def _read_input(path: Path) -> str:
 @app.command()
 def submit(
     mint_json: Annotated[Path, typer.Argument(help="JSON printed by `argus-mint publish` ('-' for stdin)")],
+    card: Annotated[
+        str,
+        typer.Option(envvar="ARGUS_MINT_CARD", help="The Card contract you mean to mint on; the voucher must name it"),
+    ],
     network: NetworkOpt = "base-sepolia",
     rpc_url: RpcOpt = None,
     account: AccountOpt = None,
@@ -614,7 +629,8 @@ def submit(
     """Send a signed mint voucher to its Card contract; print the new token id.
 
     Any account may submit a voucher (normally the player's wallet); it pays the gas and the
-    voucher's price. The card goes to the voucher's `to` address, not the sender.
+    voucher's price. The card goes to the voucher's `to` address, not the sender. The voucher
+    names its contract, and the checks run against it, so it must be the --card you trust.
     """
     try:
         data = json.loads(_read_input(mint_json))
@@ -625,6 +641,8 @@ def submit(
         raise _fail(f"not a `publish` output: {e}") from e
     if data.get("dry_run"):
         raise _fail("this voucher is from a dry run (local pins, maybe placeholder art); publish it live first")
+    if not isinstance(dom.get("verifyingContract"), str) or dom["verifyingContract"].lower() != card.lower():
+        raise _fail(f"the voucher is for contract {dom.get('verifyingContract')}, not the Card {card}", 2)
     chain, net, w3 = _chain(network, rpc_url)
     if dom["chainId"] != net.chain_id:
         raise _fail(f"the voucher is for chain {dom['chainId']}, but {net.name} is chain {net.chain_id}")
@@ -675,7 +693,10 @@ def freeze(
     After this, tokenURI returns URI, wallets and explorers can show the card, and the
     metadata can no longer be refreshed.
     """
-    uri = uri if uri.startswith("ipfs://") else f"ipfs://{uri}"
+    try:
+        uri = ipfs_uri(uri.strip().removeprefix("ipfs://"))  # a freeze is for good: refuse anything but a CID
+    except ValueError as e:
+        raise typer.BadParameter(str(e), param_hint="--uri") from e
     chain, net, w3 = _chain(network, rpc_url)
     c = chain.contract(w3, "Card", card)
     if c.functions.isFrozen(token_id).call():
@@ -710,6 +731,14 @@ def anchor(
         tree = merkle.build(values)
     except (OSError, ValueError) as e:
         raise _fail(f"bad leaves: {e}") from e
+    typer.echo(json.dumps(_anchor_tree(tree, ledger, epoch, tree_out, network, rpc_url, account), indent=2))
+
+
+def _anchor_tree(
+    tree: merkle.Tree, ledger: str, epoch: int, tree_out: Path | None, network: str, rpc_url: str | None,
+    account: str | None,
+) -> dict[str, Any]:  # fmt: skip
+    """Anchor ``tree``'s root for ``epoch`` (checked first), writing the tree dump before sending."""
     if len(tree) > 2**32 - 1:
         raise _fail("too many leaves for one anchor (uint32 count)")
     chain, net, w3 = _chain(network, rpc_url)
@@ -718,18 +747,19 @@ def anchor(
     if at:
         raise _fail(f"epoch {epoch} is already anchored (root {hex0x(bytes(root))}, {count} leaves)")
     if tree_out is not None:  # written before sending, so a landed anchor always has its tree
+        tree_out.parent.mkdir(parents=True, exist_ok=True)
         tree_out.write_text(json.dumps(tree.dump(), indent=2) + "\n")
     sender = _sender(account)
     receipt = _transact(chain, w3, c, c.functions.anchor(epoch, tree.root, len(tree)), sender)
-    out = {
+    return {
         **_tx(net, receipt, sender),
+        "chain_id": net.chain_id,
         "ledger": c.address,
         "epoch": epoch,
         "root": hex0x(tree.root),
         "count": len(tree),
         "tree": str(tree_out) if tree_out else None,
     }
-    typer.echo(json.dumps(out, indent=2))
 
 
 # --- service: the card workflow over HTTP, and its wire schema ------------------------------
@@ -751,8 +781,8 @@ def serve(
     Configured by ARGUS_MINT_* variables (README: Configuration): DRAFTS_DIR, SAMPLES_DIR,
     LIBRARY_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR, DARKROOM_URL, POLICY, WRITER_URL,
     WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY,
-    NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, SIWE_DOMAIN, SIWE_URI,
-    CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST.
+    NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, POSTER_TOKEN, SIWE_DOMAIN, SIWE_URI,
+    CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST, PROJECTS_DIR, SPOILERS, CONSENT_DIR, BACKGROUNDS_DIR.
     """
     try:
         import uvicorn
@@ -790,6 +820,100 @@ def schema(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     typer.echo(str(path), err=True)
+
+
+# --- teasers: anchoring what was posted, exporting the record --------------------------------
+
+teasers_app = typer.Typer(help="Teaser projects: anchoring posted teasers.", no_args_is_help=True)
+app.add_typer(teasers_app, name="teasers")
+
+DraftsOpt = Annotated[
+    Path, typer.Option(envvar="ARGUS_MINT_DRAFTS_DIR", help="The server's drafts directory")
+]  # fmt: skip
+AnchorsOpt = Annotated[
+    Path, typer.Option(envvar="ARGUS_MINT_ANCHORS_DIR", help="Where each project's anchors and trees are kept")
+]
+
+
+@teasers_app.command("anchor")
+def teasers_anchor(
+    project: Annotated[str, typer.Argument(help="Project id")],
+    ledger: Annotated[str, typer.Option(help="Ledger contract address")],
+    epoch: Annotated[int, typer.Option(help="Epoch to anchor (once per epoch)", min=0, max=2**64 - 1)],
+    tree_out: Annotated[
+        Path | None,
+        typer.Option("--tree", help="Write the tree here (default: <anchors>/<project>/epoch-<N>-tree.json)"),
+    ] = None,
+    drafts: DraftsOpt = Path("drafts"),
+    anchors: AnchorsOpt = Path("anchors"),
+    network: NetworkOpt = "base-sepolia",
+    rpc_url: RpcOpt = None,
+    account: AccountOpt = None,
+) -> None:
+    """Anchor the image sha256s of PROJECT's posted teasers that no earlier anchor holds (COMMITTER_ROLE).
+
+    Each leaf's value is the 32-byte sha256 of a posted teaser's PNG (the reviewed image, byte
+    for byte), hashed as any `anchor` leaf is. The tree is written before the transaction is
+    sent; the anchor (epoch, root, leaves, tx, tree path) is then recorded in
+    <anchors>/<project>/anchors.json.
+    """
+    from argus_mint.cards import DraftStore
+    from argus_mint.posting import AnchorError, AnchorRecord, AnchorStore, anchor_leaves, leaf_value, teaser_drafts
+
+    store = AnchorStore(anchors)
+    try:
+        done = store.load(project)
+        leaves = anchor_leaves(teaser_drafts(DraftStore(drafts), project), done)
+    except (AnchorError, DraftError) as e:
+        raise _fail(str(e)) from e
+    if not leaves:
+        raise _fail(f"project {project} has no posted teaser that isn't anchored already")
+    tree = merkle.build([leaf_value(x) for x in leaves])
+    tree_out = (tree_out or store.default_tree(project, epoch)).resolve()
+    out = _anchor_tree(tree, ledger, epoch, tree_out, network, rpc_url, account)
+    from datetime import UTC, datetime
+
+    record = AnchorRecord(
+        epoch=epoch, root=out["root"], count=out["count"], leaves=tuple(leaves), tree=str(tree_out),
+        network=out["network"], chain_id=out["chain_id"], ledger=out["ledger"], tx=out["tx"], block=out["block"],
+        sender=out["from"], anchored_at=datetime.now(UTC),
+    )  # fmt: skip
+    try:
+        store.add(project, record)
+    except (AnchorError, OSError) as e:  # the root landed: say so, and what to keep
+        raise _fail(f"anchored ({out['tx']}) but the record couldn't be written: {e}; the tree is {tree_out}") from e
+    typer.echo(json.dumps(out | {"project": project, "leaves": [x.model_dump() for x in leaves]}, indent=2))
+
+
+@app.command("export")
+def export_cmd(
+    project: Annotated[str, typer.Argument(help="Project id")],
+    out: Annotated[Path, typer.Option(help="Directory for T<n>.png and T<n>.json")],
+    drafts: DraftsOpt = Path("drafts"),
+    anchors: AnchorsOpt = Path("anchors"),
+    backgrounds: Annotated[
+        Path | None, typer.Option(envvar="ARGUS_MINT_BACKGROUNDS_DIR", help="Backgrounds directory (adds their seeds)")
+    ] = None,
+) -> None:
+    """Write each approved teaser of PROJECT as T<n>.png (the reviewed bytes) and T<n>.json (its record).
+
+    The record: the draft, each linked file by id, version and hash, the background, the frame and
+    texts, the render (seeds, checkpoint, LoRAs, the inpainting input), the reviews, the posts and
+    the anchors holding the image (with its Merkle proof). For a number with several approved
+    drafts, the newest posted one is written, else the newest.
+    """
+    from argus_mint.backgrounds import BackgroundStore
+    from argus_mint.cards import DraftStore
+    from argus_mint.posting import AnchorError, AnchorStore, export_teasers, teaser_drafts
+
+    try:
+        summary = export_teasers(
+            teaser_drafts(DraftStore(drafts), project), AnchorStore(anchors).load(project), out,
+            BackgroundStore(backgrounds) if backgrounds else None,
+        )  # fmt: skip
+    except (AnchorError, DraftError) as e:
+        raise _fail(str(e)) from e
+    typer.echo(json.dumps({"project": project, "out": str(out), "teasers": summary}, indent=2))
 
 
 # --- the pre-rendered library: cards without a GPU ------------------------------------------

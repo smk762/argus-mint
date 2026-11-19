@@ -1,4 +1,4 @@
-"""`submit`, `freeze` and `anchor` against a live anvil node, signing from a Foundry-style keystore."""
+"""`submit`, `freeze`, `anchor` and `teasers anchor` against a live anvil node, signing from a Foundry-style keystore."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from argus_mint.cli import app
 from argus_mint.keys import KEY_ENV, PASSWORD_FILE_ENV
 
 from .conftest import ANVIL_KEY0
+from .test_teasers import world  # noqa: F401 - a fixture
 
 pytestmark = pytest.mark.anvil
 runner = CliRunner()
@@ -53,7 +54,15 @@ def _voucher(tmp_path, template_doc, card, to, asset="unit-17"):
     )
     assert result.exit_code == 0, result.output
     out = json.loads(result.stdout)
-    out["dry_run"] = False  # stand-in for a live render; the chain doesn't care about the art
+    # Stand-in for a live publish (the chain doesn't care about the art): a dry run signs with a
+    # throwaway key, so sign the voucher again with anvil account 0, as a live run would.
+    from argus_mint.vouchers import Domain, MintVoucher, sign
+
+    domain = Domain(chain_id=out["typed_data"]["domain"]["chainId"], verifying_contract=card)
+    out["signature"] = (
+        "0x" + sign(MintVoucher.model_validate(out["voucher"]), domain, Account.from_key(ANVIL_KEY0)).hex()
+    )
+    out["dry_run"] = False
     voucher = tmp_path / f"{asset}.json"
     voucher.write_text(json.dumps(out))
     return voucher
@@ -64,14 +73,18 @@ def test_submit_and_freeze(w3, deploy, anvil_url, ops, tmp_path, template_doc):
     card = deploy("Card", "Cards", "CARD", "", admin, admin, admin, admin, 0)
     voucher = _voucher(tmp_path, template_doc, card.address, player)
 
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 0, result.output
     out = json.loads(result.stdout)
     assert out["token_id"] == 1 and out["from"] == admin and out["to"] == player
     assert card.functions.ownerOf(1).call() == player
     assert out["metadata_uri"].startswith("ipfs://")
 
-    again = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    again = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert again.exit_code == 1 and "already minted as token 1" in again.output
 
     freeze = ["freeze", "--card", card.address, "--token-id", "1", "--uri", CID, *_chain_args(anvil_url, ops)]
@@ -88,18 +101,24 @@ def test_submit_refuses_dry_runs_wrong_chain_and_bad_signers(w3, deploy, anvil_u
     card = deploy("Card", "Cards", "CARD", "", admin, outsider.address, admin, admin, 0)  # admin can't sign
     voucher = _voucher(tmp_path, template_doc, card.address, w3.eth.accounts[3])
 
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 1 and "does not hold SIGNER_ROLE" in result.output
 
     dry = json.loads(voucher.read_text()) | {"dry_run": True}
     voucher.write_text(json.dumps(dry))
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 1 and "dry run" in result.output
 
     other_chain = json.loads(voucher.read_text()) | {"dry_run": False}
     other_chain["typed_data"]["domain"]["chainId"] = 84532
     voucher.write_text(json.dumps(other_chain))
-    result = runner.invoke(app, ["submit", str(voucher), *_chain_args(anvil_url, ops)], env=ops["env"])
+    result = runner.invoke(
+        app, ["submit", str(voucher), "--card", card.address, *_chain_args(anvil_url, ops)], env=ops["env"]
+    )
     assert result.exit_code == 1 and "chain 84532" in result.output
 
 
@@ -141,3 +160,52 @@ def test_chain_commands_need_an_account(deploy, anvil_url, ops):
     result = runner.invoke(app, [*args, "--rpc-url", anvil_url], env={KEY_ENV: "", "ARGUS_MINT_ACCOUNT": ""})
     assert result.exit_code == 2
     assert "needs a sending account" in result.output
+
+
+def test_teasers_anchor_takes_each_batch_of_posted_teasers(w3, deploy, anvil_url, ops, tmp_path, world):  # noqa: F811
+    """`teasers anchor`: the posted teasers' image sha256s, tree written first, the anchor recorded."""
+    from datetime import UTC, datetime
+
+    from argus_mint.cards import DraftStore, Post, review
+    from argus_mint.ledger import LedgerClient
+    from argus_mint.posting import AnchorStore
+
+    from .test_teasers import PID, Stub, _make, choose, rendered_background
+
+    root, frames, store = world
+    drafts = DraftStore(tmp_path / "drafts")
+    shas = []
+    for number, scene in (("T1", "lamp-room"), ("T2", "shoreline")):
+        bg, _ = rendered_background(store, root, scene)
+        choose(root, number, bg.id)
+        made = _make(root, frames, store, number, renderer=Stub())
+        d = review(review(made.draft, role="moderator", approve=True, by="m"), role="owner", approve=True, by="o")
+        drafts.save(number.lower() + "-draft", d, made.art, made.image)
+        shas.append(d.image_sha256)
+    post = Post(where="bluesky", at=datetime.now(UTC), sha256=shas[0], recorded_at=datetime.now(UTC), by="poster")
+    drafts.add_post("t1-draft", post)
+
+    ledger = deploy("Ledger", ops["address"], ops["address"])
+    where = ["--drafts", str(tmp_path / "drafts"), "--anchors", str(tmp_path / "anchors")]
+    args = ["teasers", "anchor", PID, "--ledger", ledger.address, "--epoch", "1", *where, *_chain_args(anvil_url, ops)]
+    result = runner.invoke(app, args, env=ops["env"])
+    assert result.exit_code == 0, result.output
+    out = json.loads(result.stdout)
+    (record,) = AnchorStore(tmp_path / "anchors").load(PID)
+    tree = merkle.load(json.loads((tmp_path / "anchors" / PID / "epoch-1-tree.json").read_text()))
+    assert record.tree == str((tmp_path / "anchors" / PID / "epoch-1-tree.json").resolve())
+    assert out["root"] == record.root == "0x" + tree.root.hex() and record.count == 1 and record.tx == out["tx"]
+    assert [x.sha256 for x in record.leaves] == [shas[0]]
+    client = LedgerClient(w3, ledger.address)
+    assert client.root(1).root == tree.root and client.verify(1, bytes.fromhex(shas[0]), tree.proof(0))
+
+    again = runner.invoke(app, args, env=ops["env"])  # nothing new is posted
+    assert again.exit_code == 1 and "no posted teaser" in again.output
+
+    drafts.add_post("t2-draft", post.model_copy(update={"sha256": shas[1]}))
+    taken = runner.invoke(app, args, env=ops["env"])  # the next batch, on a used epoch
+    assert taken.exit_code == 1 and "already anchored" in taken.output
+    result = runner.invoke(app, [*args[:6], "2", *args[7:]], env=ops["env"])
+    assert result.exit_code == 0, result.output
+    second = AnchorStore(tmp_path / "anchors").load(PID)[1]
+    assert second.epoch == 2 and [x.sha256 for x in second.leaves] == [shas[1]]

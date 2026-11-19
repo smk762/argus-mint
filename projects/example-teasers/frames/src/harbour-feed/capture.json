@@ -1,0 +1,28 @@
+{
+  "html": "overlay.html",
+  "png": "../../harbour-feed-v1.png",
+  "yaml": "../../harbour-feed-v1.yaml",
+  "width": 1024,
+  "height": 1024,
+  "frame": {
+    "id": "example-teasers/harbour-feed",
+    "version": 1,
+    "window": {"x": 0, "y": 0, "width": 1024, "height": 1024},
+    "style_locked": true,
+    "effects": [
+      {"type": "barrel", "strength": 0.12},
+      {"type": "chromatic_aberration", "shift": 2},
+      {"type": "scanlines", "spacing": 4, "thickness": 1, "opacity": 0.18},
+      {"type": "noise", "amount": 0.06, "monochrome": true},
+      {"type": "vignette", "strength": 0.45, "start": 0.55}
+    ],
+    "texts": {
+      "quote": {"x": 72, "y": 700, "width": 880, "height": 220, "font": "fonts/CrimsonText-Italic.ttf",
+                "size": 46, "min_size": 24, "colour": "#ffffff", "wrap": true, "valign": "middle"},
+      "attribution": {"x": 72, "y": 930, "width": 880, "height": 52, "font": "fonts/CrimsonText-Regular.ttf",
+                      "size": 30, "min_size": 18, "colour": "#d6ecd6", "align": "right"},
+      "label": {"x": 712, "y": 46, "width": 200, "height": 32, "font": "fonts/CrimsonText-Regular.ttf",
+                "size": 22, "min_size": 14, "colour": "#ffffff"}
+    }
+  }
+}

@@ -173,7 +173,7 @@ class Template(BaseModel):
     @classmethod
     def _check_variables(cls, v: dict[str, tuple[str, ...]]) -> dict[str, tuple[str, ...]]:
         for name, values in v.items():
-            if not re.match(_VAR_PATTERN, name):
+            if not re.fullmatch(_VAR_PATTERN, name):
                 raise ValueError(f"variable name {name!r} must match {_VAR_PATTERN}")
             if not values:
                 raise ValueError(f"variable {name!r} has no allowed values")
@@ -202,6 +202,9 @@ class Template(BaseModel):
         names = [o.name for o in self.lora_options]
         if len(set(names)) != len(names):
             raise ValueError("a LoRA option appears twice")
+        always = {x.name for x in self.loras} & set(names)
+        if always:
+            raise ValueError(f"LoRA option(s) {sorted(always)} are already applied by the template's own loras")
         allowed = (self.model, *self.models)
         for o in self.lora_options:
             stray = [m for m in o.models if m not in allowed]
@@ -269,7 +272,7 @@ class Template(BaseModel):
                 raise TemplateError(f"LoRA {c.name!r} allows weights {list(option.weights)}, not {weight}")
             if option.models and model not in option.models:
                 raise TemplateError(f"LoRA {c.name!r} doesn't pair with {model}")
-            if any(p.name == c.name for p in picked):
+            if any(p.name == c.name for p in (*self.loras, *picked)):
                 raise TemplateError(f"LoRA {c.name!r} chosen twice")
             picked.append(LoraRef(name=option.name, weight=weight, trigger_words=option.trigger_words))
         return (*self.loras, *picked)
@@ -279,8 +282,27 @@ class Template(BaseModel):
         return (self.model, *(m for m in self.models if m != self.model))
 
 
+class InitImageRef(BaseModel):
+    """An inpainting (or image-to-image) input, by hash: the bytes travel beside the request.
+
+    ``sha256`` is of the image bytes sent and ``mask_sha256`` of the mask's (white repaints,
+    black keeps); darkroom's record names both as ``source_sha256``, and the client checks them.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    mask_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    denoise: float = Field(ge=0.05, le=1.0)  # darkroom's range
+
+
 class RenderRequest(BaseModel):
-    """Everything a renderer needs, fully determined by template version + values + seed."""
+    """Everything a renderer needs, fully determined by template version + values + seed.
+
+    A teaser's renders are not of a template: a background's ``template_*`` name its scene, and
+    an inpainted figure's name its identity (each file's id, version and hash). ``init_image``
+    is set only for an inpainted figure.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -296,6 +318,7 @@ class RenderRequest(BaseModel):
     negative: str
     variables: dict[str, str]
     seed: int = Field(ge=0, le=SEED_MAX)
+    init_image: InitImageRef | None = None
 
 
 def load_template(path: Path) -> Template:

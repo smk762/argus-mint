@@ -10,6 +10,7 @@ The request and response shapes are pinned in [schema/mint-wire.schema.json](htt
 |---|---|
 | anyone | reads, the frame layout and preview, owner challenges |
 | **moderator** | `Authorization: Bearer <ARGUS_MINT_MODERATOR_TOKEN>`. 403 if the server has no token set, 401 if it's wrong |
+| **poster** | `Authorization: Bearer <ARGUS_MINT_POSTER_TOKEN>` (argus-herald's). Accepted by `POST /drafts/{id}/posted` only, where the moderator token works too; every other route refuses it (401). It must differ from the moderator token |
 | **owner** | a signed EIP-4361 challenge from the wallet the card is minted to (`message` + `signature` in the body). See [review.md](review.md) |
 
 Writes from a browser origin the server wasn't told about (`ARGUS_MINT_CORS_ORIGINS`) are refused, and with `ARGUS_MINT_READ_ONLY` every write is. Server-to-server calls send no `Origin` and are allowed.
@@ -48,6 +49,12 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 | `library` | a pre-rendered library is served |
 | `check_templates` | a darkroom is configured to check templates against |
 | `auto_moderate` | auto-moderation is on |
+| `author_catalogue` | moderator token set, projects directory writable, not read-only |
+| `backgrounds` | moderator token and darkroom, not read-only |
+| `teasers` | moderator token set, not read-only (painting an embodied identity in also needs darkroom) |
+| `post` | a poster or moderator token set, not read-only |
+| `identity_training` | moderator token, darkroom, curator, lens, forge and proof, the shared exports and LoRA directories, not read-only |
+| `identity_check` | proof configured, not read-only: an embodied identity's teasers are scored against its references |
 
 ## Catalogue
 
@@ -64,6 +71,38 @@ See [catalogue.md](catalogue.md).
 | `POST /frames/{id}/{version}/review` | moderator | the same, for a frame |
 | `POST /bios/{id}/{version}/review` | moderator | the same, for a bio template |
 
+## Teaser projects
+
+See [projects.md](projects.md): `GET /projects`, `GET /projects/{id}`, `POST /projects/{id}/files/{kind}/{item}/{version}` (save a draft, teaser links included), and `POST /projects/{id}/files/{kind}/{item}/{version}/review`. Writes need the moderator token.
+
+Backgrounds and teaser drafts ([projects.md](projects.md#backgrounds)):
+
+| Endpoint | Auth | |
+|---|---|---|
+| `POST /projects/{id}/scenes/{scene}/{version}/backgrounds` | moderator | render the scene's backgrounds that have no image yet, as a job (202): the set, with its `job` |
+| `GET /projects/{id}/backgrounds` | | `{sets}`: every scene version's set |
+| `GET /projects/{id}/scenes/{scene}/{version}/backgrounds` | | one set: `{project, scene, scene_version, scene_hash, wanted, backgrounds, failed, job}` |
+| `GET /projects/{id}/backgrounds/{bg}/image` | | the background's PNG |
+| `POST /projects/{id}/backgrounds/{bg}/review` | moderator | `{decision: "approve" \| "reject", by, note}`; once per background |
+| `POST /projects/{id}/teasers/{n}/draft` | moderator | `{to}`: a teaser draft from `T<n>` (201, `{id, status, awaiting, draft}`), reviewed like any draft; its identity check is in `draft.auto_check.identity` |
+| `POST /drafts/{id}/identity-check` | moderator | run a pending teaser's [identity check](projects.md#the-identity-check) again (proof was down, say): `{id, status, awaiting, draft}`. 409 for a card, or a teaser that is decided or published |
+| `GET /projects/{id}/tracker` | | `{project, links_version, teasers}`: per teaser, its `stages` (`quote_final`, `concept_chosen`, `image_made`, `posted`, `minted`), `background` and `drafts` |
+
+Training an embodied identity's LoRA ([projects.md](projects.md#training-an-identity)):
+
+| Endpoint | Auth | |
+|---|---|---|
+| `GET /projects/{id}/identities/{identity}/{version}/training` | | `{project, identity, version, steps, next, record}`: each step's status (`not_started`, `queued`, `running`, `done`, `failed`), the one step that may start now (`next`, or `null`), and the record (`null` before the first step) |
+| `POST /projects/{id}/identities/{identity}/{version}/training/{step}` | moderator | start one step as a job (202), `step` one of `candidates`, `select`, `caption`, `train`, `evaluate`, `pin`. 409 unless the step before it is done, nothing of this training is queued or running, and the step isn't done; 503 when training isn't set up |
+| `GET /projects/{id}/identities/{identity}/{version}/training/candidates/{n}` | | candidate `n`'s PNG |
+
+Posting ([projects.md](projects.md#posting)):
+
+| Endpoint | Auth | |
+|---|---|---|
+| `GET /posts/ready` | | `{items, total}`: approved teaser drafts, newest first; each `{id, project, title, number, status, current, created_at, approved_at, image_url, image_sha256, alt, quote, attribution, label, posted, posts}`. `?project=`, `?limit=`, `?offset=` |
+| `POST /drafts/{id}/posted` | poster or moderator | `{where, url, at, sha256}`: 201 `{id, image_sha256, posts}` (200 for a post already recorded). 409 when `sha256` isn't the draft's image, or the draft isn't an approved teaser |
+
 ## Library
 
 | Endpoint | Auth | |
@@ -78,14 +117,14 @@ See [drafts.md](drafts.md) and [review.md](review.md).
 | Endpoint | Auth | |
 |---|---|---|
 | `GET /drafts` | | `{items, total}`, newest first. `?status=pending\|approved\|rejected\|published`, `?limit=` (1–200, default 50), `?offset=` |
-| `GET /drafts/{id}` | | `{id, status, awaiting, draft, published}` |
+| `GET /drafts/{id}` | | `{id, status, awaiting, draft, published, posts}`. `draft.kind` is `card` or `teaser` |
 | `GET /drafts/{id}/image` | | the card image the reviewers approve (PNG) |
 | `GET /drafts/{id}/art` | | the unframed render (PNG) |
 | `POST /drafts` | moderator | make a draft (201) |
 | `POST /drafts/{id}/challenge` | | the sign-in message for the owner's wallet |
 | `POST /drafts/{id}/review` | moderator or owner | record a decision |
 | `POST /drafts/{id}/edit` | owner | change text or style; the card is redrawn and reviewed again |
-| `POST /drafts/{id}/publish` | moderator | pin and sign an approved draft |
+| `POST /drafts/{id}/publish` | moderator | pin and sign an approved draft, a card or a teaser |
 
 ### `POST /drafts`
 

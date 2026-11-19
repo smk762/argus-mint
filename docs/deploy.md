@@ -142,10 +142,10 @@ Sourcify is the default. Blockscout (`base-sepolia.blockscout.com`, `base.blocks
    argus-mint publish drafts/demo-1 --network base-sepolia --card <CARD> \
      --ipfs-api http://127.0.0.1:5001 > demo-1.json
 
-   argus-mint submit demo-1.json               # sends the voucher; prints the token id
+   argus-mint submit demo-1.json --card <CARD>   # sends the voucher; prints the token id
    argus-mint freeze --card <CARD> --token-id 1 --uri <metadata_cid from demo-1.json>   # METADATA_ROLE
    ```
-   `submit` checks first what the contract would refuse: a signer without the role, an asset already minted, an expired voucher, or the wrong chain. Those cost no gas. Any account may submit; in production that's the player's wallet.
+   `submit` refuses a voucher for any contract but `--card` (or `$ARGUS_MINT_CARD`), then checks what the contract would refuse: a signer without the role, an asset already minted, an expired voucher, or the wrong chain. Those cost no gas. Any account may submit; in production that's the player's wallet.
 4. Anchor a Merkle root. The leaves are 32-byte record hashes, one per line:
    ```bash
    argus-mint anchor leaves.txt --ledger <LEDGER> --epoch 1 --tree epoch-1.json   # COMMITTER_ROLE
@@ -220,3 +220,15 @@ Set these in `.env` (compose passes them to the `mint` service; the image ships 
 | `ARGUS_GPU_BROKER_FALLBACK` | `none` or `lease`: what to use when the broker can't be reached. Cortex defaults to `lease` (a local lock); mint's host usually has no GPU of its own, so `none` is the usual choice |
 
 The client fails open: if the broker can't be reached (or has no lease routes yet, a `404`), the fallback is used and the bio is written anyway. A refused or timed-out lease fails the bio like any writer error, and the draft request reports it.
+
+## 8. Posting through argus-herald (optional)
+
+argus-herald posts approved teasers from a laptop: it polls `GET /posts/ready` and reports each post back with `POST /drafts/{id}/posted` ([projects.md](projects.md#posting)). Give it its own token, not the moderator's:
+
+| Variable | Value |
+|---|---|
+| `ARGUS_MINT_POSTER_TOKEN` | a long random string, set in mint's `.env` and in herald's config. It records posts and does nothing else; the server refuses to start when it equals `ARGUS_MINT_MODERATOR_TOKEN` |
+| `ARGUS_MINT_ANCHORS_DIR` | where `argus-mint teasers anchor` keeps each project's anchors and trees (default `anchors`), outside any repository. Back it up with the drafts: a root on-chain is only useful with its tree |
+
+Herald reaches mint server to server (no `Origin`), so CORS doesn't apply. If mint is only on localhost, reach it over an SSH tunnel or the tailnet, as for the Kubo RPC above.
+

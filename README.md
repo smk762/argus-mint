@@ -123,7 +123,7 @@ argus-mint publish drafts/unit-17 --card 0x… --ipfs-api http://127.0.0.1:5001 
 On-chain, each step signs with a Foundry keystore account (`--account` / `$ARGUS_MINT_ACCOUNT`) or `$ARGUS_MINT_SIGNER_KEY`:
 
 ```bash
-argus-mint submit unit-17.json                                        # send the voucher to Card.mint
+argus-mint submit unit-17.json --card 0x…                             # send the voucher to Card.mint
 argus-mint freeze --card 0x… --token-id 1 --uri <metadata cid>        # fix tokenURI at ipfs://…
 argus-mint anchor leaves.txt --ledger 0x… --epoch 1 --tree epoch-1.json   # Merkle root into the Ledger
 ```
@@ -150,7 +150,8 @@ argus-mint serve --host 127.0.0.1 --port 8108 --cors http://localhost:3108   # d
 | `POST /drafts` | render, write the bio, frame: a new pending draft (moderator token) |
 | `POST /drafts/{id}/challenge` | the sign-in message the owner's wallet signs: `{action: "review", approve}` to approve or reject, or `{action: "edit", edit: {name?, bio?, texts?, style?}}` for an edit. An edit's message covers the sha256 of exactly that edit |
 | `POST /drafts/{id}/review` | moderator by token, owner by signed challenge |
-| `POST /drafts/{id}/publish` | pin and sign an approved draft (moderator token) |
+| `POST /drafts/{id}/publish` | pin and sign an approved draft, a card or a teaser (moderator token) |
+| `GET /posts/ready`, `POST /drafts/{id}/posted` | approved teasers to post, and recording a post (poster or moderator token), [docs/projects.md](docs/projects.md#posting) |
 | `POST /drafts/{id}/edit` | the owner changes the card's text or style, with the signed edit challenge (`message`, `signature`) and the same `name`, `bio`, `texts` and `style` it was issued for; any difference is refused. Works on a rejected draft too, not on a published one. The card is redrawn on the same art and needs both approvals again. The moderator only approves or rejects |
 | `POST /frames/{id}/{version}/layout`, `GET /frames/{id}/{version}/fonts/…` | where each line of text goes, and the frame's fonts, so a browser can preview a restyled card as SVG before it is baked |
 | `GET /library`, `GET /library/{id}/image[?thumb=w]` | pre-rendered portraits; `POST /drafts` with `library: <id>` makes a card from one without a GPU |
@@ -182,6 +183,7 @@ An entry can make a card only if the approved template renders exactly the reque
 **Auto-moderation** (`ARGUS_MINT_AUTO_MODERATE=1`, off by default): the platform gates on safety, the owner on quality.
 - **When it approves:** if darkroom's image guards passed the art, its text check passed the bio, and the name and display text pass a word filter, the moderator's approval is recorded as `auto: platform checks`.
 - **When it holds:** anything else waits for a human moderator, with the reason in `auto_check.held`.
+- **A teaser** of an embodied identity also needs argus-proof to score its figure at least the identity's `min_score` ([the identity check](docs/projects.md#the-identity-check)). Below it, or with proof down, it is held.
 - **The word filter:** better-profanity's list, which catches letter swaps, plus your own terms in `ARGUS_MINT_BLOCKLIST`, one per line.
 - **The owner** always reviews.
 
@@ -194,12 +196,13 @@ Any colours are allowed; if the owner wants black on black, so be it. A frame ca
 The browser previews a restyle as SVG from `/layout` and the fonts, using the same tint matrix as the server. argus-mint bakes the PNG when the owner confirms, and that PNG is what gets reviewed and published. Provenance records the style, so the card can be redrawn exactly. Edited text never reaches a model, so an edited bio goes through the word filter rather than darkroom.
 
 **Configuration** is `ARGUS_MINT_*` (see [.env.example](.env.example)):
-- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`.
+- **Files:** `DRAFTS_DIR`, `SAMPLES_DIR`, `LIBRARY_DIR`, `TEMPLATES_DIR`, `FRAMES_DIR`, `BIOS_DIR`, `PROJECTS_DIR` (teaser projects, [docs/projects.md](docs/projects.md)), `BACKGROUNDS_DIR` (their rendered scene backgrounds), `ANCHORS_DIR` (each project's anchors of posted teasers, for `argus-mint teasers anchor` and `export`), `TRAINING_DIR` (identity training records and candidates).
 - **Backends:** `DARKROOM_URL`, `POLICY` (darkroom's enforcing policy, default `default`, the SFW one), `WRITER_URL`, `WRITER_KEY` (its bearer token), `IPFS_API`.
+- **Identity training** ([docs/projects.md](docs/projects.md#training-an-identity)): `CURATOR_URL`, `LENS_URL`, `FORGE_URL`, `PROOF_URL`, plus `TRAINING_EXPORTS_DIR` (the exports volume curator, forge and proof share, as argus-mint sees it) and `LORAS_DIR` (the LoRA directory darkroom and proof load from). All six set, with darkroom and the moderator token, turn on `capabilities.identity_training`. `PROOF_URL` alone turns on `capabilities.identity_check`: each embodied teaser is scored against its identity's references.
 - **Signing:** `ACCOUNT` plus `KEYSTORE_PASSWORD_FILE`, or `SIGNER_KEY`. Keystores are looked up in `KEYSTORE_DIR` (default `~/.foundry/keystores`).
 - **Chain and metadata:** `NETWORK`, `CARD`, `CONSUMER` (the consumer named in card metadata, default `argus-mint`), `VOUCHER_TTL` (seconds a signed voucher stays valid, default 3600).
-- **Access:** `MODERATOR_TOKEN`, `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.
-- **Moderation:** `AUTO_MODERATE`, `BLOCKLIST` (above).
+- **Access:** `MODERATOR_TOKEN`, `POSTER_TOKEN` (argus-herald's: records posts of approved teasers and nothing else), `SIWE_DOMAIN` (the UI's host, as wallets show it), `SIWE_URI` (the URI in the sign-in message, default `https://<SIWE_DOMAIN>`), `CORS_ORIGINS`, `READ_ONLY`.
+- **Moderation:** `AUTO_MODERATE`, `BLOCKLIST` (above), `SPOILERS` (the private spoiler list for teaser projects, outside any repository), `CONSENT_DIR` (argus-cortex consent records for identity references showing a real person, by release sha256; private, never served).
 
 Like the other suite services, it binds to localhost and refuses writes from browser origins it wasn't told about.
 

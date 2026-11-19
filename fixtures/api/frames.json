@@ -4,6 +4,7 @@
     "file": "card-green-v1.yaml",
     "width": 969,
     "height": 1352,
+    "project": null,
     "frame": {
       "id": "card-green",
       "version": 1,
@@ -75,7 +76,8 @@
           "line_spacing": 1.15
         }
       },
-      "style_locked": false
+      "style_locked": false,
+      "effects": []
     }
   },
   {
@@ -83,6 +85,7 @@
     "file": "example-plain-v1.yaml",
     "width": 1000,
     "height": 1400,
+    "project": null,
     "frame": {
       "id": "example-plain",
       "version": 1,
@@ -112,7 +115,8 @@
           "line_spacing": 1.15
         }
       },
-      "style_locked": false
+      "style_locked": false,
+      "effects": []
     }
   }
 ]

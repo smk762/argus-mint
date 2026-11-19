@@ -1,0 +1,27 @@
+# Captured by scripts/capture_frame.py; to rebuild the overlay:
+#   uv run --with playwright python scripts/capture_frame.py src/harbour-feed/capture.json
+# (paths here are relative to this file). Not part of the frame's hash: the overlay's bytes are.
+# capture.html: src/harbour-feed/overlay.html
+# capture.html_sha256: 4a0451646a082c830e9894cc0aeda70996d8ba1b00737774586e2d9e20f9de61
+# capture.source: fonts/CrimsonText-Regular.ttf sha256 48e6c5d5ad1d01599d374ecb817e15890d1feb3b8a3a88e527d44c90389e1f06
+# capture.source: src/harbour-feed/overlay.css sha256 0173f5b51f45e1a624fd9b7530834c8e7b7ac9f916a719b44b8968259180b6bc
+# capture.source: src/harbour-feed/overlay.html sha256 4a0451646a082c830e9894cc0aeda70996d8ba1b00737774586e2d9e20f9de61
+# capture.kit: none (the page's own CSS)
+# capture.chromium: 158.0.8127.18
+# capture.playwright: 1.65.1
+id: example-teasers/harbour-feed
+version: 1
+status: draft
+overlay: harbour-feed-v1.png
+window: {x: 0, y: 0, width: 1024, height: 1024}
+style_locked: true
+effects:
+  - {type: barrel, strength: 0.12}
+  - {type: chromatic_aberration, shift: 2}
+  - {type: scanlines, spacing: 4, thickness: 1, opacity: 0.18}
+  - {type: noise, amount: 0.06, monochrome: true}
+  - {type: vignette, strength: 0.45, start: 0.55}
+texts:
+  quote: {x: 72, y: 700, width: 880, height: 220, font: fonts/CrimsonText-Italic.ttf, size: 46, min_size: 24, colour: '#ffffff', wrap: true, valign: middle}
+  attribution: {x: 72, y: 930, width: 880, height: 52, font: fonts/CrimsonText-Regular.ttf, size: 30, min_size: 18, colour: '#d6ecd6', align: right}
+  label: {x: 712, y: 46, width: 200, height: 32, font: fonts/CrimsonText-Regular.ttf, size: 22, min_size: 14, colour: '#ffffff'}

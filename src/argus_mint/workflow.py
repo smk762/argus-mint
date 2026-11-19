@@ -16,7 +16,7 @@ from eth_account.signers.local import LocalAccount
 import argus_mint
 from argus_mint._codec import hex0x
 from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
-from argus_mint.cards import BioRecord, CardDraft, check_publishable, sha256_hex
+from argus_mint.cards import BioRecord, CardDraft, DraftError, check_publishable, sha256_hex
 from argus_mint.frames import FrameError, LoadedFrame, check_style, compose, require_approved
 from argus_mint.library import LibraryEntry, LibraryError, check_entry
 from argus_mint.metadata import CardStyle, card_metadata, content_hash
@@ -123,6 +123,8 @@ def create_draft(
         check_style(frame, style)
     if (image is None) == (renderer is None):
         raise ValueError("give exactly one of renderer or image (a library entry comes with its image)")
+    if library is not None and image is None:
+        raise ValueError("a library entry needs its image, not a renderer")
     if library is not None and loras:
         raise ValueError("a library entry was rendered without chosen LoRAs; render instead")
     if library is not None and model not in (None, library.model):
@@ -132,7 +134,6 @@ def create_draft(
     if bio is not None:
         check_bio(bio, values, template)
     if library is not None:
-        assert image is not None
         if sha256_hex(image) != library.sha256:
             raise LibraryError(f"library image {library.id} differs from the one rendered")
         if values != library.variables:
@@ -194,24 +195,48 @@ def publish(
     ttl: int = 3600,
 ) -> dict[str, Any]:
     """Pin an approved draft, build its metadata and sign the voucher. Raises ``DraftError``/``NotApproved``
-    (before anything leaves the machine) or ``PinError``."""
+    (before anything leaves the machine) or ``PinError``.
+
+    Optional for either kind: a draft can be posted, published, both or neither. The kind decides
+    the metadata: a card's provenance (:meth:`CardDraft.provenance`), or a teaser's
+    (:meth:`CardDraft.teaser_provenance`, described by its alt text, with its derived asset id).
+    """
+    if draft.kind == "teaser" and (draft.teaser is None or draft.frame is None):  # pragma: no cover - the model refuses
+        raise DraftError("a teaser draft needs its teaser record and frame")
+    if draft.kind == "card" and draft.asset_id is None:  # pragma: no cover - the model refuses
+        raise DraftError("a card draft needs its asset_id")
     check_publishable(draft, art, image)
     req = draft.request
-    stem = f"{req.template_id}-v{req.template_version}-{req.seed}"
-    art_cid = pinner.pin_bytes(art, f"{stem}-art.png") if draft.frame is not None else None
-    image_cid = pinner.pin_bytes(image, f"{stem}.png")
-    doc = card_metadata(
-        name=draft.name,
-        description=draft.description,
-        image_cid=image_cid,
-        external_url=draft.external_url,
-        attributes=[],
-        provenance=draft.provenance(art_cid),
-    )
-    metadata_cid = pinner.pin_json(doc, f"{req.template_id}-metadata.json")
+    if draft.kind == "teaser":
+        t = draft.teaser
+        assert t is not None
+        stem = f"{t.project.id}-{t.number}-{draft.image_sha256[:12]}"
+        art_cid = pinner.pin_bytes(art, f"{stem}-art.png")
+        image_cid = pinner.pin_bytes(image, f"{stem}.png")
+        doc = card_metadata(
+            name=draft.name,
+            description=draft.description or t.alt,
+            image_cid=image_cid,
+            external_url=draft.external_url,
+            attributes=[],
+            provenance=draft.teaser_provenance(art_cid),
+        )
+    else:
+        stem = f"{req.template_id}-v{req.template_version}-{req.seed}"
+        art_cid = pinner.pin_bytes(art, f"{stem}-art.png") if draft.frame is not None else None
+        image_cid = pinner.pin_bytes(image, f"{stem}.png")
+        doc = card_metadata(
+            name=draft.name,
+            description=draft.description,
+            image_cid=image_cid,
+            external_url=draft.external_url,
+            attributes=[],
+            provenance=draft.provenance(art_cid),
+        )
+    metadata_cid = pinner.pin_json(doc, f"{stem}-metadata.json")
     voucher = MintVoucher(
         to=draft.to,
-        asset_id=draft.asset_id,
+        asset_id=draft.mint_asset_id(),
         content_hash=content_hash(doc),
         price=price,
         deadline=deadline if deadline is not None else int(time.time()) + ttl,
@@ -306,8 +331,10 @@ def edit_text(
     The new image needs both approvals again; the old reviews stay as history. Hand-written
     text never goes to a model (hard rule 1).
     """
-    from argus_mint.cards import DraftError, Edit
+    from argus_mint.cards import Edit
 
+    if draft.kind == "teaser":
+        raise DraftError("a teaser's text is its reviewed line and project: save a new version of those instead")
     if draft.frame is None:
         raise DraftError("only a framed card has text to edit")
     if frame.ref().hash != draft.frame.hash:

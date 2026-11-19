@@ -89,6 +89,14 @@ jobs:
         working-directory: verifier
       - run: npm test
         working-directory: verifier
+      # tests/fixtures/merkle.json must be the reference library's output, never edited or
+      # regenerated some other way to make a test pass: rebuild it and fail on any difference.
+      - name: merkle.json is the reference library's output
+        working-directory: scripts/fixtures
+        run: |
+          npm ci
+          node merkle.mjs ../../tests/fixtures/merkle.json
+          git diff --exit-code -- ../../tests/fixtures/merkle.json
 
   build:
     runs-on: ubuntu-latest
@@ -106,3 +114,8 @@ jobs:
           name: dist
           path: dist/
           retention-days: 14
+
+  suite-rules:
+    # argus-ci suite rules: lint rules that each eliminate a finding class. New violations fail;
+    # existing ones are in .suite-rules-baseline.json, which may only shrink.
+    uses: smk762/argus-ci/.github/workflows/suite-rules.yml@v1

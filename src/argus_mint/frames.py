@@ -13,6 +13,13 @@ Frames are reviewed like templates (hard rule 2): ``draft | approved | retired``
 ``argus-mint sample`` for review. A frame's :meth:`LoadedFrame.hash` covers its YAML (minus
 ``status``) and the bytes of its overlay and fonts, and is recorded in the card's provenance.
 
+A teaser project may keep its own frames, in ``<projects>/<project>/frames/``. Their ids are
+scoped by the project, ``<project>/<name>`` (e.g. ``example-teasers/harbour-feed``), and that is
+how they are referenced, served and recorded: a global frame's id has no ``/``, so the two never
+collide, and since the id is part of the hash a project's frame hashes as that project's. Where a
+file lives decides its scope (:func:`frame_scope`): :func:`load_frame` refuses a scoped id in the
+global directory, and an id in a project's directory that isn't scoped by that project.
+
 Compositing needs Pillow (the ``frames`` extra). Apart from reading the frame's files this
 module does no I/O.
 """
@@ -23,16 +30,18 @@ import hashlib
 import io
 from dataclasses import dataclass, field
 from datetime import date
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from argus_mint._codec import canonical, keccak256
+from argus_mint.frame_effects import MAX_EFFECTS, Effect, apply_effects, check_window
 from argus_mint.metadata import CardStyle, FrameRef, SlotStyle, Tint
 
 __all__ = [
+    "FRAME_ID_PATTERN",
     "Frame",
     "FrameError",
     "LoadedFrame",
@@ -44,12 +53,32 @@ __all__ = [
     "fit_text",
     "layout",
     "tint_matrix",
+    "frame_files_of",
+    "frame_scope",
     "load_frame",
+    "project_frame_files",
     "require_approved",
 ]
 
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
+_NAME = r"[a-z0-9][a-z0-9-]{0,63}"
+# A global frame's id, or a project's frame: ``<project>/<name>``.
+FRAME_ID_PATTERN = rf"^(?:{_NAME}/)?{_NAME}$"
 _SLOT_PATTERN = r"^[a-z][a-z0-9_]{0,31}$"
+MAX_ART_PIXELS = 8192 * 8192  # a template's largest render (templates.Template width/height)
+
+
+def _inside_path(v: str | None) -> str | None:
+    """A file path relative to the frame file that stays in its directory: no absolute path, drive,
+    backslash or ``..`` (the frame's files are read, hashed and served back)."""
+    if v is None:
+        return v
+    p = PurePosixPath(v)
+    if not p.parts or "\\" in v or p.is_absolute() or ".." in p.parts or ":" in p.parts[0]:
+        raise ValueError(f"{v!r} must be a path inside the frame's directory (relative, no '..')")
+    return v
+
+
 _COLOUR_PATTERN = r"^#[0-9a-fA-F]{6}$"
 ELLIPSIS = "…"
 
@@ -87,6 +116,8 @@ class TextSlot(Rect):
     wrap: bool = False
     line_spacing: float = Field(default=1.15, ge=0.8, le=3.0)
 
+    _font_inside = field_validator("font")(_inside_path)
+
     @model_validator(mode="after")
     def _sizes(self) -> TextSlot:
         if self.min_size > self.size:
@@ -99,7 +130,7 @@ class Frame(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    id: str = Field(pattern=_ID_PATTERN)
+    id: str = Field(pattern=FRAME_ID_PATTERN)  # ``<project>/<name>`` for a project's frame
     version: int = Field(ge=1)
     status: Literal["draft", "approved", "retired"]
     approved_by: str | None = None
@@ -109,17 +140,26 @@ class Frame(BaseModel):
     # slot name -> box; "name" and "bio" are filled by argus-mint
     texts: dict[str, TextSlot] = Field(default_factory=dict)
     style_locked: bool = False  # true: owners can't restyle cards in this frame
+    # applied in order to the art inside the window, before the overlay (argus_mint.frame_effects)
+    effects: tuple[Effect, ...] = Field(default=(), max_length=MAX_EFFECTS)
+
+    _overlay_inside = field_validator("overlay")(_inside_path)
 
     @model_validator(mode="after")
     def _check(self) -> Frame:
         import re
 
         for slot in self.texts:
-            if not re.match(_SLOT_PATTERN, slot):
+            if not re.fullmatch(_SLOT_PATTERN, slot):
                 raise ValueError(f"text slot name {slot!r} must match {_SLOT_PATTERN}")
         if self.status != "draft" and (not self.approved_by or self.approved_at is None):
             raise ValueError(f"status {self.status!r} requires approved_by and approved_at (approval is a human step)")
         return self
+
+    @property
+    def project(self) -> str | None:
+        """The project whose frame this is, or None for a global frame."""
+        return self.id.split("/", 1)[0] if "/" in self.id else None
 
 
 @dataclass(frozen=True)
@@ -132,9 +172,14 @@ class LoadedFrame:
     fonts: dict[str, bytes] = field(default_factory=dict)  # by the path the frame names them with
 
     def hash(self) -> bytes:
-        """keccak256 of the canonical frame (minus ``status``) plus its files' sha256."""
+        """keccak256 of the canonical frame (minus ``status``) plus its files' sha256.
+
+        ``effects`` is left out while empty, so a frame without effects hashes as it did before
+        they existed."""
         doc: dict[str, Any] = {
-            "frame": self.frame.model_dump(mode="json", exclude={"status"}),
+            "frame": self.frame.model_dump(
+                mode="json", exclude={"status"} | ({"effects"} if not self.frame.effects else set())
+            ),
             "overlay_sha256": hashlib.sha256(self.overlay).hexdigest(),
             "fonts_sha256": {p: hashlib.sha256(b).hexdigest() for p, b in sorted(self.fonts.items())},
         }
@@ -153,8 +198,38 @@ def _pil() -> Any:
     return Image, ImageDraw, ImageFont
 
 
+def frame_scope(path: Path) -> str | None:
+    """The project a frame file belongs to, from where it lives: ``<project>/frames/<file>`` beside
+    that project's ``project.yaml``. None for any other file: a global frame."""
+    parent = Path(path).parent
+    if parent.name == "frames" and (parent.parent / "project.yaml").is_file():
+        return parent.parent.name
+    return None
+
+
+def project_frame_files(projects_dir: Path) -> list[Path]:
+    """Every project's frame files: ``<projects_dir>/<project>/frames/*.yaml`` (not nested)."""
+    projects_dir = Path(projects_dir)
+    if not projects_dir.is_dir():
+        return []
+    out: list[Path] = []
+    for d in sorted(p for p in projects_dir.iterdir() if p.is_dir() and (p / "project.yaml").is_file()):
+        out += frame_files_of(d)
+    return out
+
+
+def frame_files_of(project_root: Path) -> list[Path]:
+    """One project's frame files: ``<project_root>/frames/*.yaml`` (not nested)."""
+    fdir = Path(project_root) / "frames"
+    return sorted([*fdir.glob("*.yaml"), *fdir.glob("*.yml")]) if fdir.is_dir() else []
+
+
 def load_frame(path: Path) -> LoadedFrame:
-    """Load and validate a frame YAML file and the files it names."""
+    """Load and validate a frame YAML file and the files it names.
+
+    A frame in a project's ``frames/`` directory must be named ``<project>/<name>`` by that
+    project; any other frame must not be scoped (:func:`frame_scope`).
+    """
     path = Path(path)
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -166,9 +241,18 @@ def load_frame(path: Path) -> LoadedFrame:
         frame = Frame.model_validate(raw)
     except ValidationError as e:
         raise FrameError(f"{path}: {e}") from e
+    scope = frame_scope(path)
+    if scope is None and frame.project is not None:
+        raise FrameError(f"{path}: {frame.id} is a project's frame: it lives in <projects>/{frame.project}/frames/")
+    if scope is not None and frame.project != scope:
+        raise FrameError(f"{path}: a frame of project {scope} is named {scope}/<name>, not {frame.id!r}")
+
+    base = path.parent.resolve()
 
     def read(rel: str) -> bytes:
-        f = path.parent / rel
+        f = (base / rel).resolve()
+        if not f.is_relative_to(base):  # e.g. through a symlink
+            raise FrameError(f"{path}: {rel} lies outside the frame's directory")
         try:
             return f.read_bytes()
         except OSError as e:
@@ -193,6 +277,9 @@ def load_frame(path: Path) -> LoadedFrame:
     for label, rect in (("window", frame.window), *frame.texts.items()):
         if rect.x + rect.width > w or rect.y + rect.height > h:
             raise FrameError(f"{path}: {label} {rect.box()} lies outside the {w}x{h} overlay")
+    unusable = check_window(frame.effects, frame.window.width, frame.window.height)
+    if unusable:
+        raise FrameError(f"{path}: {'; '.join(unusable)}")
     return LoadedFrame(frame=frame, overlay=overlay, size=size, fonts=fonts)
 
 
@@ -299,7 +386,8 @@ def _place(
 
 
 def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, style: CardStyle | None = None) -> bytes:
-    """The finished card: ``art`` scaled to cover the window, the overlay on top, then ``texts``.
+    """The finished card: ``art`` scaled to cover the window, the frame's ``effects`` applied to it
+    there, the overlay on top, then ``texts``.
 
     ``texts`` maps the frame's slot names to the text drawn in them; a slot without text is
     left empty, and text for a slot the frame doesn't have is an error. ``style`` tints the
@@ -319,8 +407,10 @@ def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, sty
     filter_mod = _filters()
     try:
         src = image_mod.open(io.BytesIO(art))
+        if src.width * src.height > MAX_ART_PIXELS:
+            raise FrameError(f"the render is {src.width}x{src.height}: larger than any template renders")
         src.load()
-    except OSError as e:
+    except (OSError, ValueError, SyntaxError, image_mod.DecompressionBombError) as e:
         raise FrameError(f"the render is not a readable image: {e}") from e
 
     win = f.frame.window
@@ -330,8 +420,11 @@ def compose(f: LoadedFrame, art: bytes, texts: dict[str, str] | None = None, sty
         image_mod.Resampling.LANCZOS,
     )
     left, top = (scaled.width - win.width) // 2, (scaled.height - win.height) // 2
+    window_art = scaled.crop((left, top, left + win.width, top + win.height))
+    if f.frame.effects:  # on the art's own pixels, inside the window only; noise seeded by the art's sha256
+        window_art = apply_effects(window_art, f.frame.effects, hashlib.sha256(art).digest())
     card = image_mod.new("RGBA", f.size, (0, 0, 0, 0))
-    card.paste(scaled.crop((left, top, left + win.width, top + win.height)), (win.x, win.y))
+    card.paste(window_art, (win.x, win.y))
     overlay = image_mod.open(io.BytesIO(f.overlay)).convert("RGBA")
     if style.tint is not None:
         alpha = overlay.getchannel("A")

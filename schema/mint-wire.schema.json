@@ -46,7 +46,7 @@
     },
     "AutoCheck": {
       "additionalProperties": false,
-      "description": "What auto-moderation found for the current image. ``passed`` recorded the moderator's approval.",
+      "description": "What the platform's checks found for the current image. ``passed`` recorded the moderator's approval.\n\n``passed`` is only ever true with auto-moderation on: with it off, a teaser's checks (and its\n``identity`` check) are still recorded, held for a person with the reason that it is off.",
       "properties": {
         "at": {
           "format": "date-time",
@@ -68,6 +68,17 @@
           "title": "Held",
           "type": "array"
         },
+        "identity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IdentityCheck"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "image_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Image Sha256",
@@ -85,6 +96,344 @@
         "checks"
       ],
       "title": "AutoCheck",
+      "type": "object"
+    },
+    "Background": {
+      "additionalProperties": false,
+      "description": "One rendered background and its review. ``status`` is ``pending`` until the moderator decides.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "made_with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Made With",
+          "type": "object"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/RenderRequest"
+        },
+        "review": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BackgroundReview"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "n",
+        "seed",
+        "request",
+        "attempts",
+        "file",
+        "sha256",
+        "created_at"
+      ],
+      "title": "Background",
+      "type": "object"
+    },
+    "BackgroundDecision": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/backgrounds/{bg}/review: the moderator's decision on one background.",
+      "properties": {
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "by"
+      ],
+      "title": "BackgroundDecision",
+      "type": "object"
+    },
+    "BackgroundJob": {
+      "additionalProperties": false,
+      "description": "The last rendering job for a set. A job left queued or running by a restart reads as failed.",
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "id": {
+          "pattern": "^[0-9a-f]{16}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "numbers": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Numbers",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "created_at",
+        "numbers"
+      ],
+      "title": "BackgroundJob",
+      "type": "object"
+    },
+    "BackgroundReview": {
+      "additionalProperties": false,
+      "description": "The moderator's decision on one background image, bound to its sha256.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "By",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "image_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "by",
+        "at",
+        "image_sha256"
+      ],
+      "title": "BackgroundReview",
+      "type": "object"
+    },
+    "BackgroundSet": {
+      "additionalProperties": false,
+      "description": "``manifest.json``: the backgrounds of one scene version.",
+      "properties": {
+        "backgrounds": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Background"
+          },
+          "title": "Backgrounds",
+          "type": "array"
+        },
+        "failed": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FailedBackground"
+          },
+          "title": "Failed",
+          "type": "array"
+        },
+        "format": {
+          "const": 1,
+          "default": 1,
+          "title": "Format",
+          "type": "integer"
+        },
+        "job": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BackgroundJob"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "scene": {
+          "title": "Scene",
+          "type": "string"
+        },
+        "scene_hash": {
+          "pattern": "^0x[0-9a-f]{64}$",
+          "title": "Scene Hash",
+          "type": "string"
+        },
+        "scene_version": {
+          "minimum": 1,
+          "title": "Scene Version",
+          "type": "integer"
+        },
+        "wanted": {
+          "minimum": 1,
+          "title": "Wanted",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "scene",
+        "scene_version",
+        "scene_hash",
+        "wanted"
+      ],
+      "title": "BackgroundSet",
+      "type": "object"
+    },
+    "BackgroundSetList": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}/backgrounds: each scene version's backgrounds, by scene then version.",
+      "properties": {
+        "sets": {
+          "items": {
+            "$ref": "#/$defs/BackgroundSet"
+          },
+          "title": "Sets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sets"
+      ],
+      "title": "BackgroundSetList",
+      "type": "object"
+    },
+    "Barrel": {
+      "additionalProperties": false,
+      "description": "A lens's bulge: the centre magnified, the window's corners kept where they are.\n\nA pixel at distance ``r`` from the centre (1 at a corner) shows the art at\n``r * (1 + strength * r^2) / (1 + strength)``. 0.1 is mild, 0.3 strong.",
+      "properties": {
+        "strength": {
+          "exclusiveMinimum": 0,
+          "maximum": 0.5,
+          "title": "Strength",
+          "type": "number"
+        },
+        "type": {
+          "const": "barrel",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "strength"
+      ],
+      "title": "Barrel",
       "type": "object"
     },
     "BioInfo": {
@@ -279,13 +628,74 @@
       "title": "BioTemplate",
       "type": "object"
     },
+    "Candidate": {
+      "additionalProperties": false,
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "made_with": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Made With",
+          "type": "object"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "request": {
+          "$ref": "#/$defs/RenderRequest"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n",
+        "seed",
+        "file",
+        "sha256",
+        "request",
+        "attempts"
+      ],
+      "title": "Candidate",
+      "type": "object"
+    },
     "Capabilities": {
       "additionalProperties": false,
       "description": "What this server will do. A client disables a control whose capability is false.",
       "properties": {
+        "author_catalogue": {
+          "default": false,
+          "title": "Author Catalogue",
+          "type": "boolean"
+        },
         "auto_moderate": {
           "default": false,
           "title": "Auto Moderate",
+          "type": "boolean"
+        },
+        "backgrounds": {
+          "default": false,
+          "title": "Backgrounds",
           "type": "boolean"
         },
         "check_templates": {
@@ -302,6 +712,16 @@
           "title": "Edit Text",
           "type": "boolean"
         },
+        "identity_check": {
+          "default": false,
+          "title": "Identity Check",
+          "type": "boolean"
+        },
+        "identity_training": {
+          "default": false,
+          "title": "Identity Training",
+          "type": "boolean"
+        },
         "library": {
           "default": false,
           "title": "Library",
@@ -313,6 +733,11 @@
         },
         "owner_review": {
           "title": "Owner Review",
+          "type": "boolean"
+        },
+        "post": {
+          "default": false,
+          "title": "Post",
           "type": "boolean"
         },
         "publish": {
@@ -327,6 +752,11 @@
         "sample": {
           "default": false,
           "title": "Sample",
+          "type": "boolean"
+        },
+        "teasers": {
+          "default": false,
+          "title": "Teasers",
           "type": "boolean"
         },
         "write_bios": {
@@ -344,9 +774,28 @@
       "title": "Capabilities",
       "type": "object"
     },
+    "Caption": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "text"
+      ],
+      "title": "Caption",
+      "type": "object"
+    },
     "CardDraft": {
       "additionalProperties": false,
-      "description": "Everything needed to publish a card, except the pins and the signature.",
+      "description": "Everything needed to publish a card, except the pins and the signature.\n\n``kind`` is ``card`` (a game card: ``asset_id``, ``consumer``, maybe a bio) or ``teaser``\n(an image and quote from a teaser project: ``teaser`` records what made it, and it has no\nasset id, consumer or bio). Both are reviewed the same way; ``to`` is the owner who signs.",
       "properties": {
         "art_sha256": {
           "pattern": "^[0-9a-f]{64}$",
@@ -354,8 +803,16 @@
           "type": "string"
         },
         "asset_id": {
-          "title": "Asset Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
         },
         "attempts": {
           "items": {
@@ -388,10 +845,18 @@
           "default": null
         },
         "consumer": {
-          "maxLength": 64,
-          "minLength": 1,
-          "title": "Consumer",
-          "type": "string"
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Consumer"
         },
         "created_at": {
           "format": "date-time",
@@ -445,6 +910,15 @@
           "title": "Image Sha256",
           "type": "string"
         },
+        "kind": {
+          "default": "card",
+          "enum": [
+            "card",
+            "teaser"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "library": {
           "anyOf": [
             {
@@ -495,6 +969,17 @@
           ],
           "default": null
         },
+        "teaser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeaserRecord"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "texts": {
           "additionalProperties": {
             "type": "string"
@@ -511,10 +996,8 @@
         "request",
         "attempts",
         "renderer",
-        "asset_id",
         "to",
         "name",
-        "consumer",
         "art_sha256",
         "image_sha256",
         "created_at"
@@ -681,6 +1164,29 @@
       "title": "ChallengeRequest",
       "type": "object"
     },
+    "ChromaticAberration": {
+      "additionalProperties": false,
+      "description": "Colour fringing: red spreads out from the centre and blue pulls in, by ``shift`` pixels at the edges.",
+      "properties": {
+        "shift": {
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Shift",
+          "type": "integer"
+        },
+        "type": {
+          "const": "chromatic_aberration",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "shift"
+      ],
+      "title": "ChromaticAberration",
+      "type": "object"
+    },
     "CreateDraft": {
       "additionalProperties": false,
       "description": "POST /drafts. The template, frame and bio are named by id and version, never by path.\n\nEither render (``variables``, ``seed``, optionally ``model``), or take a pre-rendered\n``library`` entry, whose variables, seed and checkpoint then apply.",
@@ -810,8 +1316,12 @@
           "$ref": "#/$defs/Ref"
         },
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -836,6 +1346,21 @@
       "title": "CreateDraft",
       "type": "object"
     },
+    "CreateTeaserDraft": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/teasers/{n}/draft. Everything else comes from the project's reviewed files.",
+      "properties": {
+        "to": {
+          "title": "To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "to"
+      ],
+      "title": "CreateTeaserDraft",
+      "type": "object"
+    },
     "DraftDetail": {
       "additionalProperties": false,
       "properties": {
@@ -852,6 +1377,13 @@
         "id": {
           "title": "Id",
           "type": "string"
+        },
+        "posts": {
+          "items": {
+            "$ref": "#/$defs/Post"
+          },
+          "title": "Posts",
+          "type": "array"
         },
         "published": {
           "anyOf": [
@@ -906,6 +1438,34 @@
       "title": "DraftList",
       "type": "object"
     },
+    "DraftPosts": {
+      "additionalProperties": false,
+      "description": "A draft's posts, in the order recorded (the answer to POST /drafts/{id}/posted).",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image_sha256": {
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "posts": {
+          "items": {
+            "$ref": "#/$defs/Post"
+          },
+          "title": "Posts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "image_sha256",
+        "posts"
+      ],
+      "title": "DraftPosts",
+      "type": "object"
+    },
     "DraftSummary": {
       "additionalProperties": false,
       "properties": {
@@ -939,6 +1499,15 @@
           "title": "Image Sha256",
           "type": "string"
         },
+        "kind": {
+          "default": "card",
+          "enum": [
+            "card",
+            "teaser"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
         "name": {
           "title": "Name",
           "type": "string"
@@ -952,6 +1521,17 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "teaser": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TeaserOf"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "template": {
           "$ref": "#/$defs/Ref"
@@ -1073,8 +1653,12 @@
         "texts": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
+              "maxProperties": 16,
+              "patternProperties": {
+                "^[a-z][a-z0-9_]{0,31}$": {
+                  "maxLength": 2000,
+                  "type": "string"
+                }
               },
               "type": "object"
             },
@@ -1091,6 +1675,156 @@
         "signature"
       ],
       "title": "EditTextRequest",
+      "type": "object"
+    },
+    "Evaluation": {
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "enum": [
+            "identity",
+            "likeness"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "min_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Min Score"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "pending": {
+          "title": "Pending",
+          "type": "boolean"
+        },
+        "proof_passed": {
+          "title": "Proof Passed",
+          "type": "boolean"
+        },
+        "proof_run": {
+          "title": "Proof Run",
+          "type": "string"
+        },
+        "reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Score"
+        }
+      },
+      "required": [
+        "proof_run",
+        "metric",
+        "score",
+        "min_score",
+        "proof_passed",
+        "pending",
+        "passed"
+      ],
+      "title": "Evaluation",
+      "type": "object"
+    },
+    "FailedBackground": {
+      "additionalProperties": false,
+      "description": "A background that made no image. ``final``: the safety check refused every attempt, so\nrendering it again would only repeat them; otherwise an error stopped it and a new job retries.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        },
+        "final": {
+          "title": "Final",
+          "type": "boolean"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n",
+        "seed",
+        "error",
+        "final",
+        "attempts"
+      ],
+      "title": "FailedBackground",
+      "type": "object"
+    },
+    "FailedCandidate": {
+      "additionalProperties": false,
+      "description": "A candidate that made no image. ``final``: the safety check refused every attempt.",
+      "properties": {
+        "attempts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Attempts",
+          "type": "array"
+        },
+        "error": {
+          "title": "Error",
+          "type": "string"
+        },
+        "final": {
+          "title": "Final",
+          "type": "boolean"
+        },
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n",
+        "seed",
+        "error",
+        "final",
+        "attempts"
+      ],
+      "title": "FailedCandidate",
       "type": "object"
     },
     "Frame": {
@@ -1122,8 +1856,43 @@
           "default": null,
           "title": "Approved By"
         },
+        "effects": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "barrel": "#/$defs/Barrel",
+                "chromatic_aberration": "#/$defs/ChromaticAberration",
+                "noise": "#/$defs/Noise",
+                "scanlines": "#/$defs/Scanlines",
+                "vignette": "#/$defs/Vignette"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/Barrel"
+              },
+              {
+                "$ref": "#/$defs/Scanlines"
+              },
+              {
+                "$ref": "#/$defs/Noise"
+              },
+              {
+                "$ref": "#/$defs/ChromaticAberration"
+              },
+              {
+                "$ref": "#/$defs/Vignette"
+              }
+            ]
+          },
+          "maxItems": 8,
+          "title": "Effects",
+          "type": "array"
+        },
         "id": {
-          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+          "pattern": "^(?:[a-z0-9][a-z0-9-]{0,63}/)?[a-z0-9][a-z0-9-]{0,63}$",
           "title": "Id",
           "type": "string"
         },
@@ -1174,6 +1943,7 @@
     },
     "FrameInfo": {
       "additionalProperties": false,
+      "description": "GET /frames. ``file`` is relative to the frames directory, or for a project's own frame\n(``project`` set, id ``<project>/<name>``) to the projects directory.",
       "properties": {
         "file": {
           "title": "File",
@@ -1189,6 +1959,18 @@
         "height": {
           "title": "Height",
           "type": "integer"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project"
         },
         "width": {
           "title": "Width",
@@ -1271,8 +2053,12 @@
           "default": null
         },
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -1380,7 +2166,7 @@
           "type": "string"
         },
         "wire_version": {
-          "default": "1.9",
+          "default": "1.17",
           "title": "Wire Version",
           "type": "string"
         }
@@ -1400,13 +2186,294 @@
       "title": "Health",
       "type": "object"
     },
+    "IdentityCheck": {
+      "additionalProperties": false,
+      "description": "argus-proof's score of a teaser's figure against its identity's held-out references (#51).\n\n``outcome``: ``passed`` (``score`` >= ``min_score``), ``below`` (under it), ``uncalibrated``\n(scored, but the identity has no ``min_score`` yet), ``skipped`` (nothing to score: a\nviewpoint identity, or an embodied one with no ``proof_export`` yet), ``unavailable`` (proof\nis unreachable, answered 503, or isn't configured) or ``error`` (proof refused the request,\nor its answer can't be read). ``reason`` says it in words. Only ``passed`` (or a viewpoint's\n``skipped``) lets auto-moderation stand in for the moderator; ``below``, ``unavailable``,\n``error`` and an embodied ``skipped`` hold the draft.\n\n``art_sha256`` is the unframed art that was scored, ``crop`` the scene's ``character_area``\nin its pixels; ``scorer``, ``scorer_version`` and ``model_file`` are proof's provenance for\n``metric``'s scorer, and ``proof_version`` its wire version.",
+      "properties": {
+        "art_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Art Sha256",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "crop": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScoreBox"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "export": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Export"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "enum": [
+                "identity",
+                "likeness"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "min_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Score"
+        },
+        "model_file": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScorerFile"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcome": {
+          "enum": [
+            "passed",
+            "below",
+            "uncalibrated",
+            "skipped",
+            "unavailable",
+            "error"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "presence": {
+          "enum": [
+            "embodied",
+            "viewpoint"
+          ],
+          "title": "Presence",
+          "type": "string"
+        },
+        "proof_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proof Version"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "scorer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorer"
+        },
+        "scorer_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorer Version"
+        }
+      },
+      "required": [
+        "at",
+        "art_sha256",
+        "presence",
+        "outcome",
+        "reason"
+      ],
+      "title": "IdentityCheck",
+      "type": "object"
+    },
+    "IdentityTrainingView": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}/identities/{identity}/{version}/training: the record, and each step's status\nas mint works it out (a job a restart cut off reads as failed). ``next``: the one step the\nmoderator may start now, if any.",
+      "properties": {
+        "identity": {
+          "title": "Identity",
+          "type": "string"
+        },
+        "next": {
+          "anyOf": [
+            {
+              "enum": [
+                "candidates",
+                "select",
+                "caption",
+                "train",
+                "evaluate",
+                "pin"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Next"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "record": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrainingRecord"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "steps": {
+          "additionalProperties": {
+            "enum": [
+              "not_started",
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "propertyNames": {
+            "enum": [
+              "candidates",
+              "select",
+              "caption",
+              "train",
+              "evaluate",
+              "pin"
+            ]
+          },
+          "title": "Steps",
+          "type": "object"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "identity",
+        "version",
+        "steps",
+        "next",
+        "record"
+      ],
+      "title": "IdentityTrainingView",
+      "type": "object"
+    },
+    "InitImageRef": {
+      "additionalProperties": false,
+      "description": "An inpainting (or image-to-image) input, by hash: the bytes travel beside the request.\n\n``sha256`` is of the image bytes sent and ``mask_sha256`` of the mask's (white repaints,\nblack keeps); darkroom's record names both as ``source_sha256``, and the client checks them.",
+      "properties": {
+        "denoise": {
+          "maximum": 1.0,
+          "minimum": 0.05,
+          "title": "Denoise",
+          "type": "number"
+        },
+        "mask_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mask Sha256"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sha256",
+        "denoise"
+      ],
+      "title": "InitImageRef",
+      "type": "object"
+    },
     "LayoutRequest": {
       "additionalProperties": false,
       "description": "POST /frames/{id}/{version}/layout: where these texts go, for a browser preview.",
       "properties": {
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -1620,6 +2687,369 @@
       "title": "LoraRef",
       "type": "object"
     },
+    "Noise": {
+      "additionalProperties": false,
+      "description": "Signal noise: each pixel moves by up to ``amount`` of full scale, up or down, evenly spread.\n``monochrome``: the same change in each channel (grain); else each channel its own (colour speckle).",
+      "properties": {
+        "amount": {
+          "exclusiveMinimum": 0,
+          "maximum": 0.5,
+          "title": "Amount",
+          "type": "number"
+        },
+        "monochrome": {
+          "title": "Monochrome",
+          "type": "boolean"
+        },
+        "type": {
+          "const": "noise",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "amount",
+        "monochrome"
+      ],
+      "title": "Noise",
+      "type": "object"
+    },
+    "Pinned": {
+      "additionalProperties": false,
+      "properties": {
+        "identity_version": {
+          "title": "Identity Version",
+          "type": "integer"
+        },
+        "lora": {
+          "title": "Lora",
+          "type": "string"
+        },
+        "proof_export": {
+          "title": "Proof Export",
+          "type": "string"
+        },
+        "proof_run": {
+          "title": "Proof Run",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "identity_version",
+        "lora",
+        "sha256",
+        "proof_run",
+        "proof_export"
+      ],
+      "title": "Pinned",
+      "type": "object"
+    },
+    "Post": {
+      "additionalProperties": false,
+      "description": "One posting of a draft's image, as reported by whoever posted it (argus-herald).\n\n``sha256`` is of the bytes that were posted, and must be the draft's ``image_sha256``: a teaser\nPNG is baked with no metadata chunks, so a copy stripped of metadata hashes the same.\n``by`` says which token recorded it.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "by": {
+          "enum": [
+            "poster",
+            "moderator"
+          ],
+          "title": "By",
+          "type": "string"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "where": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Where",
+          "type": "string"
+        }
+      },
+      "required": [
+        "where",
+        "at",
+        "sha256",
+        "recorded_at",
+        "by"
+      ],
+      "title": "Post",
+      "type": "object"
+    },
+    "PostRequest": {
+      "additionalProperties": false,
+      "description": "POST /drafts/{id}/posted: a post of an approved teaser's image (poster or moderator token).\n\n``sha256`` is of the bytes posted and must equal the draft's ``image_sha256``.",
+      "properties": {
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "where": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,31}$",
+          "title": "Where",
+          "type": "string"
+        }
+      },
+      "required": [
+        "where",
+        "at",
+        "sha256"
+      ],
+      "title": "PostRequest",
+      "type": "object"
+    },
+    "ProjectChecks": {
+      "additionalProperties": false,
+      "description": "What stands between a project's files and approval.\n\n``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is\nfalse when no darkroom is configured: then nothing can be approved.",
+      "properties": {
+        "guard": {
+          "items": {
+            "$ref": "#/$defs/TextCheck"
+          },
+          "title": "Guard",
+          "type": "array"
+        },
+        "guard_ran": {
+          "title": "Guard Ran",
+          "type": "boolean"
+        },
+        "problems": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "spoiler_rules": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Spoiler Rules",
+          "type": "array"
+        }
+      },
+      "required": [
+        "problems",
+        "spoiler_rules",
+        "guard",
+        "guard_ran"
+      ],
+      "title": "ProjectChecks",
+      "type": "object"
+    },
+    "ProjectDetail": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}: every file of a project (teaser links included, kind ``teasers``) and their checks.\n\n``checks.guard`` holds the verdicts stored in the files that still hold; a text with none\nhasn't been checked since it (or the project's policy) last changed.",
+      "properties": {
+        "checks": {
+          "$ref": "#/$defs/ProjectChecks"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/$defs/ProjectFile"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "files",
+        "checks"
+      ],
+      "title": "ProjectDetail",
+      "type": "object"
+    },
+    "ProjectFile": {
+      "additionalProperties": false,
+      "properties": {
+        "doc": {
+          "additionalProperties": true,
+          "title": "Doc",
+          "type": "object"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "hash": {
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "project",
+            "identity",
+            "scene",
+            "line",
+            "teasers"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "version",
+        "status",
+        "hash",
+        "file",
+        "doc"
+      ],
+      "title": "ProjectFile",
+      "type": "object"
+    },
+    "ProjectList": {
+      "additionalProperties": false,
+      "properties": {
+        "projects": {
+          "items": {
+            "$ref": "#/$defs/ProjectSummary"
+          },
+          "title": "Projects",
+          "type": "array"
+        }
+      },
+      "required": [
+        "projects"
+      ],
+      "title": "ProjectList",
+      "type": "object"
+    },
+    "ProjectSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "draft",
+            "approved",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "title": "ProjectSummary",
+      "type": "object"
+    },
+    "ProjectTracker": {
+      "additionalProperties": false,
+      "description": "GET /projects/{id}/tracker: each teaser of the newest approved links (none: ``links_version`` null).",
+      "properties": {
+        "links_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Links Version"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "teasers": {
+          "items": {
+            "$ref": "#/$defs/TeaserProgress"
+          },
+          "title": "Teasers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project",
+        "links_version",
+        "teasers"
+      ],
+      "title": "ProjectTracker",
+      "type": "object"
+    },
     "PublishRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1702,6 +3132,142 @@
       "title": "PublishResult",
       "type": "object"
     },
+    "ReadyTeaser": {
+      "additionalProperties": false,
+      "description": "One approved teaser, as GET /posts/ready lists it for a poster (argus-herald).\n\n``image_url`` is the draft's image route, relative to argus-mint's base URL; its bytes hash to\n``image_sha256``. ``posted`` is true once a post is recorded; such a teaser stays listed.\n``current`` is false for a draft made from another line, identity or scene than the\nproject's current teaser links name for that number (a newer draft supersedes it).",
+      "properties": {
+        "alt": {
+          "title": "Alt",
+          "type": "string"
+        },
+        "approved_at": {
+          "format": "date-time",
+          "title": "Approved At",
+          "type": "string"
+        },
+        "attribution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Attribution"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "current": {
+          "title": "Current",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image_sha256": {
+          "title": "Image Sha256",
+          "type": "string"
+        },
+        "image_url": {
+          "title": "Image Url",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Label"
+        },
+        "number": {
+          "title": "Number",
+          "type": "string"
+        },
+        "posted": {
+          "title": "Posted",
+          "type": "boolean"
+        },
+        "posts": {
+          "items": {
+            "$ref": "#/$defs/Post"
+          },
+          "title": "Posts",
+          "type": "array"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "approved",
+            "published"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "project",
+        "title",
+        "number",
+        "status",
+        "current",
+        "created_at",
+        "approved_at",
+        "image_url",
+        "image_sha256",
+        "alt",
+        "quote",
+        "attribution",
+        "label",
+        "posted",
+        "posts"
+      ],
+      "title": "ReadyTeaser",
+      "type": "object"
+    },
+    "ReadyTeasers": {
+      "additionalProperties": false,
+      "description": "GET /posts/ready: approved (and published) teaser drafts, newest first, paged.",
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/ReadyTeaser"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "total": {
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "items",
+        "total"
+      ],
+      "title": "ReadyTeasers",
+      "type": "object"
+    },
     "Rect": {
       "additionalProperties": false,
       "properties": {
@@ -1757,11 +3323,22 @@
     },
     "RenderRequest": {
       "additionalProperties": false,
-      "description": "Everything a renderer needs, fully determined by template version + values + seed.",
+      "description": "Everything a renderer needs, fully determined by template version + values + seed.\n\nA teaser's renders are not of a template: a background's ``template_*`` name its scene, and\nan inpainted figure's name its identity (each file's id, version and hash). ``init_image``\nis set only for an inpainted figure.",
       "properties": {
         "height": {
           "title": "Height",
           "type": "integer"
+        },
+        "init_image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InitImageRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "loras": {
           "items": {
@@ -2236,8 +3813,12 @@
           "$ref": "#/$defs/Ref"
         },
         "texts": {
-          "additionalProperties": {
-            "type": "string"
+          "maxProperties": 16,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,31}$": {
+              "maxLength": 2000,
+              "type": "string"
+            }
           },
           "title": "Texts",
           "type": "object"
@@ -2311,6 +3892,203 @@
         "cfg"
       ],
       "title": "Sampling",
+      "type": "object"
+    },
+    "SaveProjectFile": {
+      "additionalProperties": false,
+      "description": "POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.\n\n``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved\nfile is always a draft, and ``guard`` is written by the server alone. An approved or\nretired file never changes; save a new version.",
+      "properties": {
+        "doc": {
+          "additionalProperties": true,
+          "title": "Doc",
+          "type": "object"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "SaveProjectFile",
+      "type": "object"
+    },
+    "SavedProjectFile": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "$ref": "#/$defs/ProjectChecks"
+        },
+        "file": {
+          "$ref": "#/$defs/ProjectFile"
+        }
+      },
+      "required": [
+        "file",
+        "checks"
+      ],
+      "title": "SavedProjectFile",
+      "type": "object"
+    },
+    "Scanlines": {
+      "additionalProperties": false,
+      "description": "Dark horizontal lines: ``thickness`` rows in every ``spacing``, darkened by ``opacity``.",
+      "properties": {
+        "opacity": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Opacity",
+          "type": "number"
+        },
+        "spacing": {
+          "maximum": 32,
+          "minimum": 2,
+          "title": "Spacing",
+          "type": "integer"
+        },
+        "thickness": {
+          "maximum": 16,
+          "minimum": 1,
+          "title": "Thickness",
+          "type": "integer"
+        },
+        "type": {
+          "const": "scanlines",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "spacing",
+        "thickness",
+        "opacity"
+      ],
+      "title": "Scanlines",
+      "type": "object"
+    },
+    "ScoreBox": {
+      "additionalProperties": false,
+      "description": "The part of an image proof scored, in the image's own pixels.",
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        },
+        "x": {
+          "minimum": 0,
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "minimum": 0,
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "title": "ScoreBox",
+      "type": "object"
+    },
+    "ScorerFile": {
+      "additionalProperties": false,
+      "description": "The weights a proof scorer loaded, pinned by sha256 (proof's ``ModelRef``).",
+      "properties": {
+        "name": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "title": "ScorerFile",
+      "type": "object"
+    },
+    "Selection": {
+      "additionalProperties": false,
+      "description": "Curator's pick, split by mint. Files are candidate files; the two sets never share one.",
+      "properties": {
+        "anchors": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Anchors",
+          "type": "array"
+        },
+        "held_out": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Held Out",
+          "type": "array"
+        },
+        "held_out_sha256": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Held Out Sha256",
+          "type": "array"
+        },
+        "kept": {
+          "title": "Kept",
+          "type": "integer"
+        },
+        "proof_export": {
+          "title": "Proof Export",
+          "type": "string"
+        },
+        "scan_id": {
+          "title": "Scan Id",
+          "type": "string"
+        },
+        "train": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Train",
+          "type": "array"
+        },
+        "train_export": {
+          "title": "Train Export",
+          "type": "string"
+        },
+        "train_sha256": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Train Sha256",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scan_id",
+        "kept",
+        "train",
+        "held_out",
+        "train_export",
+        "proof_export",
+        "train_sha256",
+        "held_out_sha256"
+      ],
+      "title": "Selection",
       "type": "object"
     },
     "SlotBackground": {
@@ -2453,6 +4231,345 @@
         }
       },
       "title": "SlotStyle",
+      "type": "object"
+    },
+    "StepRun": {
+      "additionalProperties": false,
+      "description": "One run of one step: what it was given, which sibling run or scan it made, what came of it.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finished At"
+        },
+        "inputs": {
+          "additionalProperties": true,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "job": {
+          "pattern": "^[0-9a-f]{16}$",
+          "title": "Job",
+          "type": "string"
+        },
+        "outputs": {
+          "additionalProperties": true,
+          "title": "Outputs",
+          "type": "object"
+        },
+        "sibling": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Sibling",
+          "type": "object"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "step": {
+          "enum": [
+            "candidates",
+            "select",
+            "caption",
+            "train",
+            "evaluate",
+            "pin"
+          ],
+          "title": "Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "job",
+        "status",
+        "started_at"
+      ],
+      "title": "StepRun",
+      "type": "object"
+    },
+    "TeaserBackground": {
+      "additionalProperties": false,
+      "description": "The approved background a teaser was made on.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "sha256"
+      ],
+      "title": "TeaserBackground",
+      "type": "object"
+    },
+    "TeaserDraftState": {
+      "additionalProperties": false,
+      "description": "One teaser draft, as the tracker lists it. ``current``: made from the current links' line,\nidentity and scene (an older draft of the same number may not be).",
+      "properties": {
+        "awaiting": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Awaiting",
+          "type": "array"
+        },
+        "background": {
+          "title": "Background",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "current": {
+          "title": "Current",
+          "type": "boolean"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "links_version": {
+          "title": "Links Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "published"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "awaiting",
+        "created_at",
+        "links_version",
+        "background",
+        "current"
+      ],
+      "title": "TeaserDraftState",
+      "type": "object"
+    },
+    "TeaserFile": {
+      "additionalProperties": false,
+      "description": "A reviewed project file a teaser was made from, by id, version and hash (0x keccak256).",
+      "properties": {
+        "hash": {
+          "pattern": "^0x[0-9a-f]{64}$",
+          "title": "Hash",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "hash"
+      ],
+      "title": "TeaserFile",
+      "type": "object"
+    },
+    "TeaserOf": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "title": "Number",
+          "type": "string"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "TeaserOf",
+      "type": "object"
+    },
+    "TeaserProgress": {
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Background"
+        },
+        "drafts": {
+          "items": {
+            "$ref": "#/$defs/TeaserDraftState"
+          },
+          "title": "Drafts",
+          "type": "array"
+        },
+        "number": {
+          "title": "Number",
+          "type": "string"
+        },
+        "stages": {
+          "$ref": "#/$defs/TeaserStages"
+        }
+      },
+      "required": [
+        "number",
+        "stages",
+        "background",
+        "drafts"
+      ],
+      "title": "TeaserProgress",
+      "type": "object"
+    },
+    "TeaserRecord": {
+      "additionalProperties": false,
+      "description": "What a teaser draft was made from: its project, number, each linked file and the background.\n\nThe frame is the draft's own ``frame``. The quote, attribution and label drawn on it are the\ndraft's ``texts`` (by slot), from the reviewed line and project, never edited.",
+      "properties": {
+        "alt": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Alt",
+          "type": "string"
+        },
+        "background": {
+          "$ref": "#/$defs/TeaserBackground"
+        },
+        "identity": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "line": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "links": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "number": {
+          "pattern": "^T[1-9][0-9]{0,4}$",
+          "title": "Number",
+          "type": "string"
+        },
+        "presence": {
+          "enum": [
+            "embodied",
+            "viewpoint"
+          ],
+          "title": "Presence",
+          "type": "string"
+        },
+        "project": {
+          "$ref": "#/$defs/TeaserFile"
+        },
+        "scene": {
+          "$ref": "#/$defs/TeaserFile"
+        }
+      },
+      "required": [
+        "project",
+        "links",
+        "number",
+        "line",
+        "identity",
+        "scene",
+        "presence",
+        "background",
+        "alt"
+      ],
+      "title": "TeaserRecord",
+      "type": "object"
+    },
+    "TeaserStages": {
+      "additionalProperties": false,
+      "description": "The stages a teaser has reached, as argus-mint works them out (a client never does).",
+      "properties": {
+        "concept_chosen": {
+          "title": "Concept Chosen",
+          "type": "boolean"
+        },
+        "image_made": {
+          "title": "Image Made",
+          "type": "boolean"
+        },
+        "minted": {
+          "default": false,
+          "title": "Minted",
+          "type": "boolean"
+        },
+        "posted": {
+          "default": false,
+          "title": "Posted",
+          "type": "boolean"
+        },
+        "quote_final": {
+          "title": "Quote Final",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "quote_final",
+        "concept_chosen",
+        "image_made"
+      ],
+      "title": "TeaserStages",
       "type": "object"
     },
     "Template": {
@@ -2679,6 +4796,31 @@
       "title": "TemplateInfo",
       "type": "object"
     },
+    "TextCheck": {
+      "additionalProperties": false,
+      "description": "SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).\n\nThe verdict is stored in the file's ``guard`` block and holds while the text and the policy\nare the ones it judged.",
+      "properties": {
+        "detail": {
+          "default": "",
+          "title": "Detail",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field",
+        "passed"
+      ],
+      "title": "TextCheck",
+      "type": "object"
+    },
     "TextEdit": {
       "additionalProperties": false,
       "description": "The owner's change to the card: text and style. ``None`` leaves a field as it is; an empty\nslot text clears it; ``style`` replaces the whole style (an empty one clears it).",
@@ -2723,8 +4865,12 @@
         "texts": {
           "anyOf": [
             {
-              "additionalProperties": {
-                "type": "string"
+              "maxProperties": 16,
+              "patternProperties": {
+                "^[a-z][a-z0-9_]{0,31}$": {
+                  "maxLength": 2000,
+                  "type": "string"
+                }
               },
               "type": "object"
             },
@@ -2862,7 +5008,195 @@
       ],
       "title": "Tint",
       "type": "object"
+    },
+    "TrainedLora": {
+      "additionalProperties": false,
+      "properties": {
+        "forge_run": {
+          "title": "Forge Run",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "output_name": {
+          "title": "Output Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "trigger": {
+          "title": "Trigger",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256",
+        "forge_run",
+        "output_name",
+        "trigger"
+      ],
+      "title": "TrainedLora",
+      "type": "object"
+    },
+    "TrainingRecord": {
+      "additionalProperties": false,
+      "description": "``record.json``: one identity version's training, every step run kept.",
+      "properties": {
+        "candidates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "captions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Caption"
+          },
+          "title": "Captions",
+          "type": "array"
+        },
+        "evaluation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evaluation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failed": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FailedCandidate"
+          },
+          "title": "Failed",
+          "type": "array"
+        },
+        "format": {
+          "const": 1,
+          "default": 1,
+          "title": "Format",
+          "type": "integer"
+        },
+        "identity": {
+          "title": "Identity",
+          "type": "string"
+        },
+        "identity_hash": {
+          "pattern": "^0x[0-9a-f]{64}$",
+          "title": "Identity Hash",
+          "type": "string"
+        },
+        "identity_version": {
+          "minimum": 1,
+          "title": "Identity Version",
+          "type": "integer"
+        },
+        "lora": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrainedLora"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "metric": {
+          "enum": [
+            "identity",
+            "likeness"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "pinned": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Pinned"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "runs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StepRun"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "selection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Selection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "project",
+        "identity",
+        "identity_version",
+        "identity_hash",
+        "metric"
+      ],
+      "title": "TrainingRecord",
+      "type": "object"
+    },
+    "Vignette": {
+      "additionalProperties": false,
+      "description": "Dark corners: from ``start`` (a fraction of the centre-to-corner distance) the art darkens\nsmoothly, to ``strength`` at the corners.",
+      "properties": {
+        "start": {
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Start",
+          "type": "number"
+        },
+        "strength": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Strength",
+          "type": "number"
+        },
+        "type": {
+          "const": "vignette",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "strength",
+        "start"
+      ],
+      "title": "Vignette",
+      "type": "object"
     }
   },
-  "title": "argus-mint wire 1.9"
+  "title": "argus-mint wire 1.17"
 }

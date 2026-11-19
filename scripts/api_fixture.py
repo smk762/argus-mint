@@ -169,6 +169,7 @@ def library_subset(src: Path, dst: Path, groups: int) -> Library:
 def main(arts: list[Path], library_dir: Path, groups: int) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
+        (work / "projects").mkdir()  # no teaser projects: the fixture is the card demo, wherever it runs
         lib = library_subset(library_dir, work / "library", groups)
         tid, tv = lib.manifest.template, lib.manifest.template_version
         src = ROOT / "templates" / f"{tid}-v{tv}.yaml"
@@ -210,7 +211,7 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
             drafts_dir=work / "drafts", samples_dir=work / "samples", library_dir=work / "library", templates_dir=work / "templates", frames_dir=work / "frames",
             bios_dir=work / "bios", darkroom_url="http://darkroom:8106", writer_url="http://writer:9150",
             ipfs_api="http://kubo:5001", network="base-sepolia", card=CARD, moderator_token=TOKEN,
-            siwe_domain="localhost:3108",
+            siwe_domain="localhost:3108", projects_dir=work / "projects",
         )  # fmt: skip
         app = create_app(
             cfg, darkroom=Darkroom(), writer=Writer(), pinner=LocalPinner(), signer=SIGNER, probe_fn=lambda u: True
@@ -274,9 +275,16 @@ def main(arts: list[Path], library_dir: Path, groups: int) -> None:
         sample.raise_for_status()
         job_id = sample.json()["id"]
         for _ in range(500):
-            if c.get(f"/samples/{job_id}").json()["status"] in ("done", "failed"):
+            status = c.get(f"/samples/{job_id}").json()["status"]
+            if status in ("done", "failed"):
                 break
             time.sleep(0.02)
+        else:
+            raise TimeoutError(f"sample job {job_id} is still {status}; no fixtures written")
+        if status != "done":
+            raise RuntimeError(
+                f"sample job {job_id} {status}: {c.get(f'/samples/{job_id}').json()}; no fixtures written"
+            )
 
         if OUT.exists():
             shutil.rmtree(OUT)

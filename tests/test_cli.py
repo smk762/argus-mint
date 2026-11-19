@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 
+import pytest
 import yaml
 from eth_account import Account
 from typer.testing import CliRunner
@@ -64,15 +66,17 @@ def test_draft_review_publish_dry_run(tmp_path, template_doc, monkeypatch):
     result = runner.invoke(app, publish_args(out, "--dry-run"))
     assert result.exit_code == 0, result.output
     pub = json.loads(result.stdout)
-    assert pub["dry_run"] is True and pub["signer_is_ephemeral"] is False
+    assert pub["dry_run"] is True and pub["signer_is_ephemeral"] is True  # never the real key in a dry run
     assert [r["role"] for r in pub["reviews"]] == ["moderator", "owner"]
+    assert pub["metadata"]["attributes"] == []  # hard rule 4: argus-mint writes no stats into a token
     prov = pub["metadata"]["provenance"]
     assert prov["template"] == "test-portrait" and prov["seed"] == 81234
     assert "frame" not in prov and "art" not in prov and pub["render"]["art_cid"] is None
     voucher = MintVoucher.model_validate(pub["voucher"])
     assert voucher.content_hash == content_hash(pub["metadata"]) and voucher.to == OWNER
     domain = Domain(chain_id=31337, verifying_contract=CARD)
-    assert recover(voucher, domain, bytes.fromhex(pub["signature"][2:])) == Account.from_key(KEY).address
+    signer = recover(voucher, domain, bytes.fromhex(pub["signature"][2:]))
+    assert signer == pub["signer"] != Account.from_key(KEY).address  # a voucher the Card won't accept
     # same draft, same metadata and voucher (reproducible)
     again = json.loads(runner.invoke(app, publish_args(out, "--dry-run")).stdout)
     assert again["metadata"] == pub["metadata"] and again["voucher"] == pub["voucher"]
@@ -135,8 +139,14 @@ def test_live_publish_refuses_placeholder_art_and_needs_ipfs_and_signer(tmp_path
     out2, _ = make_draft(tmp_path, template_doc, "--image", str(image), name="d2")
     approve(out2)
     monkeypatch.delenv("ARGUS_MINT_SIGNER_KEY")
+    monkeypatch.delenv("ARGUS_MINT_ACCOUNT", raising=False)
+    monkeypatch.delenv("ARGUS_MINT_IPFS_API", raising=False)
     result = runner.invoke(app, publish_args(out2))
     assert result.exit_code == 2 and "--ipfs-api" in result.output
+    # With IPFS given, the missing signer alone still stops it (before anything is pinned).
+    result = runner.invoke(app, publish_args(out2, "--ipfs-api", "http://ipfs.invalid:5001"))
+    assert result.exit_code == 2 and "needs --account or $ARGUS_MINT_SIGNER_KEY" in result.output
+    assert "--ipfs-api" not in result.output.split("needs", 1)[1]
 
 
 def test_templates_lists_registry(tmp_path, template_doc):
@@ -252,3 +262,48 @@ def test_preflight_command(tmp_path, template_doc, monkeypatch):
     assert result.stdout.count("REFUSED") == 2
     assert "PROBLEM" in result.stdout  # this template has no sampling: darkroom couldn't render it
     assert all(b["sampling"] is None and b["expand"] is False for b in seen)
+
+
+def test_every_pin_of_a_card_is_named_by_its_template_version_and_seed(tmp_path, template_doc):
+    from eth_account import Account
+
+    from argus_mint.cards import load_draft
+    from argus_mint.pin import LocalPinner
+    from argus_mint.workflow import publish
+
+    image = tmp_path / "render.png"
+    image.write_bytes(b"\x89PNG not really")
+    out, _ = make_draft(tmp_path, template_doc, "--image", str(image))
+    approve(out)
+    pinner = LocalPinner()
+    draft, art, card_image = load_draft(out)
+    publish(draft, art, card_image, pinner=pinner, signer=Account.create(), chain_id=84532, card=CARD)
+    assert sorted(pinner.names.values()) == ["test-portrait-v1-81234-metadata.json", "test-portrait-v1-81234.png"]
+
+
+def test_submit_refuses_a_voucher_for_another_contract(tmp_path, template_doc):
+    out, _ = make_draft(tmp_path, template_doc, "--placeholder")
+    approve(out)
+    pub = json.loads(runner.invoke(app, publish_args(out, "--dry-run")).stdout) | {"dry_run": False}
+    voucher = tmp_path / "v.json"
+    voucher.write_text(json.dumps(pub))
+    other = "0x" + "ee" * 20
+    result = runner.invoke(app, ["submit", str(voucher), "--card", other, "--network", "anvil"])
+    assert result.exit_code == 2 and f"not the Card {other}" in result.output
+    result = runner.invoke(app, ["submit", str(voucher), "--network", "anvil"], env={"ARGUS_MINT_CARD": ""})
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)  # CI forces colour on typer's usage errors
+    assert result.exit_code == 2 and "--card" in plain  # required
+
+
+@pytest.mark.parametrize(
+    "uri",
+    ["", "   ", "IPFS://bafkreif3iky42eg7i5ipwrs47kxqvk5l4gfq5ucyxja4pmsddchc2mu7dm",
+     "/ipfs/bafkreif3iky42eg7i5ipwrs47kxqvk5l4gfq5ucyxja4pmsddchc2mu7dm",
+     "https://gateway.example/ipfs/bafkreif3iky42eg7i5ipwrs47kxqvk5l4gfq5ucyxja4pmsddchc2mu7dm", "ipfs://not-a-cid"],
+)  # fmt: skip
+def test_freeze_refuses_anything_but_a_cid_before_connecting(uri, monkeypatch):
+    from argus_mint import cli
+
+    monkeypatch.setattr(cli, "_chain", lambda *a: pytest.fail("connected for a bad URI"))
+    result = runner.invoke(app, ["freeze", "--card", CARD, "--token-id", "1", "--uri", uri, "--network", "anvil"])
+    assert result.exit_code == 2 and "CID" in result.output

@@ -96,3 +96,31 @@ def test_cursor_json_round_trip():
 def test_bad_arguments():
     with pytest.raises(ValueError):
         follow(FakeRpc(1, []), CARD, Cursor(0), confirmations=-1, on_transfer=lambda t: None)
+
+
+class ReorgDuringLogs(FakeRpc):
+    """The range's last block is replaced between the cursor reading its hash and get_logs answering."""
+
+    def get_logs(self, **kw):
+        logs = super().get_logs(**kw)
+        self.hashes[kw["to_block"]] = b"\xee" * 32  # the reorg lands now
+        return logs
+
+
+def test_a_reorg_while_logs_are_read_is_caught_before_delivery():
+    rpc = ReorgDuringLogs(head=10, logs=[_log(3, 0, "0x" + "00" * 20, A, 1)])
+    seen: list[Transfer] = []
+    with pytest.raises(ReorgTooDeep):
+        follow(rpc, CARD, Cursor(0), confirmations=0, on_transfer=seen.append)
+    assert seen == []
+
+
+def test_logs_from_another_branch_or_removed_are_not_delivered():
+    stale = _log(10, 0, "0x" + "00" * 20, A, 1) | {"blockHash": b"\xee" * 32}  # block 10 on an orphaned branch
+    rpc = FakeRpc(head=10, logs=[stale])
+    seen: list[Transfer] = []
+    with pytest.raises(ReorgTooDeep):
+        follow(rpc, CARD, Cursor(0), confirmations=0, on_transfer=seen.append)
+    rpc.logs = [_log(4, 0, "0x" + "00" * 20, A, 1) | {"removed": True}, _log(5, 0, "0x" + "00" * 20, A, 2)]
+    follow(rpc, CARD, Cursor(0), confirmations=0, on_transfer=seen.append)
+    assert [t.token_id for t in seen] == [2]

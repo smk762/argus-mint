@@ -73,6 +73,18 @@ def test_flagged_and_unusable_replies_are_retried_then_fail(bio_doc, template_do
     assert len(e.value.attempts) == 3
 
 
+def test_a_bio_with_a_number_is_retried_and_never_reaches_the_card(bio_doc, template_doc):
+    """Hard rule 4: a bio is display text, never a number a game could read back as a stat."""
+    bt, t = BioTemplate.model_validate(bio_doc), Template.model_validate(template_doc)
+    guard = Guard()
+    b = write_bio(
+        Writer("{name} has 12 strength.", "{name} is ٣ feet tall.", "{name} hums."), guard, bt, VALUES, t, "R2"
+    )
+    assert [(a.outcome, a.detail) for a in b.attempts] == [("unusable", "contains a number")] * 2 + [("ok", "")]
+    assert b.text == "R2 hums."  # the name may hold digits: it goes in after the check
+    assert guard.seen == ["{name} hums."]  # a reply with a number is never even screened
+
+
 def test_bio_templates_are_reviewed_and_keep_the_name_out(bio_doc, template_doc):
     t = Template.model_validate(template_doc)
     draft = BioTemplate.model_validate({**bio_doc, "status": "draft", "approved_by": None, "approved_at": None})
@@ -92,6 +104,22 @@ def test_clean_cuts_long_replies_at_a_sentence():
     out = clean(text, 60)
     assert out == "First sentence here. Second one goes on."
     assert clean("x " * 100, 50).endswith("…")
+
+
+def test_clean_never_exceeds_max_chars():
+    for text in ("x" * 200, "https://example.org/" + "a" * 200, "名前" * 100, "word " * 60):
+        for n in (1, 2, 10, 49, 50):
+            out = clean(text, n)
+            assert len(out) <= n, (text[:20], n, out)
+    assert clean("anything", 0) == "" and clean("anything", -1) == ""
+
+
+def test_max_chars_holds_once_the_name_is_in(bio_doc, template_doc):
+    bt = BioTemplate.model_validate({**bio_doc, "max_chars": 60})
+    t = Template.model_validate(template_doc)
+    reply = "{name} walks the long road home. {name} sings of rain and stone. " * 3
+    b = write_bio(Writer(reply), Guard(), bt, VALUES, t, "Hana of the Strait, Warden of the Northern Reach")
+    assert len(b.text) <= 60 and b.text.startswith("Hana of the Strait")
 
 
 def test_chat_writer_and_darkroom_text_check():
@@ -136,8 +164,13 @@ def test_draft_with_bio_frame_and_display_text(tmp_path, template_doc, bio_doc, 
 
     result = runner.invoke(cli.app, [*base, "--bio", str(tmp_path / "bio.yaml"), "--writer", "http://w"])
     assert result.exit_code == 2 and "needs --darkroom" in result.output
-    result = runner.invoke(cli.app, [*base, "--text", "stats=3/2", "--bio", str(tmp_path / "bio.yaml")])
-    assert result.exit_code != 0  # the test frame has no stats slot, and --bio needs --writer
+    result = runner.invoke(cli.app, [*base, "--text", "stats=3/2"])
+    assert result.exit_code == 1 and isinstance(result.exception, SystemExit)
+    assert "has no text slot ['stats']" in result.output  # the test frame has name and bio only
+    monkeypatch.delenv("ARGUS_MINT_WRITER_URL", raising=False)
+    result = runner.invoke(cli.app, [*base, "--bio", str(tmp_path / "bio.yaml"), "--darkroom", "http://dr"])
+    assert result.exit_code == 2 and isinstance(result.exception, SystemExit)
+    assert "--bio needs --writer" in result.output
     result = runner.invoke(
         cli.app, [*base, "--bio", str(tmp_path / "bio.yaml"), "--writer", "http://w", "--darkroom", "http://dr"]
     )
@@ -172,6 +205,41 @@ def test_repo_example_bios_are_valid():
 
     root = Path(__file__).resolve().parents[1]
     t = load_template(root / "templates" / "example-portrait-v2.yaml")
-    for f in (root / "bios").glob("*.yaml"):
+    bios = sorted([*(root / "bios").glob("*.yaml"), *(root / "bios").glob("*.yml")])
+    assert bios, "no example bios found"
+    for f in bios:
         bt = load_bio(f)
         bt.fill({k: v[0] for k, v in t.variables.items()}, t)
+
+
+def test_a_sample_keeps_its_art_when_the_bio_fails(tmp_path, template_doc, bio_doc, monkeypatch):
+    from argus_mint import cli
+    from argus_mint.darkroom import DarkroomClient
+
+    from . import test_darkroom
+    from .test_darkroom import FakeDarkroom
+    from .test_frames import ART, _frame
+
+    monkeypatch.setattr(test_darkroom, "PNG", ART)  # a real image, to frame
+    doc = {**template_doc, "status": "draft", "approved_by": None, "approved_at": None}
+    doc["sampling"] = {"sampler": "euler", "scheduler": "normal", "steps": 20, "cfg": 5.0}
+    (tmp_path / "t.yaml").write_text(yaml.safe_dump(doc))
+    (tmp_path / "bio.yaml").write_text(yaml.safe_dump(bio_doc))
+    fake = FakeDarkroom("passed")
+    monkeypatch.setattr(
+        cli,
+        "DarkroomClient",
+        lambda url, **kw: DarkroomClient(url, client=httpx.Client(transport=httpx.MockTransport(fake)), **kw),
+    )
+    monkeypatch.setattr(cli, "ChatWriter", lambda url, **kw: Writer(*["{name} meets {friend}"] * 3))
+    args = [
+        "sample", str(tmp_path / "t.yaml"), "--out", str(tmp_path / "s"), "--count", "1",
+        "--darkroom", "http://darkroom:8106", "--bio", str(tmp_path / "bio.yaml"), "--writer", "http://w",
+        "--frame", str(_frame(tmp_path)),
+    ]  # fmt: skip
+    result = runner.invoke(cli.app, args)
+    assert result.exit_code == 0, result.output
+    s = json.loads(result.stdout)["samples"][0]
+    assert "all 3 attempts" in s["error"] and len(s["bio_attempts"]) == 3
+    assert s["seed"] and len(s["attempts"]) == 1  # the render and its seed are kept
+    assert (tmp_path / "s").joinpath(s["art"]).exists() and (tmp_path / "s").joinpath(s["framed"]).exists()

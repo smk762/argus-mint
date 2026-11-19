@@ -81,8 +81,16 @@ class FakeDarkroom:
             record["request"]["seed"] = body["seed"] + 1
         if self.tamper == "image":
             self.images[rid] = b"something else"
+        if self.tamper == "no_guard":
+            del record["guard"]
+        if self.tamper == "no_policy":
+            record["guard"] = {}
         events = [("preflight", {"outcome": "ok"}), ("progress", {"step": 1, "total": 20})]
         events.append(("error", {"detail": "comfyui down"}) if outcome == "error" else ("complete", {"record": record}))
+        if self.tamper == "no_record":
+            events[-1] = ("complete", {"detail": "where did it go"})
+        if self.tamper == "null_record":
+            events[-1] = ("complete", {"record": None})
         text = "".join(f"event: {k}\ndata: {json.dumps(v)}\n\n" for k, v in events)
         return httpx.Response(200, text=text, headers={"content-type": "text/event-stream"})
 
@@ -206,7 +214,17 @@ def test_non_safety_outcomes_are_errors(tdoc, outcome, match):
     assert match in res.detail
 
 
-@pytest.mark.parametrize(("tamper", "match"), [("seed", "seed"), ("image", "sha256")])
+@pytest.mark.parametrize(
+    ("tamper", "match"),
+    [
+        ("seed", "seed"),
+        ("image", "sha256"),
+        ("no_guard", "does not state its enforcing policy"),
+        ("no_policy", "does not state its enforcing policy"),
+        ("no_record", "no record"),
+        ("null_record", "no record"),
+    ],
+)
 def test_mismatched_record_is_an_error(tdoc, tamper, match):
     res = client(FakeDarkroom("passed", tamper=tamper)).generate(fill(Template.model_validate(tdoc), VALUES, 1))
     assert res.outcome is Outcome.ERROR
@@ -261,3 +279,27 @@ def test_batch_sends_the_priority_and_shares_the_connection(tdoc):
     assert c.generate(fill(Template.model_validate(tdoc), VALUES, 2)).ok
     # the 409 retry still runs, and keeps the header
     assert fake.priorities == ["batch", "batch", None]
+
+
+def test_trigger_words_match_darkroom_assemble_prompt(tdoc):
+    # darkroom >= 0.2.0: present means a whole word or phrase, in any case, in the prompt or the triggers added so far.
+    doc = {
+        **tdoc,
+        "loras": [
+            {"name": "a.safetensors", "weight": 1, "trigger_words": ["MyStyle", "sks"]},
+            {"name": "b.safetensors", "weight": 1, "trigger_words": ["mystyle", "Warrior", "rang"]},
+        ],
+    }
+    req = fill(Template.model_validate(doc), VALUES, 1)
+    assert "ranger" in req.prompt and "warrior" in req.prompt
+    assert final_prompt(req) == req.prompt + ", MyStyle, sks, rang"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [httpx.Response(200, text="<html>bad gateway</html>"), httpx.Response(200, json=["not", "an", "object"])],
+)
+def test_text_check_turns_a_bad_answer_into_a_darkroom_error(response):
+    c = DarkroomClient("http://darkroom:8106", client=httpx.Client(transport=httpx.MockTransport(lambda r: response)))
+    with pytest.raises(DarkroomError, match="text check"):
+        c.check_text("{name} hums")

@@ -4,7 +4,10 @@ A card starts as a **draft**: local files that nobody outside the service has se
 
 ```
 draft  →  review (moderator + owner)  →  publish (pin, metadata, signed voucher)  →  mint (on-chain, by the owner's wallet)
+                                      ↘  post (a teaser, through argus-herald)
 ```
+
+Publishing and posting are both optional, and either can come first.
 
 ## Making a draft
 
@@ -40,16 +43,18 @@ Each draft also records what made it, in `made_with`: `{"argus-mint": <version>}
 
 ## What a draft records
 
-`GET /drafts/{id}` returns `{id, status, awaiting, draft, published}`. The `draft` record holds:
+`GET /drafts/{id}` returns `{id, status, awaiting, draft, published, posts}`. `posts` lists each recorded post of a teaser ([projects.md](projects.md#posting)), kept beside the draft in `posts.json`. The `draft` record holds:
 
 | Field | What it is |
 |---|---|
-| `request` | the exact render request: template id, version and hash, prompt, negative prompt, checkpoint, LoRAs, sampling, size and the **final** seed |
+| `kind` | `card` (the default; drafts made before teasers are cards) or `teaser` ([projects.md](projects.md#teaser-drafts)) |
+| `request` | the exact render request: template id, version and hash, prompt, negative prompt, checkpoint, LoRAs, sampling, size and the **final** seed. For a teaser, the template fields name the scene (a viewpoint teaser's background) or the identity (an inpainted figure), and `init_image` holds the sha256 of the background and mask it was painted on |
 | `attempts` | every render attempt, in order (below) |
 | `renderer` | `darkroom`, `supplied` or `placeholder` |
 | `library` | the library entry id, when the art came from one |
-| `asset_id`, `to` | the consumer's 32-byte asset id, and the wallet the card is minted to (the owner) |
-| `name`, `description`, `external_url`, `consumer` | metadata text. `description` defaults to the bio |
+| `asset_id`, `to` | the consumer's 32-byte asset id (`null` for a teaser), and the wallet the card is minted to (the owner, who signs the review) |
+| `name`, `description`, `external_url`, `consumer` | metadata text. `description` defaults to the bio. A teaser has no `consumer` and is named `<title> T<n>` |
+| `teaser` | for a teaser: its project and number, each linked file (project, teaser links, line, identity, scene) by id, version and hash, `presence`, the background's id and sha256, and the alt text |
 | `frame` | the frame's id, version and hash, when framed |
 | `bio` | the bio template (id, version, hash, model), the text, every writing attempt, and `edited` if a person changed it |
 | `texts` | the consumer's display text by frame slot (class, stats…) |
@@ -78,11 +83,11 @@ A bio is written the same way: a reply that darkroom's text check flags, or that
 
 ## Publishing
 
-`POST /drafts/{id}/publish` (moderator token), or `argus-mint publish`, takes an **approved** draft and:
+`POST /drafts/{id}/publish` (moderator token), or `argus-mint publish`, takes an **approved** draft, a card or a teaser, and:
 
 1. checks the art and card image still hash to what was reviewed, and that both reviewers approved;
 2. pins the unframed art (framed cards only) and the card image to IPFS;
-3. builds the canonical ERC-721 metadata, whose `provenance` names the template, seed, attempt count, variables, checkpoint, LoRAs, frame, bio template and style;
+3. builds the canonical ERC-721 metadata. A card's `provenance` names the template, seed, attempt count, variables, checkpoint, LoRAs, frame, bio template and style. A teaser's names the teaser record instead ([projects.md](projects.md#minting)), and its asset id is derived from its project and number;
 4. signs an EIP-712 mint voucher for the owner's address, with the metadata's content hash, a price (default 0) and a deadline (default: now plus `ARGUS_MINT_VOUCHER_TTL`, 3600 s).
 
 The result goes in `published` on the draft: the signer, the render summary, the reviews, the metadata and its CID, the voucher, the signature and the typed data. A draft publishes **once**. Placeholder art is refused.

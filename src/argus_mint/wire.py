@@ -9,18 +9,32 @@ major it doesn't know.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from argus_mint.backgrounds import Background, BackgroundSet
 from argus_mint.bios import BioTemplate
-from argus_mint.cards import CardDraft
+from argus_mint.cards import CardDraft, Post
 from argus_mint.frames import Frame
 from argus_mint.metadata import CardStyle
 from argus_mint.templates import LoraChoice, Template
+from argus_mint.training import TrainingRecord
 
 __all__ = [
     "WIRE_VERSION",
+    "BackgroundDecision",
+    "IdentityTrainingView",
+    "BackgroundSetList",
+    "CreateTeaserDraft",
+    "DraftPosts",
+    "PostRequest",
+    "ProjectTracker",
+    "ReadyTeaser",
+    "ReadyTeasers",
+    "TeaserDraftState",
+    "TeaserProgress",
+    "TeaserStages",
     "BioInfo",
     "Capabilities",
     "Challenge",
@@ -52,13 +66,36 @@ __all__ = [
     "SampleJob",
     "SampleJobList",
     "SampleRequest",
+    "ProjectChecks",
+    "ProjectDetail",
+    "ProjectFile",
+    "ProjectList",
+    "ProjectSummary",
+    "SaveProjectFile",
+    "SavedProjectFile",
+    "TextCheck",
 ]
 
 # 1.1 samples, previews, catalogue; 1.2 auto-moderation; 1.3 owner edits, style; 1.4 checkpoints, library;
 # 1.5 LoRA choices, sampling per checkpoint family; 1.6 provenance records variables, checkpoint, LoRAs;
 # 1.7 templates checked against darkroom's workflows; 1.8 sampling per checkpoint;
-# 1.9 drafts record what made them (made_with)
-WIRE_VERSION = "1.9"
+# 1.9 drafts record what made them (made_with); 1.10 slot texts are bounded (SlotTexts);
+# 1.11 teaser projects (authoring, checks, review); 1.12 backgrounds, teaser drafts (CardDraft.kind), the tracker;
+# 1.13 posting (POST /drafts/{id}/posted, GET /posts/ready, the poster token), teasers publish, tracker posted/minted
+# 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
+# 1.15 the identity check on a teaser (AutoCheck.identity, POST /drafts/{id}/identity-check, identity_check)
+# 1.16 a project's own frames (ids <project>/<name>; FrameInfo.project); 1.17 frame effects (Frame.effects)
+WIRE_VERSION = "1.17"
+
+MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
+# Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
+SlotTexts = Annotated[
+    dict[
+        Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,31}$")],
+        Annotated[str, StringConstraints(max_length=2000)],
+    ],
+    Field(max_length=MAX_SLOTS),
+]
 DraftStatus = Literal["pending", "approved", "rejected", "published"]
 
 
@@ -80,6 +117,16 @@ class Capabilities(_Wire):
     edit_text: bool = False  # owner edits of text and style: not read-only, and owner sign-in is set up
     auto_moderate: bool = False  # the platform's checks approve as the moderator when they all pass
     check_templates: bool = False  # darkroom can be asked whether it renders a template (GET .../check)
+    author_catalogue: bool = False  # teaser project files can be written here: token set, projects dir writable
+    backgrounds: bool = False  # scene backgrounds can be rendered: darkroom configured, token set, not read-only
+    teasers: bool = False  # teaser drafts: moderator token set, not read-only (embodied ones need darkroom too)
+    post: bool = False  # posts can be recorded: a poster or moderator token set, not read-only
+    # an embodied identity's LoRA can be trained here: darkroom, curator, lens, forge and proof configured,
+    # the shared exports and LoRA directories set, moderator token set, not read-only
+    identity_training: bool = False
+    # a teaser of an embodied identity is scored by argus-proof (POST /score) against its references:
+    # proof configured (ARGUS_MINT_PROOF_URL), not read-only. Without it, such a teaser is held as unchecked.
+    identity_check: bool = False
 
 
 class Health(_Wire):
@@ -105,10 +152,14 @@ class TemplateInfo(_Wire):
 
 
 class FrameInfo(_Wire):
+    """GET /frames. ``file`` is relative to the frames directory, or for a project's own frame
+    (``project`` set, id ``<project>/<name>``) to the projects directory."""
+
     hash: str
     file: str
     width: int
     height: int
+    project: str | None = None  # the project whose frame this is; None: a global frame
     frame: Frame
 
 
@@ -144,12 +195,18 @@ class CreateDraft(_Wire):
     external_url: str | None = None
     frame: Ref | None = None
     bio: Ref | None = None
-    texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot
+    texts: SlotTexts = Field(default_factory=dict)  # consumer display text by frame slot
     style: CardStyle | None = None  # the owner's choices, if the consumer collected them up front
+
+
+class TeaserOf(_Wire):
+    project: str
+    number: str
 
 
 class DraftSummary(_Wire):
     id: str
+    kind: Literal["card", "teaser"] = "card"
     name: str
     to: str
     status: DraftStatus
@@ -158,6 +215,7 @@ class DraftSummary(_Wire):
     template: Ref
     frame: Ref | None
     image_sha256: str
+    teaser: TeaserOf | None = None  # a teaser's project and number
 
 
 class DraftList(_Wire):
@@ -182,6 +240,7 @@ class DraftDetail(_Wire):
     awaiting: list[str]
     draft: CardDraft
     published: PublishResult | None = None
+    posts: list[Post] = Field(default_factory=list)  # each posting of the image, in the order recorded
 
 
 class TextEdit(_Wire):
@@ -190,7 +249,7 @@ class TextEdit(_Wire):
 
     name: str | None = Field(default=None, max_length=120)
     bio: str | None = Field(default=None, max_length=2000)
-    texts: dict[str, str] | None = None
+    texts: SlotTexts | None = None
     style: CardStyle | None = None
 
 
@@ -253,7 +312,7 @@ class SampleRequest(_Wire):
     variables: dict[str, str] = Field(default_factory=dict)  # fixed values; the rest vary
     seed: int = Field(default=0, ge=0, le=2**32 - 1)  # picks the combinations, and the first render seed
     name: str = Field(default="Sample", min_length=1, max_length=120)
-    texts: dict[str, str] = Field(default_factory=dict)
+    texts: SlotTexts = Field(default_factory=dict)
     style: CardStyle | None = None
 
 
@@ -300,7 +359,7 @@ class FramePreviewRequest(_Wire):
     art: ArtSource
     name: str = Field(default="Sample", min_length=1, max_length=120)
     bio: str | None = Field(default=None, max_length=2000)
-    texts: dict[str, str] = Field(default_factory=dict)
+    texts: SlotTexts = Field(default_factory=dict)
     style: CardStyle | None = None
 
 
@@ -336,7 +395,7 @@ class CatalogueEntry(_Wire):
 class LayoutRequest(_Wire):
     """POST /frames/{id}/{version}/layout: where these texts go, for a browser preview."""
 
-    texts: dict[str, str]
+    texts: SlotTexts
 
 
 class LineLayout(_Wire):
@@ -378,6 +437,219 @@ class LibraryListing(_Wire):
     items: list[LibraryItem]
 
 
+# -- teaser projects --------------------------------------------------------------------------------
+
+ProjectKind = Literal["project", "identity", "scene", "line", "teasers"]
+
+
+class TextCheck(_Wire):
+    """SingGuard's verdict on one text, under the project's policy (darkroom's text pre-flight).
+
+    The verdict is stored in the file's ``guard`` block and holds while the text and the policy
+    are the ones it judged."""
+
+    field: str  # which file and field, e.g. "scene lamp-room v1: prompt"
+    passed: bool
+    detail: str = ""  # the rule or reason when it didn't pass
+
+
+class ProjectChecks(_Wire):
+    """What stands between a project's files and approval.
+
+    ``spoiler_rules`` are numbers in the private spoiler list, never its terms. ``guard_ran`` is
+    false when no darkroom is configured: then nothing can be approved.
+    """
+
+    problems: list[str]  # schema and cross-file problems, as sentences
+    spoiler_rules: list[int]
+    guard: list[TextCheck]
+    guard_ran: bool
+
+
+class ProjectFile(_Wire):
+    kind: ProjectKind
+    id: str
+    version: int
+    status: Literal["draft", "approved", "retired"]
+    hash: str
+    file: str  # relative to the project's directory
+    doc: dict[str, Any]  # the file's content
+
+
+class ProjectSummary(_Wire):
+    id: str
+    title: str
+    status: Literal["draft", "approved", "retired"]
+
+
+class ProjectList(_Wire):
+    projects: list[ProjectSummary]
+
+
+class ProjectDetail(_Wire):
+    """GET /projects/{id}: every file of a project (teaser links included, kind ``teasers``) and their checks.
+
+    ``checks.guard`` holds the verdicts stored in the files that still hold; a text with none
+    hasn't been checked since it (or the project's policy) last changed.
+    """
+
+    id: str
+    files: list[ProjectFile]
+    checks: ProjectChecks
+
+
+class SaveProjectFile(_Wire):
+    """POST /projects/{id}/files/{kind}/{item}/{version}: write a draft file.
+
+    ``doc`` is the file's content without ``status``, ``approved_by`` or ``approved_at``: a saved
+    file is always a draft, and ``guard`` is written by the server alone. An approved or
+    retired file never changes; save a new version.
+    """
+
+    doc: dict[str, Any]
+
+
+class SavedProjectFile(_Wire):
+    file: ProjectFile
+    checks: ProjectChecks  # for the saved file's texts, and the project's cross-file problems
+
+
+class BackgroundSetList(_Wire):
+    """GET /projects/{id}/backgrounds: each scene version's backgrounds, by scene then version."""
+
+    sets: list[BackgroundSet]
+
+
+class BackgroundDecision(_Wire):
+    """POST /projects/{id}/backgrounds/{bg}/review: the moderator's decision on one background."""
+
+    decision: Literal["approve", "reject"]
+    by: str = Field(min_length=1, max_length=128)
+    note: str = Field(default="", max_length=2000)
+
+
+class TeaserStages(_Wire):
+    """The stages a teaser has reached, as argus-mint works them out (a client never does)."""
+
+    quote_final: bool  # its line is approved
+    concept_chosen: bool  # its identity and scene are approved
+    image_made: bool  # a draft made from the current line, identity and scene is approved or published
+    posted: bool = False  # a draft of this teaser has a post recorded
+    minted: bool = False  # a draft of this teaser is published (pinned, metadata, signed voucher)
+
+
+class TeaserDraftState(_Wire):
+    """One teaser draft, as the tracker lists it. ``current``: made from the current links' line,
+    identity and scene (an older draft of the same number may not be)."""
+
+    id: str
+    status: DraftStatus
+    awaiting: list[str]
+    created_at: datetime
+    links_version: int
+    background: str
+    current: bool
+
+
+class TeaserProgress(_Wire):
+    number: str
+    stages: TeaserStages
+    background: str | None  # the chosen background, if any
+    drafts: list[TeaserDraftState]  # newest first
+
+
+class ProjectTracker(_Wire):
+    """GET /projects/{id}/tracker: each teaser of the newest approved links (none: ``links_version`` null)."""
+
+    project: str
+    links_version: int | None
+    teasers: list[TeaserProgress]
+
+
+class CreateTeaserDraft(_Wire):
+    """POST /projects/{id}/teasers/{n}/draft. Everything else comes from the project's reviewed files."""
+
+    to: str  # the owner, who signs the review
+
+
+class PostRequest(_Wire):
+    """POST /drafts/{id}/posted: a post of an approved teaser's image (poster or moderator token).
+
+    ``sha256`` is of the bytes posted and must equal the draft's ``image_sha256``.
+    """
+
+    where: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,31}$")  # the platform, e.g. "bluesky"
+    url: str | None = Field(default=None, max_length=2048)  # http(s); none when the platform gives none
+    at: AwareDatetime  # when it was posted, with its time zone
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("url")
+    @classmethod
+    def _http(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("https://", "http://")):
+            raise ValueError("a post's url is an http(s) URL")
+        return v
+
+
+class DraftPosts(_Wire):
+    """A draft's posts, in the order recorded (the answer to POST /drafts/{id}/posted)."""
+
+    id: str
+    image_sha256: str
+    posts: list[Post]
+
+
+class ReadyTeaser(_Wire):
+    """One approved teaser, as GET /posts/ready lists it for a poster (argus-herald).
+
+    ``image_url`` is the draft's image route, relative to argus-mint's base URL; its bytes hash to
+    ``image_sha256``. ``posted`` is true once a post is recorded; such a teaser stays listed.
+    ``current`` is false for a draft made from another line, identity or scene than the
+    project's current teaser links name for that number (a newer draft supersedes it).
+    """
+
+    id: str
+    project: str
+    title: str  # the project's working title, as the draft was named with it
+    number: str
+    status: Literal["approved", "published"]
+    current: bool
+    created_at: datetime
+    approved_at: datetime  # the last approval of the current image
+    image_url: str
+    image_sha256: str
+    alt: str
+    quote: str  # as shown on the image (the line's published text)
+    attribution: str | None  # the project's attribution line, when it has one
+    label: str | None  # the "generated image" label, when the project draws it
+    posted: bool
+    posts: list[Post]
+
+
+class ReadyTeasers(_Wire):
+    """GET /posts/ready: approved (and published) teaser drafts, newest first, paged."""
+
+    items: list[ReadyTeaser]
+    total: int
+
+
+TrainingStepStatus = Literal["not_started", "queued", "running", "done", "failed"]
+TrainingStep = Literal["candidates", "select", "caption", "train", "evaluate", "pin"]
+
+
+class IdentityTrainingView(_Wire):
+    """GET /projects/{id}/identities/{identity}/{version}/training: the record, and each step's status
+    as mint works it out (a job a restart cut off reads as failed). ``next``: the one step the
+    moderator may start now, if any."""
+
+    project: str
+    identity: str
+    version: int
+    steps: dict[TrainingStep, TrainingStepStatus]
+    next: TrainingStep | None
+    record: TrainingRecord | None
+
+
 WIRE_MODELS: tuple[type[BaseModel], ...] = (
     Health,
     TemplateInfo,
@@ -403,4 +675,18 @@ WIRE_MODELS: tuple[type[BaseModel], ...] = (
     LayoutRequest,
     FrameLayout,
     LibraryListing,
+    ProjectList,
+    ProjectDetail,
+    SaveProjectFile,
+    SavedProjectFile,
+    BackgroundSet,
+    BackgroundSetList,
+    Background,
+    BackgroundDecision,
+    CreateTeaserDraft,
+    ProjectTracker,
+    PostRequest,
+    DraftPosts,
+    ReadyTeasers,
+    IdentityTrainingView,
 )

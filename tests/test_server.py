@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 import yaml
 from eth_account import Account
@@ -9,6 +11,7 @@ from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
 
 import argus_mint
+from argus_mint.cards import DraftError, DraftStore
 from argus_mint.pin import LocalPinner
 from argus_mint.render import GenResult
 from argus_mint.server import Settings, create_app
@@ -51,6 +54,7 @@ def setup(tmp_path, template_doc):
     fdir.mkdir()
     _frame(fdir)
     (tmp_path / "bios").mkdir()
+    (tmp_path / "projects").mkdir()
     (tmp_path / "bios" / "b.yaml").write_text(
         yaml.safe_dump(
             {
@@ -69,7 +73,7 @@ def setup(tmp_path, template_doc):
     def make(darkroom=None, **over):
         cfg = Settings(
             drafts_dir=tmp_path / "drafts", samples_dir=tmp_path / "samples", library_dir=tmp_path / "library", templates_dir=tmp_path / "templates", frames_dir=fdir,
-            bios_dir=tmp_path / "bios", darkroom_url="http://darkroom", writer_url="http://writer",
+            bios_dir=tmp_path / "bios", projects_dir=tmp_path / "projects", darkroom_url="http://darkroom", writer_url="http://writer",
             ipfs_api="http://ipfs", network="base-sepolia", card=CARD, moderator_token=TOKEN,
             siwe_domain="assay.example", **over,
         )  # fmt: skip
@@ -105,8 +109,13 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.9" and h["chain_id"] == 84532 and h["card"] == CARD
-    assert all(v for k, v in h["capabilities"].items() if k not in ("auto_moderate", "library", "check_templates"))
+    assert h["wire_version"] == "1.17" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert all(
+        v
+        for k, v in h["capabilities"].items()
+        if k not in ("auto_moderate", "library", "check_templates", "identity_training", "identity_check")
+    )
+    assert h["capabilities"]["identity_training"] is False  # no curator, lens, forge or proof here
     assert [t["template"]["id"] for t in c.get("/templates").json()] == ["test-portrait"]
     frames = c.get("/frames").json()
     assert frames[0]["width"] == 300 and set(frames[0]["frame"]["texts"]) == {"name", "bio"}
@@ -201,7 +210,8 @@ def test_cross_site_writes_and_read_only(setup, owner):
     assert ro.get("/health").json()["capabilities"] == {
         "create_drafts": False, "write_bios": False, "moderate": False, "owner_review": False, "publish": False,
         "sample": False, "review_catalogue": False, "edit_text": False, "auto_moderate": False, "library": False,
-        "check_templates": False,
+        "check_templates": False, "author_catalogue": False, "backgrounds": False, "teasers": False, "post": False,
+        "identity_training": False, "identity_check": False,
     }  # fmt: skip
     assert _create(ro, owner).status_code == 403
 
@@ -209,6 +219,14 @@ def test_cross_site_writes_and_read_only(setup, owner):
 def test_settings_from_env():
     s = Settings.from_env({"ARGUS_MINT_CORS_ORIGINS": "https://a, https://b", "ARGUS_MINT_READ_ONLY": "1"})
     assert s.cors_origins == ("https://a", "https://b") and s.read_only is True
+
+
+def test_settings_treat_empty_variables_as_unset():
+    # compose's ${VAR:-} sets a variable to "": the defaults must still apply.
+    names = ("DRAFTS_DIR", "SAMPLES_DIR", "VOUCHER_TTL", "POLICY", "NETWORK", "CONSUMER")
+    s = Settings.from_env({f"ARGUS_MINT_{n}": " " for n in names})
+    assert s == Settings.from_env({})
+    assert s.drafts_dir == Path("drafts") and s.voucher_ttl == 3600 and s.policy == "default"
 
 
 def test_wire_schema_is_committed():
@@ -371,7 +389,11 @@ def test_owner_restyles_the_card(setup, owner, tmp_path):
     assert _edit_as_owner(c, draft_id, owner, {"style": {"slots": {"stats": {}}}}).status_code == 409  # no such slot
     assert _edit_as_owner(c, draft_id, owner, {"style": {}}).json()["draft"]["style"] is None  # cleared
 
-    c.post(f"/drafts/{draft_id}/edit", json={})  # needs a signature
+    unchanged = c.get(f"/drafts/{draft_id}").json()["draft"]
+    for unsigned in ({}, {"style": style}, {"name": "Mallory"}):
+        assert c.post(f"/drafts/{draft_id}/edit", json=unsigned).status_code in (401, 403, 422)  # needs a signature
+        assert c.post(f"/drafts/{draft_id}/edit", json=unsigned, headers=AUTH).status_code in (401, 403, 422)
+    assert c.get(f"/drafts/{draft_id}").json()["draft"] == unchanged
     _edit_as_owner(c, draft_id, owner, {"style": style})
     c.post(f"/drafts/{draft_id}/review", json={"role": "moderator", "approve": True, "by": "m"}, headers=AUTH)
     _owner_review(c, draft_id, owner)
@@ -441,3 +463,29 @@ def test_samples_render_at_batch_priority(setup, tmp_path):
     assert r.status_code == 202, r.text
     assert _wait(c, r.json()["id"])["status"] == "done"
     assert dark.seen == ["batch", "batch"]
+
+
+def test_a_draft_id_with_a_trailing_newline_is_refused(tmp_path):
+    # `$` also matches before a final newline; the id check matches the whole string, before any path is built.
+    store = DraftStore(tmp_path)
+    draft_id = store.new_id()
+    assert store.path(draft_id) == tmp_path / draft_id
+    with pytest.raises(DraftError):
+        store.path(draft_id + "\n")
+
+
+def test_slot_texts_are_bounded():
+    from pydantic import ValidationError
+
+    from argus_mint.wire import MAX_SLOTS, EditTextRequest, TextEdit
+
+    assert TextEdit.model_validate({"texts": {"class": "Ranger"}}).texts == {"class": "Ranger"}
+    for texts in (
+        {f"s{i}": "x" for i in range(MAX_SLOTS + 1)},  # too many slots
+        {"class": "x" * 2001},  # too long
+        {"Not A Slot": "x"},  # not a slot name
+    ):
+        with pytest.raises(ValidationError):
+            TextEdit.model_validate({"texts": texts})
+        with pytest.raises(ValidationError):
+            EditTextRequest.model_validate({"texts": texts, "message": "m", "signature": "s"})

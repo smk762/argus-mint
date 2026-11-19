@@ -1,0 +1,15 @@
+# Example teaser project: neutral stand-in content (a lighthouse on a stormy coast), used by
+# the tests and the demo. A real project lives in its own directory under ARGUS_MINT_PROJECTS_DIR,
+# usually outside this repository. Reviewed like a template: approval means setting
+# status: approved plus approved_by / approved_at (or POST /projects/<id>/files/<kind>/<item>/<version>/review).
+id: example-teasers
+version: 1
+status: draft             # draft | approved | retired
+title: Lantern Coast      # the working title; whatever is posted becomes the public name
+attribution: null         # a fixed line under every quote, or null to leave quotes unsigned
+generated_label: true     # draw "generated image" in the frame's `label` slot
+frames:
+  - {id: example-teaser, version: 1}
+  - {id: example-teasers/harbour-feed, version: 1}   # the project's own (frames/), the lamp's view
+policy: default           # the SingGuard policy every text in this project is checked under (darkroom's SFW one)
+family: sdxl              # inpainting a figure into a background is SDXL-only for now

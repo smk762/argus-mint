@@ -23,14 +23,26 @@ import json
 import os
 import re
 import secrets
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from argus_mint._codec import Bytes32
-from argus_mint.metadata import BioRef, CardStyle, FrameRef, Provenance
+from argus_mint.metadata import (
+    BackgroundRef,
+    BioRef,
+    CardStyle,
+    FileRef,
+    FrameRef,
+    InpaintRef,
+    LoraUse,
+    Provenance,
+    TeaserProvenance,
+    teaser_asset_id,
+)
 from argus_mint.templates import RenderRequest
 
 __all__ = [
@@ -39,11 +51,18 @@ __all__ = [
     "BioRecord",
     "Edit",
     "CardDraft",
+    "IdentityCheck",
+    "IdentityOutcome",
     "DraftNotFound",
     "DraftStore",
     "DraftError",
     "NotApproved",
+    "Post",
     "Review",
+    "ScoreBox",
+    "ScorerFile",
+    "TeaserFile",
+    "TeaserRecord",
     "check_publishable",
     "load_draft",
     "review",
@@ -100,8 +119,76 @@ class Edit(BaseModel):
     image_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")  # the new card image
 
 
+class ScoreBox(BaseModel):
+    """The part of an image proof scored, in the image's own pixels."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+
+class ScorerFile(BaseModel):
+    """The weights a proof scorer loaded, pinned by sha256 (proof's ``ModelRef``)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str = Field(min_length=1, max_length=512)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+IdentityOutcome = Literal["passed", "below", "uncalibrated", "skipped", "unavailable", "error"]
+
+
+class IdentityCheck(BaseModel):
+    """argus-proof's score of a teaser's figure against its identity's held-out references (#51).
+
+    ``outcome``: ``passed`` (``score`` >= ``min_score``), ``below`` (under it), ``uncalibrated``
+    (scored, but the identity has no ``min_score`` yet), ``skipped`` (nothing to score: a
+    viewpoint identity, or an embodied one with no ``proof_export`` yet), ``unavailable`` (proof
+    is unreachable, answered 503, or isn't configured) or ``error`` (proof refused the request,
+    or its answer can't be read). ``reason`` says it in words. Only ``passed`` (or a viewpoint's
+    ``skipped``) lets auto-moderation stand in for the moderator; ``below``, ``unavailable``,
+    ``error`` and an embodied ``skipped`` hold the draft.
+
+    ``art_sha256`` is the unframed art that was scored, ``crop`` the scene's ``character_area``
+    in its pixels; ``scorer``, ``scorer_version`` and ``model_file`` are proof's provenance for
+    ``metric``'s scorer, and ``proof_version`` its wire version.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    at: datetime
+    art_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    presence: Literal["embodied", "viewpoint"]
+    outcome: IdentityOutcome
+    reason: str = Field(min_length=1)
+    metric: Literal["identity", "likeness"] | None = None
+    score: float | None = None
+    min_score: float | None = None
+    export: str | None = None
+    crop: ScoreBox | None = None
+    proof_version: str | None = None
+    scorer: str | None = None
+    scorer_version: str | None = None
+    model_file: ScorerFile | None = None
+
+    @property
+    def held(self) -> bool:
+        """Does this outcome hold the draft for a person (whatever auto-moderation is set to)?"""
+        return self.outcome in ("below", "unavailable", "error") or (
+            self.outcome == "skipped" and self.presence == "embodied"
+        )
+
+
 class AutoCheck(BaseModel):
-    """What auto-moderation found for the current image. ``passed`` recorded the moderator's approval."""
+    """What the platform's checks found for the current image. ``passed`` recorded the moderator's approval.
+
+    ``passed`` is only ever true with auto-moderation on: with it off, a teaser's checks (and its
+    ``identity`` check) are still recorded, held for a person with the reason that it is off.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -110,23 +197,95 @@ class AutoCheck(BaseModel):
     passed: bool
     checks: tuple[str, ...]  # what was checked, in words
     held: tuple[str, ...] = ()  # why a person must look instead
+    identity: IdentityCheck | None = None  # a teaser's identity check (argus-proof's score of its figure)
+
+
+class Post(BaseModel):
+    """One posting of a draft's image, as reported by whoever posted it (argus-herald).
+
+    ``sha256`` is of the bytes that were posted, and must be the draft's ``image_sha256``: a teaser
+    PNG is baked with no metadata chunks, so a copy stripped of metadata hashes the same.
+    ``by`` says which token recorded it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    where: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,31}$")  # the platform, e.g. "bluesky"
+    url: str | None = Field(default=None, max_length=2048)  # the post itself, when there is one
+    at: AwareDatetime  # when it was posted
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    recorded_at: datetime
+    by: Literal["poster", "moderator"]
+
+    @field_validator("url")
+    @classmethod
+    def _http(cls, v: str | None) -> str | None:
+        if v is not None and not v.startswith(("https://", "http://")):
+            raise ValueError("a post's url is an http(s) URL")
+        return v
+
+
+class TeaserFile(BaseModel):
+    """A reviewed project file a teaser was made from, by id, version and hash (0x keccak256)."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    version: int = Field(ge=1)
+    hash: str = Field(pattern=r"^0x[0-9a-f]{64}$")
+
+
+class TeaserBackground(BaseModel):
+    """The approved background a teaser was made on."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class TeaserRecord(BaseModel):
+    """What a teaser draft was made from: its project, number, each linked file and the background.
+
+    The frame is the draft's own ``frame``. The quote, attribution and label drawn on it are the
+    draft's ``texts`` (by slot), from the reviewed line and project, never edited.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    project: TeaserFile
+    links: TeaserFile  # the version of the teaser links it was made from (id = the project's)
+    number: str = Field(pattern=r"^T[1-9][0-9]{0,4}$")
+    line: TeaserFile
+    identity: TeaserFile
+    scene: TeaserFile
+    presence: Literal["embodied", "viewpoint"]
+    background: TeaserBackground
+    alt: str = Field(min_length=1, max_length=1000)
 
 
 class CardDraft(BaseModel):
-    """Everything needed to publish a card, except the pins and the signature."""
+    """Everything needed to publish a card, except the pins and the signature.
+
+    ``kind`` is ``card`` (a game card: ``asset_id``, ``consumer``, maybe a bio) or ``teaser``
+    (an image and quote from a teaser project: ``teaser`` records what made it, and it has no
+    asset id, consumer or bio). Both are reviewed the same way; ``to`` is the owner who signs.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     format: Literal[1] = 1
+    kind: Literal["card", "teaser"] = "card"
     request: RenderRequest  # the request that produced the art (its seed is the final seed)
     attempts: tuple[dict[str, Any], ...]
     renderer: str
-    asset_id: Bytes32
+    asset_id: Bytes32 | None = None  # a card's; a teaser has none
     to: str
     name: str = Field(min_length=1)
     description: str = ""
     external_url: str | None = None
-    consumer: str = Field(min_length=1, max_length=64)
+    consumer: str | None = Field(default=None, min_length=1, max_length=64)  # a card's; a teaser has none
+    teaser: TeaserRecord | None = None  # what a teaser was made from
     frame: FrameRef | None = None
     bio: BioRecord | None = None
     texts: dict[str, str] = Field(default_factory=dict)  # consumer display text by frame slot (class, stats...)
@@ -142,6 +301,22 @@ class CardDraft(BaseModel):
     created_at: datetime
     reviews: tuple[Review, ...] = ()
 
+    @model_validator(mode="after")
+    def _kind_fits(self) -> CardDraft:
+        if self.kind == "card":
+            if self.asset_id is None or self.consumer is None:
+                raise ValueError("a card draft needs its asset_id and consumer")
+            if self.teaser is not None:
+                raise ValueError("a card draft has no teaser record")
+        else:
+            if self.teaser is None or self.frame is None:
+                raise ValueError("a teaser draft needs its teaser record and frame")
+            if self.asset_id is not None or self.consumer is not None or self.bio is not None:
+                raise ValueError("a teaser draft has no asset_id, consumer or bio")
+            if self.library is not None or self.style is not None:
+                raise ValueError("a teaser draft takes no library entry or owner style")
+        return self
+
     @property
     def status(self) -> Literal["pending", "approved", "rejected"]:
         current = [r for r in self.reviews if r.image_sha256 == self.image_sha256]
@@ -155,8 +330,56 @@ class CardDraft(BaseModel):
         done = {r.role for r in self.reviews if r.image_sha256 == self.image_sha256}
         return [r for r in REVIEWERS if r not in done]
 
+    def mint_asset_id(self) -> bytes:
+        """The asset id a voucher names: a card's own, or a teaser's derived one (:func:`teaser_asset_id`)."""
+        if self.kind == "teaser":
+            assert self.teaser is not None
+            return teaser_asset_id(self.teaser.project.id, self.teaser.number)
+        assert self.asset_id is not None
+        return self.asset_id
+
+    def teaser_provenance(self, art_cid: str) -> TeaserProvenance:
+        """A teaser's provenance: its record (each linked file, the background), the frame, the
+        unframed art and, for an embodied identity, the inpainting request."""
+        if self.kind != "teaser" or self.teaser is None or self.frame is None:
+            raise DraftError("only a teaser has teaser provenance")
+        t, req = self.teaser, self.request
+
+        def ref(f: TeaserFile) -> FileRef:
+            return FileRef(id=f.id, version=f.version, hash=f.hash)
+
+        inpaint = None
+        if t.presence == "embodied":
+            if req.init_image is None or req.init_image.mask_sha256 is None:
+                raise DraftError("an embodied teaser's request names no inpainting input")
+            inpaint = InpaintRef(
+                seed=req.seed,
+                attempts=len(self.attempts),
+                model=req.model,
+                loras=tuple(LoraUse(name=x.name, weight=x.weight) for x in req.loras) or None,
+                image_sha256=req.init_image.sha256,
+                mask_sha256=req.init_image.mask_sha256,
+                denoise=req.init_image.denoise,
+            )
+        return TeaserProvenance(
+            project=ref(t.project),
+            links=ref(t.links),
+            number=t.number,
+            line=ref(t.line),
+            identity=ref(t.identity),
+            scene=ref(t.scene),
+            presence=t.presence,
+            background=BackgroundRef(id=t.background.id, sha256=t.background.sha256),
+            frame=self.frame,
+            art=f"ipfs://{art_cid}",
+            asset_id=teaser_asset_id(t.project.id, t.number),
+            inpaint=inpaint,
+        )
+
     def provenance(self, art_cid: str | None) -> Provenance:
         """The card's provenance. ``art_cid`` (the unframed render) is required for a framed card."""
+        if self.kind != "card" or self.asset_id is None or self.consumer is None:
+            raise DraftError("a teaser has no card provenance: its metadata is built from teaser_provenance")
         return Provenance.for_render(
             self.request,
             attempts=len(self.attempts),
@@ -175,9 +398,32 @@ def sha256_hex(data: bytes) -> str:
 
 def write_atomic(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` by rename: a concurrent reader sees the old file or the new one, never part of one."""
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    _fsync_dir(path.parent)
+
+
+def _fsync_dir(directory: Path) -> None:
+    """Persist a rename in ``directory`` (best effort: not every platform can open a directory)."""
+    try:
+        fd = os.open(directory, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
 
 
 def review(
@@ -244,6 +490,7 @@ def load_draft(directory: Path) -> tuple[CardDraft, bytes, bytes]:
 
 
 PUBLISHED_FILE = "publish.json"
+POSTS_FILE = "posts.json"
 _DRAFT_ID = re.compile(r"^[a-z0-9][a-z0-9-]{2,63}$")
 
 
@@ -251,7 +498,8 @@ class DraftStore:
     """Drafts as directories under ``root``, addressed by id (the HTTP server's view).
 
     Ids are validated before they touch the filesystem, so a request can't name a path.
-    A published draft also holds ``publish.json``: the pins, metadata and signed voucher.
+    A published draft also holds ``publish.json``: the pins, metadata and signed voucher. A posted
+    one holds ``posts.json``: each post, in the order recorded.
     """
 
     def __init__(self, root: Path):
@@ -261,7 +509,7 @@ class DraftStore:
         return secrets.token_hex(8)
 
     def path(self, draft_id: str) -> Path:
-        if not _DRAFT_ID.match(draft_id):
+        if not _DRAFT_ID.fullmatch(draft_id):
             raise DraftError(f"not a draft id: {draft_id!r}")
         return self.root / draft_id
 
@@ -272,7 +520,7 @@ class DraftStore:
         """Every draft id, newest first."""
         if not self.root.is_dir():
             return []
-        found = [p for p in self.root.iterdir() if _DRAFT_ID.match(p.name) and (p / DRAFT_FILE).is_file()]
+        found = [p for p in self.root.iterdir() if _DRAFT_ID.fullmatch(p.name) and (p / DRAFT_FILE).is_file()]
         return [p.name for p in sorted(found, key=lambda p: (p / DRAFT_FILE).stat().st_mtime, reverse=True)]
 
     def load(self, draft_id: str) -> tuple[CardDraft, bytes, bytes]:
@@ -290,6 +538,22 @@ class DraftStore:
     def save_published(self, draft_id: str, result: dict[str, Any]) -> None:
         f = self.path(draft_id) / PUBLISHED_FILE
         write_atomic(f, json.dumps(result, indent=2, ensure_ascii=False) + "\n")
+
+    def posts(self, draft_id: str) -> tuple[Post, ...]:
+        f = self.path(draft_id) / POSTS_FILE
+        if not f.is_file():
+            return ()
+        try:
+            return tuple(Post.model_validate(p) for p in json.loads(f.read_text(encoding="utf-8"))["posts"])
+        except (ValueError, KeyError, TypeError, ValidationError) as e:
+            raise DraftError(f"{f}: {e}") from e
+
+    def add_post(self, draft_id: str, post: Post) -> tuple[Post, ...]:
+        """Append ``post`` (the caller holds the drafts lock). Returns every post of the draft."""
+        posts = (*self.posts(draft_id), post)
+        doc = {"posts": [p.model_dump(mode="json") for p in posts]}
+        write_atomic(self.path(draft_id) / POSTS_FILE, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+        return posts
 
 
 class DraftNotFound(DraftError):

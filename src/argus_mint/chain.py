@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any
+from urllib.parse import urlsplit
 
 from eth_abi import decode as abi_decode
 
@@ -18,7 +19,7 @@ try:
 except ImportError as e:  # pragma: no cover - exercised only without the extra
     raise ImportError("the chain clients need the `chain` extra: pip install 'argus-mint[chain]'") from e
 
-__all__ = ["NoRpcAvailable", "TxFailed", "connect", "contract", "explain_revert", "send"]
+__all__ = ["NoRpcAvailable", "TxFailed", "connect", "contract", "explain_revert", "redact_url", "send"]
 
 
 class TxFailed(Exception):
@@ -27,6 +28,17 @@ class TxFailed(Exception):
 
 class NoRpcAvailable(Exception):
     """None of the RPC endpoints answered with the expected chain id."""
+
+
+def redact_url(url: str) -> str:
+    """``scheme://host[:port]`` of an RPC URL: providers put API keys in the path, query or userinfo."""
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname or ""
+        port = f":{parts.port}" if parts.port else ""
+    except ValueError:
+        return "<rpc url>"
+    return f"{parts.scheme}://{host}{port}" if parts.scheme and host else "<rpc url>"
 
 
 def connect(network: Network | str, urls: Sequence[str] | None = None, *, timeout: float = 10) -> Web3:
@@ -42,11 +54,11 @@ def connect(network: Network | str, urls: Sequence[str] | None = None, *, timeou
         try:
             chain_id = w3.eth.chain_id
         except Exception as e:  # unreachable, rate-limited, TLS: try the next one
-            errors.append(f"{url}: {e}")
+            errors.append(f"{redact_url(url)}: {type(e).__name__}")  # the message may repeat the URL's key
             continue
         if chain_id == net.chain_id:
             return w3
-        errors.append(f"{url}: chain id {chain_id}, expected {net.chain_id}")
+        errors.append(f"{redact_url(url)}: chain id {chain_id}, expected {net.chain_id}")
     raise NoRpcAvailable(f"no RPC for {net.name}: " + "; ".join(errors))
 
 

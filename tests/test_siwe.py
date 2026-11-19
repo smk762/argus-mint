@@ -134,3 +134,19 @@ def test_make_nonce():
 def test_naive_datetime_rejected():
     with pytest.raises(ValueError):
         make(issued_at=datetime(2026, 1, 1))
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"nonce": NONCE + "\n"},
+        {"domain": "realms.example.org\n"},
+        {"uri": "https://realms.example.org/login\n"},
+        {"resources": ("https://realms.example.org/r\n",)},
+        {"scheme": "https\n"},
+    ],
+)
+def test_a_value_with_a_trailing_newline_is_refused(kw):
+    # `$` also matches before a final newline; the checks match the whole value.
+    with pytest.raises(ValueError):
+        make(**kw)

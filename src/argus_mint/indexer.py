@@ -110,11 +110,20 @@ def follow(
     if safe < cursor.next_block:
         return cursor
     to_block = min(safe, cursor.next_block + max_blocks - 1)
+    # Pin the range's last block before reading logs, and check it again after: the logs and the
+    # hash the cursor keeps must come from the same chain, or a reorg in between goes unseen.
+    last_hash = rpc.block_hash(to_block)
     logs = rpc.get_logs(address=contract, topic0=TRANSFER_TOPIC, from_block=cursor.next_block, to_block=to_block)
-    transfers = sorted((decode_transfer(lg) for lg in logs), key=lambda t: (t.block_number, t.log_index))
+    transfers = sorted(
+        (decode_transfer(lg) for lg in logs if not lg.get("removed")), key=lambda t: (t.block_number, t.log_index)
+    )
+    if rpc.block_hash(to_block) != last_hash or any(
+        t.block_hash != last_hash for t in transfers if t.block_number == to_block
+    ):
+        raise ReorgTooDeep(f"blocks up to {to_block} changed while their logs were read; nothing was delivered")
     for t in transfers:
         on_transfer(t)
-    return Cursor(next_block=to_block + 1, last_hash=rpc.block_hash(to_block))
+    return Cursor(next_block=to_block + 1, last_hash=last_hash)
 
 
 class Web3Rpc:

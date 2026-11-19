@@ -19,12 +19,15 @@
 ``POST /frames/{id}/{version}/layout``   where each line of text goes, for a browser's SVG preview
 ``GET  /frames/{id}/{version}/fonts/…``  the fonts a frame names, for that preview
 ``POST /{templates,frames,bios}/{id}/{version}/review``  approve a draft or retire an approved file
+``GET  /posts/ready``  ``POST /drafts/{id}/posted``  approved teasers to post, and recording a post
+``…/projects/{id}/identities/{identity}/{version}/training[/{step}]``  train an identity's LoRA (server_training)
 =====================================  =============================================================================
 
 Who may do what: the moderator token (``ARGUS_MINT_MODERATOR_TOKEN``) creates drafts, reviews
 as the moderator and publishes. The owner reviews by signing an EIP-4361 message with the
 wallet the card is minted to; the message names the draft, the decision and the image's
-sha256, and its nonce works once. Neither role can act as the other.
+sha256, and its nonce works once. Neither role can act as the other. The poster token
+(``ARGUS_MINT_POSTER_TOKEN``, argus-herald's) records posts and does nothing else.
 
 Reads are open to the configured CORS origins. Writes from any other browser origin are
 refused (cortex's ``WriteGuard``: CORS alone is not a write boundary), and with
@@ -47,7 +50,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import structlog
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
@@ -55,6 +58,7 @@ from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from starlette.convertors import Convertor, register_url_convertor
 
 import argus_mint
 from argus_mint import gpu, networks, siwe
@@ -66,19 +70,26 @@ from argus_mint.cards import (
     DraftError,
     DraftNotFound,
     DraftStore,
+    IdentityCheck,
     review,
     sha256_hex,
     write_atomic,
 )
 from argus_mint.catalogue import CatalogueError, record_decision
 from argus_mint.darkroom import DarkroomClient, DarkroomError
-from argus_mint.frames import FrameError, LoadedFrame, compose, layout, load_frame
+from argus_mint.frames import FrameError, LoadedFrame, compose, layout, load_frame, project_frame_files
 from argus_mint.keys import KeyLoadError, load_signer
 from argus_mint.library import Library, LibraryError
 from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
+from argus_mint.server_posts import add_post_routes
+from argus_mint.server_projects import add_project_routes
+from argus_mint.server_teasers import add_teaser_routes
+from argus_mint.server_training import TrainingClients, add_training_routes
+from argus_mint.spoilers import load_spoilers
 from argus_mint.templates import Template, TemplateError, combinations, load_template
+from argus_mint.training_clients import CuratorClient, ForgeClient, LensClient, ProofClient
 from argus_mint.wire import (
     BioInfo,
     Capabilities,
@@ -106,6 +117,7 @@ from argus_mint.wire import (
     SampleJob,
     SampleJobList,
     SampleRequest,
+    TeaserOf,
     TemplateCheck,
     TemplateInfo,
     TextEdit,
@@ -115,6 +127,22 @@ from argus_mint.workflow import card_texts, check_bio, check_texts, create_draft
 __all__ = ["DEFAULT_PORT", "Settings", "create_app"]
 
 log = structlog.get_logger(__name__)
+
+
+class _FrameIdConvertor(Convertor[str]):
+    """A frame id in a route: one segment, or a project's frame's two (``<project>/<name>``),
+    sent as is or with the slash encoded (``%2F``): the server routes on the decoded path."""
+
+    regex = "[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)?"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+register_url_convertor("frame_id", _FrameIdConvertor())
 
 DEFAULT_PORT = 8108
 PREFIX = "ARGUS_MINT_"
@@ -145,19 +173,32 @@ class Settings:
     consumer: str = "argus-mint"
     voucher_ttl: int = 3600
     moderator_token: str = ""
+    poster_token: str = ""  # records posts (POST /drafts/{id}/posted) and nothing else
     siwe_domain: str = ""  # the UI's host[:port], as the owner's wallet shows it
     siwe_uri: str = ""  # default https://<siwe_domain>
     cors_origins: tuple[str, ...] = LOCAL_ORIGINS
     read_only: bool = False
     auto_moderate: bool = False  # the platform's checks stand in for the moderator when they all pass
     blocklist: Path | None = None  # extra word-filter terms, one per line
+    projects_dir: Path = Path("projects")  # teaser projects, one directory each
+    spoilers: Path | None = None  # the private spoiler list (outside any repository; chmod 600)
+    consent_dir: Path | None = None  # consent records by release sha256 (private: they name people; never served)
+    backgrounds_dir: Path = Path("backgrounds")  # rendered scene backgrounds, one directory per scene version
+    curator_url: str = ""  # argus-curator: selects an identity's training images
+    lens_url: str = ""  # argus-lens: captions them
+    forge_url: str = ""  # argus-forge: trains the LoRA (on the trusted GPU host only)
+    proof_url: str = ""  # argus-proof: evaluates it against the held-out references
+    training_dir: Path = Path("training")  # training records and candidates, one directory per identity version
+    training_exports_dir: Path | None = None  # the exports volume curator, forge and proof share, as mint sees it
+    loras_dir: Path | None = None  # the LoRA directory darkroom and proof load from, as mint sees it
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
         env = dict(os.environ if env is None else env)
 
         def get(name: str, default: str = "") -> str:
-            return env.get(PREFIX + name, default).strip()
+            # Set but empty (compose's ${VAR:-}) counts as unset: the default applies.
+            return env.get(PREFIX + name, "").strip() or default
 
         origins = tuple(o.strip() for o in get("CORS_ORIGINS").split(",") if o.strip())
         return cls(
@@ -178,12 +219,24 @@ class Settings:
             consumer=get("CONSUMER", "argus-mint"),
             voucher_ttl=int(get("VOUCHER_TTL", "3600")),
             moderator_token=get("MODERATOR_TOKEN"),
+            poster_token=get("POSTER_TOKEN"),
             siwe_domain=get("SIWE_DOMAIN"),
             siwe_uri=get("SIWE_URI"),
             cors_origins=origins or LOCAL_ORIGINS,
             read_only=get("READ_ONLY").lower() in ("1", "true", "yes"),
             auto_moderate=get("AUTO_MODERATE").lower() in ("1", "true", "yes"),
             blocklist=Path(get("BLOCKLIST")) if get("BLOCKLIST") else None,
+            projects_dir=Path(get("PROJECTS_DIR", "projects")),
+            spoilers=Path(get("SPOILERS")) if get("SPOILERS") else None,
+            consent_dir=Path(get("CONSENT_DIR")) if get("CONSENT_DIR") else None,
+            backgrounds_dir=Path(get("BACKGROUNDS_DIR", "backgrounds")),
+            curator_url=get("CURATOR_URL"),
+            lens_url=get("LENS_URL"),
+            forge_url=get("FORGE_URL"),
+            proof_url=get("PROOF_URL"),
+            training_dir=Path(get("TRAINING_DIR", "training")),
+            training_exports_dir=Path(get("TRAINING_EXPORTS_DIR")) if get("TRAINING_EXPORTS_DIR") else None,
+            loras_dir=Path(get("LORAS_DIR")) if get("LORAS_DIR") else None,
         )
 
 
@@ -248,9 +301,12 @@ def create_app(
     pinner: Any = None,
     signer: Any = None,
     probe_fn: Any = probe,
+    training: TrainingClients | None = None,
 ) -> FastAPI:
     """The app. Clients can be injected (tests); otherwise they are built from ``settings``."""
     cfg = settings or Settings.from_env()
+    if cfg.poster_token and secrets.compare_digest(cfg.poster_token.encode(), cfg.moderator_token.encode()):
+        raise ValueError("the poster token must differ from the moderator token: it only records posts")
     net = networks.get(cfg.network)
     store = DraftStore(cfg.drafts_dir)
     lock = threading.Lock()  # one writer at a time over the drafts directory
@@ -263,6 +319,15 @@ def create_app(
     )
     pinner = pinner or (KuboPinner(cfg.ipfs_api) if cfg.ipfs_api else None)
     signer_box: dict[str, Any] = {"signer": signer}
+    spoiler_list = load_spoilers(cfg.spoilers)  # fail at start, not on the first save, if it can't be read
+    training = training or TrainingClients(
+        curator=CuratorClient(cfg.curator_url) if cfg.curator_url else None,
+        lens=LensClient(cfg.lens_url) if cfg.lens_url else None,
+        forge=ForgeClient(cfg.forge_url) if cfg.forge_url else None,
+        proof=ProofClient(cfg.proof_url) if cfg.proof_url else None,
+        exports_dir=cfg.training_exports_dir,
+        loras_dir=cfg.loras_dir,
+    )
 
     def get_signer() -> Any:
         if signer_box["signer"] is None:
@@ -285,6 +350,7 @@ def create_app(
     signer_configured = signer is not None or bool(cfg.account or os.environ.get("ARGUS_MINT_SIGNER_KEY"))
     writable = not cfg.read_only
     has_token = bool(cfg.moderator_token)
+    has_poster = bool(cfg.poster_token)
 
     def capabilities() -> Capabilities:
         return Capabilities(
@@ -301,6 +367,15 @@ def create_app(
             review_catalogue=writable
             and has_token
             and all(d.is_dir() and os.access(d, os.W_OK) for d in (cfg.templates_dir, cfg.frames_dir, cfg.bios_dir)),
+            author_catalogue=writable
+            and has_token
+            and cfg.projects_dir.is_dir()
+            and os.access(cfg.projects_dir, os.W_OK),
+            backgrounds=writable and has_token and darkroom is not None,
+            teasers=writable and has_token,
+            post=writable and (has_token or has_poster),
+            identity_training=writable and has_token and darkroom is not None and not training.missing(),
+            identity_check=writable and training.proof is not None,
         )
 
     app = FastAPI(title="argus-mint", version=argus_mint.__version__)
@@ -325,6 +400,21 @@ def create_app(
         if scheme.lower() != "bearer" or not secrets.compare_digest(given, expected):
             raise HTTPException(401, "a valid moderator token is required", headers={"WWW-Authenticate": "Bearer"})
 
+    def require_poster(authorization: str | None) -> Literal["poster", "moderator"]:
+        """The poster token or the moderator token; which one it was. Only the posting route asks."""
+        if not (has_token or has_poster):
+            raise HTTPException(403, "no poster or moderator token is configured on this server")
+        scheme, _, token = (authorization or "").partition(" ")
+        given = token.strip().encode()
+        if scheme.lower() == "bearer":
+            if has_token and secrets.compare_digest(given, cfg.moderator_token.encode()):
+                return "moderator"
+            if has_poster and secrets.compare_digest(given, cfg.poster_token.encode()):
+                return "poster"
+        raise HTTPException(
+            401, "a valid poster or moderator token is required", headers={"WWW-Authenticate": "Bearer"}
+        )
+
     def yaml_files(root: Path) -> list[Path]:
         return sorted([*root.rglob("*.yaml"), *root.rglob("*.yml")]) if root.is_dir() else []
 
@@ -334,11 +424,16 @@ def create_app(
         "bio": (cfg.bios_dir, load_bio, BioError),
     }
 
+    def kind_files(kind: str) -> list[Path]:
+        """A kind's files: frames include each project's own (``<project>/frames/``, ids ``<project>/<name>``)."""
+        files = yaml_files(kinds[kind][0])
+        return files + project_frame_files(cfg.projects_dir) if kind == "frame" else files
+
     def load_kind(kind: str) -> dict[tuple[str, int], tuple[Any, Path]]:
         """Every file of one kind (any status), keyed by (id, version), with its path."""
-        root, loader, error = kinds[kind]
+        _root, loader, error = kinds[kind]
         out: dict[tuple[str, int], tuple[Any, Path]] = {}
-        for f in yaml_files(root):
+        for f in kind_files(kind):
             try:
                 obj = loader(f)
             except error as e:
@@ -360,7 +455,12 @@ def create_app(
         return {k: v[0] for k, v in load_kind("bio").items()}
 
     def rel(kind: str, path: Path) -> str:
-        return str(path.relative_to(kinds[kind][0]))
+        """The file's path in its served directory: a project's frame's is from the projects
+        directory (``<project>/frames/<file>``)."""
+        root = kinds[kind][0]
+        if kind == "frame" and not path.is_relative_to(root):
+            return path.relative_to(cfg.projects_dir).as_posix()
+        return path.relative_to(root).as_posix()
 
     def pick(table: dict[tuple[str, int], Any], ref: Ref, kind: str) -> Any:
         try:
@@ -385,6 +485,7 @@ def create_app(
             awaiting=d.awaiting(),
             draft=d,
             published=PublishResult.model_validate(pub) if pub else None,
+            posts=list(store.posts(draft_id)),
         )
 
     lib_cache: dict[str, Any] = {"mtime": None, "lib": None}
@@ -461,11 +562,18 @@ def create_app(
     @app.get("/frames")
     def list_frames() -> list[FrameInfo]:
         return [
-            FrameInfo(hash=hex0x(f.hash()), file=rel("frame", path), width=f.size[0], height=f.size[1], frame=f.frame)
+            FrameInfo(
+                hash=hex0x(f.hash()),
+                file=rel("frame", path),
+                width=f.size[0],
+                height=f.size[1],
+                project=f.frame.project,
+                frame=f.frame,
+            )  # fmt: skip
             for _k, (f, path) in sorted(load_kind("frame").items())
         ]
 
-    @app.get("/frames/{frame_id}/{version}/overlay")
+    @app.get("/frames/{frame_id:frame_id}/{version:int}/overlay")
     def frame_overlay(frame_id: str, version: int) -> Response:
         f = pick(frames(), Ref(id=frame_id, version=version), "frame")
         return Response(f.overlay, media_type="image/png")
@@ -495,7 +603,7 @@ def create_app(
 
     @app.get("/library/{entry_id}/image")
     def library_image(entry_id: str, thumb: Annotated[int, Query(ge=0, le=1024)] = 0) -> Response:
-        """The entry's PNG, or with ``thumb=<width>`` a JPEG preview of that width."""
+        """The entry's PNG, or with ``thumb=<width>`` a JPEG preview at least that wide (``Library.thumbnail``)."""
         lib = library()
         if lib is None:
             raise HTTPException(404, "no pre-rendered library is served here")
@@ -527,6 +635,7 @@ def create_app(
             items.append(
                 DraftSummary(
                     id=draft_id,
+                    kind=d.kind,
                     name=d.name,
                     to=d.to,
                     status=s,  # type: ignore[arg-type]
@@ -535,6 +644,7 @@ def create_app(
                     template=Ref(id=d.request.template_id, version=d.request.template_version),
                     frame=Ref(id=d.frame.id, version=d.frame.version) if d.frame else None,
                     image_sha256=d.image_sha256,
+                    teaser=TeaserOf(project=d.teaser.project.id, number=d.teaser.number) if d.teaser else None,
                 )
             )
         return DraftList(items=items[offset : offset + limit], total=len(items))
@@ -592,6 +702,8 @@ def create_app(
             raise HTTPException(422, str(e)) from e
         t = pick(templates(), body.template, "template")
         lf = pick(frames(), body.frame, "frame") if body.frame else None
+        if lf is not None and lf.frame.project is not None:
+            raise HTTPException(422, f"frame {lf.frame.id} is project {lf.frame.project}'s, for its teasers only")
         bt = pick(bios(), body.bio, "bio template") if body.bio else None
         if bt is not None:
             if writer is None:
@@ -637,6 +749,8 @@ def create_app(
                 raise HTTPException(422, "an edit challenge needs the edit it is for")
             if d.status == "published":
                 raise HTTPException(409, "a published card can't be edited")
+            if d.draft.kind == "teaser":
+                raise HTTPException(409, "a teaser's text is its reviewed line and project: it isn't edited")
             purpose = f"edit:{_edit_hash(body.edit)}"
         else:
             if d.status != "pending" or "owner" not in d.awaiting:
@@ -658,7 +772,11 @@ def create_app(
         challenges.add(nonce, (draft_id, purpose, d.draft.image_sha256, now + CHALLENGE_TTL))
         return Challenge(message=msg.text(), nonce=nonce, expires_at=now + CHALLENGE_TTL)
 
-    def moderate_automatically(d: CardDraft, image: bytes) -> CardDraft:
+    def moderate_automatically(d: CardDraft, image: bytes, identity: IdentityCheck | None = None) -> CardDraft:
+        """Auto-moderation's checks. A card is checked only with it on; a teaser always is, so its
+        identity check is on record and holds it, but only with it on can they approve."""
+        if d.kind == "teaser":
+            return auto_review(d, image, word_filter(), identity=identity, approve=cfg.auto_moderate)
         return auto_review(d, image, word_filter()) if cfg.auto_moderate else d
 
     @app.post("/drafts/{draft_id}/edit")
@@ -806,6 +924,11 @@ def create_app(
             if not os.access(path, os.W_OK):
                 raise HTTPException(503, f"{rel(kind, path)} is not writable on this server")
             loader = kinds[kind][1]
+            # A project's frame is held while a spoiler rule matches its file: any string or comment in it.
+            if kind == "frame" and body.decision == "approve" and _obj.frame.project is not None:
+                hits = spoiler_list.hits(path.read_text(encoding="utf-8", errors="replace"))
+                if hits:
+                    raise HTTPException(409, "held by spoiler rule " + ", ".join(map(str, hits)))
             # A template darkroom can't render isn't approved; with no darkroom here, nothing to check.
             if kind == "template" and body.decision == "approve" and hasattr(darkroom, "check_template"):
                 problems = template_problems(_obj)
@@ -821,7 +944,9 @@ def create_app(
         return decide
 
     for kind, prefix in (("template", "templates"), ("frame", "frames"), ("bio", "bios")):
-        app.post(f"/{prefix}/{{item_id}}/{{version}}/review", name=f"review_{kind}")(decision_handler(kind))
+        # a project's frame is <project>/<name>; the version is digits, so the two parse one way only
+        item = "{item_id:frame_id}/{version:int}" if kind == "frame" else "{item_id}/{version}"
+        app.post(f"/{prefix}/{item}/review", name=f"review_{kind}")(decision_handler(kind))
 
     @app.post("/samples", status_code=202)
     def post_samples(body: SampleRequest, authorization: Annotated[str | None, Header()] = None) -> SampleJob:
@@ -875,7 +1000,7 @@ def create_app(
             raise HTTPException(404, "art or framed")
         return Response(samples.image(job_id, n, which), media_type="image/png")
 
-    @app.post("/frames/{frame_id}/{version}/preview")
+    @app.post("/frames/{frame_id:frame_id}/{version:int}/preview")
     def frame_preview(frame_id: str, version: int, body: FramePreviewRequest) -> Response:
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
         src = body.art
@@ -897,7 +1022,7 @@ def create_app(
             raise HTTPException(422, str(e)) from e
         return Response(png, media_type="image/png")
 
-    @app.post("/frames/{frame_id}/{version}/layout")
+    @app.post("/frames/{frame_id:frame_id}/{version:int}/layout")
     def frame_layout(frame_id: str, version: int, body: LayoutRequest) -> FrameLayout:
         """Where Pillow puts each line, so a browser can draw the same card as SVG while it is styled."""
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
@@ -906,7 +1031,7 @@ def create_app(
             raise HTTPException(422, f"frame {frame_id} v{version} has no text slot {unknown}")
         return FrameLayout(width=lf.size[0], height=lf.size[1], slots=layout(lf, body.texts))  # type: ignore[arg-type]
 
-    @app.get("/frames/{frame_id}/{version}/fonts/{font:path}")
+    @app.get("/frames/{frame_id:frame_id}/{version:int}/fonts/{font:path}")
     def frame_font(frame_id: str, version: int, font: str) -> Response:
         """A font the frame names (its path as the frame YAML gives it), for the browser preview."""
         lf = pick(frames(), Ref(id=frame_id, version=version), "frame")
@@ -915,6 +1040,45 @@ def create_app(
         media = "font/otf" if font.lower().endswith(".otf") else "font/ttf"
         return Response(lf.fonts[font], media_type=media, headers={"Cache-Control": "public, max-age=86400"})
 
+    vouch_box: dict[str, Any] = {}
+    save_project_file = add_project_routes(
+        app,
+        projects_dir=cfg.projects_dir,
+        spoilers=spoiler_list,
+        darkroom=darkroom,
+        require_token=require_token,
+        lock=lock,
+        frame_keys=lambda: set(frames()),
+        consent_dir=cfg.consent_dir,
+        vouch=lambda pid, identity: vouch_box["vouch"](pid, identity),
+    )
+    _runner, vouch_box["vouch"] = add_training_routes(
+        app,
+        projects_dir=cfg.projects_dir,
+        training_dir=cfg.training_dir,
+        clients=training,
+        spoilers=spoiler_list,
+        darkroom=darkroom,
+        require_token=require_token,
+        save_file=save_project_file,
+        consent_dir=cfg.consent_dir,
+    )
+    add_teaser_routes(
+        app,
+        projects_dir=cfg.projects_dir,
+        backgrounds_dir=cfg.backgrounds_dir,
+        spoilers=spoiler_list,
+        darkroom=darkroom,
+        require_token=require_token,
+        lock=lock,
+        frames=frames,
+        drafts=store,
+        moderate=moderate_automatically,
+        proof=training.proof,
+        detail=detail,
+        status_of=status_of,
+    )
+    add_post_routes(app, drafts=store, projects_dir=cfg.projects_dir, require_poster=require_poster, lock=lock)
     return app
 
 
@@ -938,7 +1102,7 @@ class _SampleRunner:
         self.live: set[str] = set()
 
     def _dir(self, job_id: str) -> Path:
-        if not _JOB_ID.match(job_id):
+        if not _JOB_ID.fullmatch(job_id):
             raise HTTPException(400, f"not a sample job id: {job_id!r}")
         return self.root / job_id
 
@@ -962,7 +1126,7 @@ class _SampleRunner:
     def all(self) -> list[SampleJob]:
         if not self.root.is_dir():
             return []
-        found = [p for p in self.root.iterdir() if _JOB_ID.match(p.name) and (p / "job.json").is_file()]
+        found = [p for p in self.root.iterdir() if _JOB_ID.fullmatch(p.name) and (p / "job.json").is_file()]
         ordered = sorted(found, key=lambda p: (p / "job.json").stat().st_mtime, reverse=True)
         return [self.get(p.name) for p in ordered]
 

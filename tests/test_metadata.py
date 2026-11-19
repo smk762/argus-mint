@@ -100,7 +100,7 @@ def test_duplicate_trait_rejected():
         make(attributes=[Attribute(trait_type="A", value=1), Attribute(trait_type="A", value=2)])
 
 
-@pytest.mark.parametrize("cid", ["", f"ipfs://{CID}", "not-a-cid", "Qm123"])
+@pytest.mark.parametrize("cid", ["", f"ipfs://{CID}", "not-a-cid", "Qm123", f"{CID}\n"])
 def test_bad_cid_rejected(cid):
     with pytest.raises(ValueError):
         ipfs_uri(cid)
@@ -151,3 +151,33 @@ def test_whole_style_numbers_hash_as_a_js_verifier_hashes_them():
     assert canonical(js_view) == canonical(doc)
     assert b'"strength":1,' in canonical(doc) or b'"strength":1}' in canonical(doc)
     assert b'"opacity":0,' in canonical(doc)
+
+
+def test_large_whole_floats_stay_floats_as_javascript_writes_them():
+    from argus_mint.metadata import LoraUse
+
+    assert canonical(LoraUse(name="x", weight=2.0).model_dump(mode="json")) == b'{"name":"x","weight":2}'
+    # JavaScript writes 1e+21, not a 22-digit integer; it must not become a Python int.
+    assert LoraUse(name="x", weight=1e21).model_dump(mode="json")["weight"] == 1e21
+    assert isinstance(LoraUse(name="x", weight=1e21).model_dump(mode="json")["weight"], float)
+
+
+def test_art_must_be_an_ipfs_uri():
+    framed = {"frame": {"id": "f", "version": 1, "hash": "0x" + "33" * 32}}
+    assert Provenance.model_validate({**PROV.model_dump(), **framed, "art": f"ipfs://{CID}"}).art
+    with pytest.raises(ValueError, match="ipfs://"):
+        Provenance.model_validate({**PROV.model_dump(), **framed, "art": CID})
+
+
+def test_a_render_without_variables_leaves_them_out_like_loras():
+    from argus_mint.templates import RenderRequest
+
+    req = RenderRequest.model_validate(
+        {
+            "template_id": "t", "template_version": 1, "template_hash": "0x" + "11" * 32, "model": "m",
+            "prompt": "p", "negative": "", "variables": {}, "seed": 1, "width": 64, "height": 64, "loras": [],
+            "sampling": None,
+        }
+    )  # fmt: skip
+    p = Provenance.for_render(req, attempts=1, asset_id="0x" + "22" * 32, consumer="c")
+    assert "variables" not in p.to_json()

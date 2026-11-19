@@ -73,6 +73,13 @@ def test_build_is_model_major_resumable_and_compares_like_for_like(tmp_path, tdo
         build(r, t, tmp_path / "lib", count=4, seed=5)
     assert model_slug(MODELS[1]) == "b" and lib.image(lib.entries[0].id) == ART
     assert lib.thumbnail(lib.entries[0].id, 64)[:2] == b"\xff\xd8"  # a JPEG
+    # Any width is served from a few cached sizes, and nonsense widths are a LibraryError, not a crash.
+    for w in (65, 70, 90, 96):
+        lib.thumbnail(lib.entries[0].id, w)
+    assert sorted(p.name for p in (tmp_path / "lib" / "thumbs").iterdir()) == [f"{lib.entries[0].id}-96.jpg"]
+    for w in (0, -5, 4096):
+        with pytest.raises(LibraryError, match="pixels wide"):
+            lib.thumbnail(lib.entries[0].id, w)
 
 
 class Failing:
@@ -258,3 +265,34 @@ def test_negative_follows_the_checkpoint_family(template_doc):
     )
     with pytest.raises(ValueError, match="placeholders"):
         Template.model_validate({**doc, "negative_by_family": {"flux": "no {role}"}})
+
+
+def test_a_library_draft_takes_no_lora(tmp_path, tdoc):
+    from typer.testing import CliRunner
+
+    from argus_mint.cli import app
+
+    draft_t = Template.model_validate({**tdoc, "status": "draft", "approved_by": None, "approved_at": None})
+    lib = build(Renderer(), draft_t, tmp_path / "library", count=1, seed=1)
+    entry = lib.entries[0]
+    (tmp_path / "t.yaml").write_text(yaml.safe_dump(tdoc))
+    args = [
+        "draft", "--template", str(tmp_path / "t.yaml"), "--out", str(tmp_path / "d"),
+        "--library", str(tmp_path / "library"), "--entry", entry.id, "--asset", "a1",
+        "--to", "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "--name", "Hana", "--lora", "style.safetensors",
+    ]  # fmt: skip
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 2 and isinstance(result.exception, SystemExit), result.output
+    assert "leave --lora out" in result.output and not (tmp_path / "d").exists()
+
+
+def test_create_draft_refuses_a_library_entry_with_a_renderer(tmp_path, tdoc):
+    from argus_mint.workflow import create_draft
+
+    draft_t = Template.model_validate({**tdoc, "status": "draft", "approved_by": None, "approved_at": None})
+    entry = build(Renderer(), draft_t, tmp_path / "library", count=1, seed=1).entries[0]
+    with pytest.raises(ValueError, match="needs its image"):
+        create_draft(
+            template=Template.model_validate(tdoc), values=entry.variables, seed=entry.seed, asset_id=b"\x01" * 32,
+            to="0x70997970C51812dc3A010C7d01b50e0d17dc79C8", name="Hana", renderer=Renderer(), library=entry,
+        )  # fmt: skip
