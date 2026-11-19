@@ -122,7 +122,7 @@ def _pixels(art: bytes) -> tuple[int, int] | str:
             if im.getexif().get(_EXIF_ORIENTATION, 1) not in (1, None):
                 return "the art carries an EXIF orientation, so proof would crop other pixels than the area"
             return im.size
-    except OSError as e:
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:  # never raise: an error record
         return f"the art can't be read as an image: {e}"
 
 
@@ -150,7 +150,8 @@ def _judge(result: Any, metric: str, crop: ScoreBox, identity: Identity, record:
     echoed = images[0].get("crop")
     if echoed != crop.model_dump():
         return record("error", f"proof scored crop {echoed!r}, not the character_area sent", **more)
-    score = (images[0].get("metrics") or {}).get(metric)
+    metrics = images[0].get("metrics")
+    score = metrics.get(metric) if isinstance(metrics, dict) else None
     if isinstance(score, bool) or not isinstance(score, (int, float)):
         why = "no face found" if metric == "identity" else "its scorer didn't run"
         return record("error", f"proof returned no {metric} score ({why}, or no references)", **more)

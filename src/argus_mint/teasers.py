@@ -283,8 +283,11 @@ def make_teaser(
     linked: list[tuple[str, Any]] = [
         ("project", project), ("line", line), ("identity", identity), ("scene", scene), ("teaser links", links)
     ]  # fmt: skip
+    # A project's own frame is spoiler-checked when approved; checked again here, as the linked
+    # texts are, so a rule added since holds it (its YAML's strings: comments were read at approval).
+    frame_strings = file_strings(frame.frame.model_dump(mode="json")) if frame.frame.project is not None else []
     hits = spoilers.hits(*(s for _, obj in linked[:-1] for s in file_strings(obj.model_dump(mode="json"))),
-                         *file_strings(link.model_dump(mode="json")))  # fmt: skip
+                         *file_strings(link.model_dump(mode="json")), *frame_strings)  # fmt: skip
     if hits:
         raise TeaserError("held by spoiler rule " + ", ".join(map(str, hits)))
     unguarded = [

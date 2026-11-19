@@ -217,10 +217,24 @@ def capture(spec_path: Path, renderer: Renderer = playwright_render) -> tuple[Pa
         raise CaptureError("the PNG and the YAML go in the same directory (a frame names its overlay beside it)")
     if yaml_path.is_file():
         current = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
-        if current.get("status", "draft") != "draft":
+        if not isinstance(current, dict) or current.get("status", "draft") != "draft":
             raise CaptureError(
-                f"{yaml_path.name} is {current.get('status')}: an approved or retired frame never changes; "
-                "capture a new version instead"
+                f"{yaml_path.name} is {current.get('status') if isinstance(current, dict) else 'not a frame'}: "
+                "an approved or retired frame never changes; capture a new version instead"
+            )
+    # Nor does the overlay of one: a spec copied for a new version that still names the old PNG
+    # would change an approved frame's bytes, and so its hash.
+    for other in sorted([*yaml_path.parent.glob("*.yaml"), *yaml_path.parent.glob("*.yml")]):
+        if other == yaml_path:
+            continue
+        try:
+            doc = yaml.safe_load(other.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            continue
+        if isinstance(doc, dict) and doc.get("overlay") == png_path.name and doc.get("status", "draft") != "draft":
+            raise CaptureError(
+                f"{png_path.name} is the overlay of {other.name}, which is {doc.get('status')}: "
+                "an approved or retired frame's overlay never changes; name a new PNG"
             )
 
     width, height = spec["width"], spec["height"]
@@ -242,20 +256,23 @@ def capture(spec_path: Path, renderer: Renderer = playwright_render) -> tuple[Pa
     png_path.write_bytes(png)
     fd, tmp_name = tempfile.mkstemp(dir=yaml_path.parent, prefix=f".{yaml_path.name}.", suffix=".tmp")
     tmp = Path(tmp_name)
+    replaced = False
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         try:
             load_frame(tmp)
         except FrameError as e:
+            raise CaptureError(f"the frame doesn't validate, so nothing was written: {e}") from e
+        os.replace(tmp, yaml_path)
+        replaced = True
+    finally:
+        tmp.unlink(missing_ok=True)
+        if not replaced:  # whatever stopped it, the PNG goes back as it was
             if old_png is None:
                 png_path.unlink(missing_ok=True)
             else:
                 png_path.write_bytes(old_png)
-            raise CaptureError(f"the frame doesn't validate, so nothing was written: {e}") from e
-        os.replace(tmp, yaml_path)
-    finally:
-        tmp.unlink(missing_ok=True)
     return png_path, yaml_path
 
 

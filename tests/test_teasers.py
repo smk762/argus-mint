@@ -472,6 +472,9 @@ def test_a_viewpoint_teaser_uses_the_background_itself_under_its_frame(world):
     assert made.draft.request == bg.request and made.draft.teaser.presence == "viewpoint"  # type: ignore[union-attr]
     assert made.draft.made_with["darkroom"] == "0.3.0"
     assert _make(root, frames, store, "T2", renderer=None).image == made.image  # no darkroom needed
+    # T2's frame is the project's own: a spoiler rule added since it was approved holds the teaser
+    with pytest.raises(TeaserError, match="held by spoiler rule 1"):
+        _make(root, frames, store, "T2", renderer=None, spoilers=parse("re:harbour-feed-v1\\.png\n"))
 
 
 def test_refusals(world):

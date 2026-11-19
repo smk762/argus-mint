@@ -209,9 +209,16 @@ def test_an_answer_mint_cant_read_holds_the_teaser(world):
         (Proof(None), "no likeness score"),
         (Proof(proof_version="2.0"), "wire '2.0'"),
         (Proof(images=[]), "one image"),
+        (
+            Proof(images=[{"crop": {"x": 96, "y": 512, "width": 288, "height": 512}, "metrics": [0.9]}]),
+            "no likeness score",
+        ),
     ]:
         c = check_identity(art=art, identity=identity, scene=scene, proof=proof)
         assert c.outcome == "error" and c.held and words in c.reason, c.reason
+    # unreadable art is a record too, never an exception (check_identity never raises for proof's sake)
+    c = check_identity(art=b"not a png", identity=identity, scene=scene, proof=Proof())
+    assert c.outcome == "error" and "can't be read" in c.reason
 
 
 # -- auto-moderation --------------------------------------------------------------------------------

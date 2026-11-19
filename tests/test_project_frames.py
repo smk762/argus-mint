@@ -263,6 +263,14 @@ def test_capture_never_overwrites_a_reviewed_frame(spec):
     with pytest.raises(capture_frame.CaptureError, match="never changes; capture a new version"):
         capture_frame.capture(spec, renderer=stub_renderer())
     assert (frame.read_text(), (frame.parent / "test-feed-v1.png").read_bytes()) == before
+    # a spec copied for v2 that still names v1's overlay is refused too: it would move v1's hash
+    doc = json.loads(spec.read_text())
+    doc["yaml"], doc["frame"] = "../test-feed-v2.yaml", {**SPEC_FRAME, "version": 2}
+    spec.write_text(json.dumps(doc))
+    with pytest.raises(capture_frame.CaptureError, match="overlay of test-feed-v1.yaml, which is approved"):
+        capture_frame.capture(spec, renderer=stub_renderer(size=(50, 50)))
+    assert (frame.read_text(), (frame.parent / "test-feed-v1.png").read_bytes()) == before
+    assert not (frame.parent / "test-feed-v2.yaml").exists()
 
 
 def test_capture_leaves_nothing_behind_when_the_frame_wont_validate(spec):
