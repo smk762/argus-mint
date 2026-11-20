@@ -115,8 +115,15 @@ class FakeLens:
 
 
 class FakeForge:
-    def __init__(self, exports: Path, *, enabled: bool = True, end: str = "succeeded", write: bool = True):
-        self.exports, self.enabled, self.end, self.write = exports, enabled, end, write
+    """``report``: how a succeeded run reports its LoRA. ``lora`` (forge >= #52: ``lora`` on the run, written
+    away from kohya's default layout so the test proves mint follows it), ``legacy`` (no ``lora`` key: an
+    older forge), ``none`` (``lora`` null, as when the trainer left no file), ``bad_sha`` (a sha256 that
+    doesn't match the file)."""
+
+    def __init__(
+        self, exports: Path, *, enabled: bool = True, end: str = "succeeded", write: bool = True, report: str = "lora"
+    ):
+        self.exports, self.enabled, self.end, self.write, self.report = exports, enabled, end, write, report
         self.runs: dict[str, dict] = {}
         self.calls: list[tuple[str, Any]] = []
         self.polls = 0
@@ -148,9 +155,18 @@ class FakeForge:
         if state["status"] == "running" and self.polls >= 2:
             state["status"] = self.end
             if self.end == "succeeded" and self.write:
-                out = self.exports / state["export_dir"] / "forge" / "kohya" / "output"
-                out.mkdir(parents=True, exist_ok=True)
-                (out / f"{self.output}.safetensors").write_bytes(b"lora weights " + run_id.encode())
+                sub = "output" if self.report == "legacy" else "elsewhere"
+                rel = f"forge/kohya/{sub}/{self.output}.safetensors"
+                out = self.exports / state["export_dir"] / rel
+                out.parent.mkdir(parents=True, exist_ok=True)
+                data = b"lora weights " + run_id.encode()
+                out.write_bytes(data)
+                sha = hashlib.sha256(data if self.report != "bad_sha" else b"other").hexdigest()
+                if self.report == "none":
+                    state |= {"lora": None, "message": "the trainer exited 0, but forge found no LoRA: no LoRA at x"}
+                elif self.report != "legacy":
+                    state["lora"] = {"path": f"/data/out/{state['export_dir']}/{rel}", "export_path": rel,
+                                     "sha256": sha, "size_bytes": len(data)}  # fmt: skip
         return state
 
 
@@ -467,6 +483,39 @@ def test_train_needs_forge_training_and_follows_a_run_already_started(world):
     v = step(c, "train")
     assert [k for k, _ in forge.calls].count("run") == 1  # followed, not started twice
     assert v["record"]["lora"]["forge_run"] == "forge-1"
+
+
+def test_train_uses_the_lora_forge_reports(world):
+    _, _, exports, loras = world
+    c, sib, _ = make(world)
+    for s in STEPS[:3]:
+        step(c, s)
+    lora = step(c, "train")["record"]["lora"]
+    data = (loras / lora["name"]).read_bytes()
+    assert data == b"lora weights forge-1" and lora["sha256"] == hashlib.sha256(data).hexdigest()
+
+
+@pytest.mark.parametrize(
+    ("report", "error"),
+    [("none", "trained no LoRA: the trainer exited 0"), ("bad_sha", "hashes differently")],
+)
+def test_train_refuses_a_lora_forge_does_not_vouch_for(world, report, error):
+    _, _, exports, loras = world
+    c, _sib, _ = make(world, forge=FakeForge(exports, report=report))
+    for s in STEPS[:3]:
+        step(c, s)
+    v = step(c, "train", expect="failed")
+    assert error in v["record"]["runs"][-1]["error"] and v["record"]["lora"] is None
+    assert not list(loras.rglob("*.safetensors"))
+
+
+def test_train_still_works_with_a_forge_that_reports_no_lora_field(world):
+    _, _, exports, loras = world
+    c, _sib, _ = make(world, forge=FakeForge(exports, report="legacy"))
+    for s in STEPS[:3]:
+        step(c, s)
+    lora = step(c, "train")["record"]["lora"]
+    assert (loras / lora["name"]).read_bytes() == b"lora weights forge-1"
 
 
 def test_caption_refuses_an_image_lens_left_out(world):

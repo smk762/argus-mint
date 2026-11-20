@@ -104,7 +104,8 @@ class LensClient(_Http):
 class ForgeClient(_Http):
     """argus-forge (:8103). ``GET /health`` (``training``: enabled|disabled), ``POST /config``
     (``ForgeRequest`` -> ``ForgeResult``), ``POST /run`` (``RunRequest`` -> 202 ``RunState``),
-    ``GET /run/{id}`` (``RunState``; 404 once forge restarts)."""
+    ``GET /run/{id}`` (``RunState``, with ``lora`` once it succeeded; 404 once a forge without a state
+    directory restarts). With training disabled, a ``/config`` that isn't a dry run is a 403."""
 
     service = "forge"
 

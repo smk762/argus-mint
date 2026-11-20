@@ -735,6 +735,27 @@ def _lora_names(ctx: TrainingContext) -> tuple[str, str]:
     return train_export, f"mint/{train_export}.safetensors"
 
 
+def _forge_lora(
+    ctx: TrainingContext, train_export: str, run_id: str, output_name: str, state: dict[str, Any]
+) -> tuple[Path, str | None]:
+    """(the LoRA a succeeded forge run trained, as mint sees the shared volume; forge's sha256 of it).
+
+    forge reports it on the run (``lora``: ``export_path`` relative to the export, ``sha256``), read
+    from the config the trainer ran. A forge from before that field has no ``lora`` key at all: then
+    the path is kohya's layout and there is no sha256 to check against.
+    """
+    if "lora" not in state:
+        return ctx.exports_dir / train_export / "forge" / "kohya" / "output" / f"{output_name}.safetensors", None
+    lora = state["lora"]
+    if not lora:
+        why = state.get("message") or "it reported none"
+        raise TrainingError(f"forge run {run_id} succeeded but trained no LoRA: {why}")
+    rel = lora.get("export_path")
+    if not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+        raise TrainingError(f"forge run {run_id} wrote its LoRA outside the export ({lora.get('path')})")
+    return ctx.exports_dir / train_export / rel, lora.get("sha256")
+
+
 def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
     forge = _need(ctx.forge, "forge")
     t = _training(ctx.identity)
@@ -758,6 +779,8 @@ def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
         }  # fmt: skip
         note(inputs=config)
         forged = forge.config(config)
+        # forge >= smk762/argus-forge#52 refuses this with a 403 when its training is disabled; an older
+        # one rendered a dry run and said so only in a warning.
         if any("dry" in str(w).lower() and "run" in str(w).lower() for w in forged.get("warnings") or []):
             raise TrainingError(f"forge only previewed the config: {forged.get('warnings')}")
         started = forge.run({"export_dir": sel.train_export, "trainer": "kohya"})
@@ -777,10 +800,12 @@ def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
             raise TrainingError(f"forge run {run_id} is still {status} after {waited:.0f}s")
         ctx.sleep(ctx.poll_seconds)
         waited += ctx.poll_seconds
-    out = ctx.exports_dir / sel.train_export / "forge" / "kohya" / "output" / f"{output_name}.safetensors"
+    out, forge_sha = _forge_lora(ctx, sel.train_export, run_id, output_name, state)
     if not out.is_file():
         raise TrainingError(f"forge run {run_id} succeeded but left no {out.name} in its output")
     sha = _sha(out)
+    if forge_sha is not None and sha != forge_sha:
+        raise TrainingError(f"{out.name} here hashes differently from the LoRA forge run {run_id} trained")
     dest = ctx.loras_dir / lora_name
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
