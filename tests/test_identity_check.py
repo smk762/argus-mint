@@ -39,7 +39,7 @@ from tests.test_teasers import (  # noqa: E402
 )
 
 SHA = "ab" * 32
-AREA = {"x": 96, "y": 512, "width": 288, "height": 512}  # lamp-room's character_area
+AREA = {"x": 128, "y": 256, "width": 272, "height": 768}  # lamp-room's character_area
 
 
 class Proof:
@@ -210,7 +210,7 @@ def test_an_answer_mint_cant_read_holds_the_teaser(world):
         (Proof(proof_version="2.0"), "wire '2.0'"),
         (Proof(images=[]), "one image"),
         (
-            Proof(images=[{"crop": {"x": 96, "y": 512, "width": 288, "height": 512}, "metrics": [0.9]}]),
+            Proof(images=[{"crop": AREA, "metrics": [0.9]}]),
             "no likeness score",
         ),
     ]:
