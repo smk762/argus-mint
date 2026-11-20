@@ -11,7 +11,9 @@ prompt: "inside a lighthouse lamp room at night, brass lens, rain on the windows
 negative: "people, person, figure, text, letters, watermark, signature"
 backgrounds: 3
 # Where the keeper may be painted in: a standing figure's box left of centre, clear of the lamp
-# on the sill and the picture on the wall, running to the bottom edge so the mask has no edge
-# below the figure. darkroom repaints it whole (denoise 1.0) and pastes it back through a hard mask
-# grown by 8 px, so the box is kept where a seam falls on plain wall and dark glass.
-character_area: {x: 96, y: 512, width: 288, height: 512}
+# on the sill (x 416 and right, in all three backgrounds) and the picture on the wall (x 0-120),
+# running to the bottom edge so the mask has no edge below the figure. It starts at y 256 so a
+# standing figure's head falls inside it: a box starting halfway down cut the head off at its top
+# edge in three of four renders. darkroom repaints it whole (denoise 1.0) and pastes it back
+# through a hard mask grown by 8 px, so the box is kept where a seam falls on plain wall and dark glass.
+character_area: {x: 128, y: 256, width: 272, height: 768}
