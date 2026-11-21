@@ -286,6 +286,13 @@ def add_project_routes(
             existing = table(bundle(pid), kind).get((item_id, version)) if (root / "project.yaml").is_file() else None
             if existing is not None and existing[0].status != "draft":
                 raise HTTPException(409, f"{kind} {item_id} v{version} is {existing[0].status}; save a new version")
+            if kind == "project" and existing is None and (root / "project.yaml").is_file():
+                # One project.yaml holds every version: a new version would overwrite the reviewed one.
+                current = bundle(pid).project
+                if current.status != "draft":
+                    raise HTTPException(
+                        409, f"project.yaml holds {current.status} v{current.version}; only a draft one can be replaced"
+                    )
             if existing is not None:
                 path = existing[1]
             elif spec.subdir is None:
@@ -327,6 +334,7 @@ def add_project_routes(
         if found is None:
             raise HTTPException(404, f"no {kind} {item_id} v{version} in project {pid}")
         obj, path = found
+        checked = obj.hash()  # what the checks below judge; the decision is recorded only for this content
         if not os.access(path, os.W_OK):
             raise HTTPException(503, f"{path.relative_to(projects_dir)} is not writable on this server")
         if body.decision == "approve":
@@ -378,6 +386,13 @@ def add_project_routes(
             if failed:
                 raise HTTPException(409, "SingGuard refused: " + "; ".join(f"{c.field} ({c.detail})" for c in failed))
         with lock:
+            # A save may have rewritten the draft since it was checked: approve only what was checked.
+            try:
+                now = KINDS[kind].loader(path).hash()
+            except (ProjectError, OSError):
+                now = None
+            if body.decision == "approve" and now != checked:
+                raise HTTPException(409, f"{kind} {item_id} v{version} changed while it was checked; review it again")
             try:
                 record_decision(
                     path, body.decision, by=body.by, today=datetime.now(UTC).date(), validate=KINDS[kind].loader

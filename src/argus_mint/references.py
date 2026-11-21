@@ -60,6 +60,8 @@ class ConsentStore:
             return "no consent record for its release here"
         except OSError as e:
             return f"its consent record can't be read ({type(e).__name__})"
+        except UnicodeDecodeError:
+            return "its consent record isn't UTF-8"
         try:
             return ConsentRecord.model_validate(json.loads(raw))
         except json.JSONDecodeError:

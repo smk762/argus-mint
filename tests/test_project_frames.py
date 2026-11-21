@@ -250,8 +250,10 @@ def test_capture_writes_the_overlay_and_a_frame_that_records_its_sources(spec):
     assert load_frame(bare).hash() == lf.hash()
     with Image.open(png) as im:
         assert im.mode == "RGBA" and im.size == (200, 100) and not im.info  # no ancillary chunks
+    first = png.read_bytes()  # kept now: the re-capture writes over the same path
     again_png, _ = capture_frame.capture(spec, renderer=stub_renderer())  # a draft is updated in place
-    assert load_frame(frame).hash() == lf.hash() and again_png.read_bytes() == png.read_bytes()
+    assert load_frame(frame).hash() == lf.hash()
+    assert again_png == png and again_png.read_bytes() == first
 
 
 def test_capture_never_overwrites_a_reviewed_frame(spec):

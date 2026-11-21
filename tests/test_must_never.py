@@ -59,8 +59,11 @@ def test_no_contract_pays_out(contract):
     names = {f["name"] for f in fns}
     assert not names & ERC20_ONLY, f"{contract} has an ERC-20 surface"
     assert not [n for n in names if PAYOUT_WORDS.search(n)], f"{contract} has a payout-shaped function"
-    payable = sorted(f["name"] for f in fns if f.get("stateMutability") == "payable")
-    assert payable == (["mint"] if contract == "Card" else [])
+    # Every entry, not just functions: a payable receive() or fallback() takes ETH too.
+    payable = sorted(
+        f"{x['type']}:{x.get('name', '')}" for x in _abi(contract) if x.get("stateMutability") == "payable"
+    )
+    assert payable == (["function:mint"] if contract == "Card" else [])
 
 
 def test_no_cli_option_takes_a_key():

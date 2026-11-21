@@ -585,6 +585,10 @@ def teaser_problems(b: ProjectBundle, links: TeaserLinks) -> list[str]:
         if ident is not None and scene is not None:
             if ident[0].presence == "embodied" and scene[0].character_area is None:
                 out.append(f"{n}: {ident[0].id} appears in the image, but scene {scene[0].id} has no character_area")
-            if ident[0].presence == "viewpoint" and t.frame != ident[0].frame:
-                out.append(f"{n}: a viewpoint teaser uses its identity's frame ({ident[0].frame.id})")  # type: ignore[union-attr]
+            if ident[0].presence == "viewpoint":
+                own = ident[0].frame
+                if own is None:  # the model refuses this; report it rather than crash if it gets here
+                    out.append(f"{n}: viewpoint identity {ident[0].id} has no frame")
+                elif t.frame.key != own.key:
+                    out.append(f"{n}: a viewpoint teaser must use its identity's frame ({own.id} v{own.version})")
     return out
