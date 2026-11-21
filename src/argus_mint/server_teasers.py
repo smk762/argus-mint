@@ -67,6 +67,7 @@ from argus_mint.projects import (
     load_project,
 )
 from argus_mint.render import RenderError, RenderFailed
+from argus_mint.server_projects import is_id
 from argus_mint.spoilers import SpoilerList
 from argus_mint.teasers import TeaserError, TeaserNotFound, make_teaser
 from argus_mint.wire import (
@@ -82,7 +83,6 @@ from argus_mint.wire import (
 
 log = structlog.get_logger(__name__)
 
-_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 _TEASER = re.compile(r"^T[1-9][0-9]{0,4}$")
 
 
@@ -202,7 +202,7 @@ def add_teaser_routes(
     starting = threading.Lock()  # one start at a time, so two requests can't both find the set idle
 
     def bundle(pid: str) -> ProjectBundle:
-        if not _ID.fullmatch(pid) or not (projects_dir / pid / "project.yaml").is_file():
+        if not is_id(pid) or not (projects_dir / pid / "project.yaml").is_file():
             raise HTTPException(404, f"no project {pid!r}")
         try:
             return load_bundle(projects_dir / pid)

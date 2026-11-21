@@ -302,3 +302,18 @@ def test_an_identity_with_an_unconsented_reference_is_not_approved(make, tmp_pat
     assert r.status_code == 409 and "references can't be approved" in r.json()["detail"]
     (consent_dir / f"{RELEASE}.json").write_text(json.dumps(_record()))
     assert _approve(c, "identity", "jo", 1).status_code == 200
+
+
+@pytest.mark.parametrize("value", ["Demo", "demo.v2", "demo_v2", "a" * 65])
+def test_an_id_stays_stricter_than_cortexs_default_safe_name(value: str) -> None:
+    # Project, scene and identity ids (and sample job ids) go through argus-cortex's safe_name with mint's own
+    # patterns, so names its default takes (capitals, ".", "_", up to 128 characters) are still refused.
+    from argus_cortex.fs import safe_name
+
+    from argus_mint.server import _JOB_ID
+    from argus_mint.server_projects import is_id, is_safe_name
+
+    assert safe_name(value) == value
+    assert not is_id(value)
+    assert not is_id("demo\n") and not is_id("") and is_id("demo-1")
+    assert not is_safe_name("0123456789ABCDEF", _JOB_ID) and is_safe_name("0123456789abcdef", _JOB_ID)
