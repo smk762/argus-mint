@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import tempfile
 from collections.abc import Callable
 from datetime import date
@@ -135,6 +136,8 @@ def _replace_validated(path: Path, text: str, validate: Callable[[Path], Any]) -
             validate(tmp)
         except Exception as e:
             raise CatalogueError(f"{path.name} did not validate after the edit, so it was left unchanged: {e}") from e
+        if path.exists():  # mkstemp makes the file 0600: keep the original's mode, so its readers still can
+            shutil.copymode(path, tmp)
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)

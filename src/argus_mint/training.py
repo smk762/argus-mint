@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shutil
 import threading
@@ -451,7 +452,7 @@ def split_held_out(ranked: list[str], train: int, held_out: int) -> tuple[list[s
     m = len(top)
     picks = {int((j + 0.5) * m / held_out) for j in range(held_out)}
     held = [x for i, x in enumerate(top) if i in picks]
-    return [x for x in top if x not in held], held
+    return [x for i, x in enumerate(top) if i not in picks], held
 
 
 def _images(d: Path) -> list[Path]:
@@ -488,7 +489,8 @@ def judge(
     pending = bool(verdict.get("pending"))
     means = (report.get("aggregate") or {}).get("means") or {}
     score = means.get(metric)
-    score = float(score) if isinstance(score, (int, float)) else None
+    scored = isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score)
+    score = float(score) if scored else None
     reasons = [str(x) for x in verdict.get("reasons") or []]
     if not proof_passed:
         reasons.append("proof's verdict didn't pass")
@@ -604,7 +606,7 @@ def _candidates(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, An
         with ctx.store.lock:
             r = ctx.record()
             ctx.update(
-                candidates=tuple(sorted((*r.candidates, c), key=lambda x: x.n)),
+                candidates=tuple(sorted((*(x for x in r.candidates if x.n != n), c), key=lambda x: x.n)),
                 failed=tuple(x for x in r.failed if x.n != n),
             )
     r = ctx.record()
@@ -648,6 +650,10 @@ def _select(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
         name = f"anchor-{i:02d}{Path(ref.file).suffix.lower() or '.png'}"
         files.append((name, data))
         anchors.append(name)
+    names_up = [n for n, _ in files]
+    clash = sorted({n for n in names_up if names_up.count(n) > 1})
+    if clash:  # one flat folder in curator: a clash would replace an image or pass a candidate off as an anchor
+        raise TrainingError(f"candidate files clash by name in curator's folder: {', '.join(clash)}")
     note(inputs={"folder": folder, "candidates": len(r.candidates), "anchors": anchors})
     uploaded = curator.upload(folder, files)
     if uploaded.get("errors"):
@@ -680,7 +686,10 @@ def _select(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
     # proof's held-out check reads the export's training images: give it the training manifest.
     shutil.copyfile(manifest, proof_dir / "manifest.jsonl")
     for ref in (x for x in ident.references if x.held_out):  # the identity's own held-out references
-        shutil.copyfile(ctx.identity_dir / ref.file, proof_dir / "references" / f"identity-{Path(ref.file).name}")
+        data = (ctx.identity_dir / ref.file).read_bytes()
+        if hashlib.sha256(data).hexdigest() != ref.sha256:
+            raise TrainingError(f"reference {ref.file} differs from its recorded sha256")
+        (proof_dir / "references" / f"identity-{Path(ref.file).name}").write_bytes(data)  # the bytes checked
     check_held_out(train_dir, proof_dir / "references")
     sel = Selection(
         scan_id=scan_id, kept=len(kept), train=tuple(train), held_out=tuple(held), anchors=tuple(anchors),
@@ -752,7 +761,7 @@ def _forge_lora(
         raise TrainingError(f"forge run {run_id} succeeded but trained no LoRA: {why}")
     rel = lora.get("export_path")
     if not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
-        raise TrainingError(f"forge run {run_id} wrote its LoRA outside the export ({lora.get('path')})")
+        raise TrainingError(f"forge run {run_id} wrote its LoRA outside the export ({rel!r})")
     return ctx.exports_dir / train_export / rel, lora.get("sha256")
 
 
@@ -765,19 +774,21 @@ def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
         raise TrainingError("forge's training is disabled: it trains only on the trusted GPU host")
     output_name, lora_name = _lora_names(ctx)
     run_id = None
+    config = {
+        "export_dir": sel.train_export, "trainer": "kohya", "trigger": t.trigger, "output_name": output_name,
+        "collect_captions": False, "dry_run": False,
+        **({"base_model": t.base_model} if t.base_model else {}),
+    }  # fmt: skip
+    note(inputs=config)  # recorded on every try, so a later one can tell what a run was started for
     earlier = [x for x in ctx.record().runs if x.step == "train" and x.sibling.get("forge_run")]
-    if earlier:  # a run an earlier try started: follow it rather than train twice
+    # a run an earlier try started for this same config: follow it rather than train twice. One started
+    # for another selection, trigger or base model is never adopted.
+    if earlier and earlier[-1].inputs == config:
         prev = earlier[-1].sibling["forge_run"]
         state = forge.status(prev)
         if state is not None and state.get("status") in ("running", "succeeded"):
             run_id = prev
     if run_id is None:
-        config = {
-            "export_dir": sel.train_export, "trainer": "kohya", "trigger": t.trigger, "output_name": output_name,
-            "collect_captions": False, "dry_run": False,
-            **({"base_model": t.base_model} if t.base_model else {}),
-        }  # fmt: skip
-        note(inputs=config)
         forged = forge.config(config)
         # forge >= smk762/argus-forge#52 refuses this with a 403 when its training is disabled; an older
         # one rendered a dry run and said so only in a warning.
@@ -830,21 +841,27 @@ def _evaluate(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]
         raise TrainingError(f"{lora.name} in the LoRA directory isn't the one forge trained")
     check_held_out(ctx.exports_dir / sel.train_export, ctx.exports_dir / sel.proof_export / "references")
     report = None
+    request: dict[str, Any] = {
+        "lora": lora.name, "lora_weight": 1.0, "base_checkpoint": t.model,
+        "export": sel.proof_export, "prompt": f"{t.trigger}, {ident.prompt}", "negative_prompt": ident.negative,
+        "seeds": [candidate_seed(ctx.project.id, ident, 1000 + i) for i in range(t.proof_seeds)],
+        "steps": t.sampling.steps, "cfg": t.sampling.cfg, "sampler": t.sampling.sampler,
+        "scheduler": t.sampling.scheduler, "clip_skip": t.sampling.clip_skip, "width": t.width, "height": t.height,
+        **({"guidance": t.sampling.guidance} if t.sampling.guidance is not None else {}),
+    }  # fmt: skip
     earlier = [x for x in ctx.record().runs if x.step == "evaluate" and x.sibling.get("proof_run")]
-    if earlier:  # a run an earlier try started may have finished in proof meanwhile
-        run_id = earlier[-1].sibling["proof_run"]
-        report = proof.report(run_id)
+    # a run an earlier try started may have finished in proof meanwhile; reuse it only when it scored
+    # this LoRA (by sha256) with this same request, never a retrained LoRA's or another export's run
+    if earlier:
+        prev = earlier[-1]
+        same = prev.sibling.get("lora_sha256") == lora.sha256
+        if same and {k: v for k, v in prev.inputs.items() if k != "run_id"} == request:
+            run_id = prev.sibling["proof_run"]
+            report = proof.report(run_id)
     if report is None:
         run_id = f"{sel.train_export}-{int(time.time())}"
-        body: dict[str, Any] = {
-            "run_id": run_id, "lora": lora.name, "lora_weight": 1.0, "base_checkpoint": t.model,
-            "export": sel.proof_export, "prompt": f"{t.trigger}, {ident.prompt}", "negative_prompt": ident.negative,
-            "seeds": [candidate_seed(ctx.project.id, ident, 1000 + i) for i in range(t.proof_seeds)],
-            "steps": t.sampling.steps, "cfg": t.sampling.cfg, "sampler": t.sampling.sampler,
-            "scheduler": t.sampling.scheduler, "clip_skip": t.sampling.clip_skip, "width": t.width, "height": t.height,
-            **({"guidance": t.sampling.guidance} if t.sampling.guidance is not None else {}),
-        }  # fmt: skip
-        note(inputs=body, sibling={"proof_run": run_id})
+        body = {"run_id": run_id, **request}
+        note(inputs=body, sibling={"proof_run": run_id, "lora_sha256": lora.sha256})
         last = proof.run(body)
         if last.get("type") != "complete":
             raise TrainingError(f"proof run {run_id} stopped: {last.get('message') or last}")

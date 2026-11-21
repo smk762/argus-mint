@@ -416,6 +416,12 @@ def test_layout_and_fonts_for_the_browser_preview(setup, tmp_path):
     assert c.get("/frames/test-frame/1/fonts/nope.ttf").status_code == 404
 
 
+def test_an_unreadable_blocklist_fails_at_start_even_with_auto_moderation_off(setup, tmp_path):
+    # teasers are word-filtered whatever auto-moderation is set to: a bad list must not wait for one
+    with pytest.raises(FileNotFoundError):
+        setup(auto_moderate=False, blocklist=tmp_path / "missing.txt")
+
+
 def test_auto_moderation_approves_clean_drafts_and_holds_the_rest(setup, owner, tmp_path):
     blocklist = tmp_path / "blocklist.txt"
     blocklist.write_text("# house rules\nzorblax\n")

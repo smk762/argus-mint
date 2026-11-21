@@ -208,7 +208,10 @@ def _noise(im: Any, e: Noise, art_sha256: bytes, index: int) -> Any:
 def _chromatic(im: Any, e: ChromaticAberration) -> Any:
     image_mod, _, _ = _pil()
     w, h = im.size
-    s = e.shift
+    # check_window refuses a shift this window can't take; clamped here too, so a smaller image never crashes.
+    s = min(e.shift, (min(w, h) - 1) // 2)
+    if s < 1:
+        return im
     r, g, b, a = im.split()
     bicubic = image_mod.Resampling.BICUBIC
     red = r.resize((w + 2 * s, h + 2 * s), bicubic).crop((s, s, s + w, s + h))
@@ -219,8 +222,11 @@ def _chromatic(im: Any, e: ChromaticAberration) -> Any:
 
 def _vignette(im: Any, e: Vignette) -> Any:
     image_mod, _, _ = _pil()
-    # Pillow's radial gradient: 0 at the centre, 255 at the corners of its square; stretched to the
-    # window, 255 at the window's corners.
+    # Pillow's radial gradient: 0 at the centre, reaching 255 at the edge midpoints of its square (and
+    # clamped there, so 255 on and outside the inscribed circle); stretched to the window, 255 from its
+    # inscribed ellipse out. So ``start`` and the full ``strength`` are measured to that ellipse, not to the
+    # corners. Kept as it is: its bytes are pinned and approved frames were reviewed with this look
+    # (hard rule 7); a corner-normalised falloff would be a new, separately reviewed effect.
     distance = image_mod.radial_gradient("L").resize(im.size, image_mod.Resampling.BILINEAR)
 
     def dark(v: int) -> int:

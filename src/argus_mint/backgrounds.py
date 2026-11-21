@@ -157,6 +157,8 @@ class Background(BaseModel):
 
     @model_validator(mode="after")
     def _status_is_the_review(self) -> Background:
+        if not self.id or any(c in self.id for c in "/\\\0"):  # ``file`` is joined to the set's directory
+            raise ValueError(f"a background's id is a file name in its set's directory, not {self.id!r}")
         if self.file != f"{self.id}.png":
             raise ValueError(f"a background's file is {self.id}.png")
         want = "pending" if self.review is None else self.review.decision

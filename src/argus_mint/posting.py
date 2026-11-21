@@ -17,6 +17,7 @@ both or neither; nothing here changes the draft's image or its reviews.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import re
 from datetime import datetime
@@ -43,6 +44,7 @@ __all__ = [
 ]
 
 ANCHORS_FILE = "anchors.json"
+ANCHORS_LOCK = ".anchors.lock"
 _PROJECT = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
@@ -95,7 +97,8 @@ def approved_at(d: CardDraft) -> datetime | None:
     """When the current image's last approval was given (None while it isn't approved)."""
     if d.status != "approved":
         return None
-    return max(r.at for r in d.reviews if r.image_sha256 == d.image_sha256 and r.decision == "approved")
+    # None, not a crash, for an approved draft with no approval of its current image on record.
+    return max((r.at for r in d.reviews if r.image_sha256 == d.image_sha256 and r.decision == "approved"), default=None)
 
 
 # -- anchors ---------------------------------------------------------------------------------------
@@ -154,11 +157,18 @@ class AnchorStore:
             raise AnchorError(f"{f}: {e}") from e
 
     def add(self, project: str, record: AnchorRecord) -> None:
-        records = (*self.load(project), record)
         d = self.dir(project)
         d.mkdir(parents=True, exist_ok=True)
-        doc = {"anchors": [r.model_dump(mode="json") for r in records]}
-        write_atomic(d / ANCHORS_FILE, json.dumps(doc, indent=2) + "\n")
+        # An exclusive lock across the read and the write: two adds (the service and a CLI run) must
+        # not both extend the same snapshot and drop the first one's record.
+        with open(d / ANCHORS_LOCK, "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                records = (*self.load(project), record)
+                doc = {"anchors": [r.model_dump(mode="json") for r in records]}
+                write_atomic(d / ANCHORS_FILE, json.dumps(doc, indent=2) + "\n")
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def anchor_leaves(drafts: list[TeaserDraft], anchored: tuple[AnchorRecord, ...]) -> list[AnchorLeaf]:

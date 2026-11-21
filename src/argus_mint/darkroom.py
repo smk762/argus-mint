@@ -392,7 +392,8 @@ class DarkroomClient:
                                 return "darkroom's complete event carried no record"
                             return record
                         if event == "error":
-                            return str(data.get("detail", "unknown error"))
+                            detail = data.get("detail") if isinstance(data, dict) else data
+                            return str(detail or "unknown error")
                     return "the stream ended without a record"
             time.sleep(self.busy_wait)
 

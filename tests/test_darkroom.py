@@ -91,6 +91,10 @@ class FakeDarkroom:
             events[-1] = ("complete", {"detail": "where did it go"})
         if self.tamper == "null_record":
             events[-1] = ("complete", {"record": None})
+        if self.tamper == "string_error":
+            events[-1] = ("error", "gpu on fire")
+        if self.tamper == "list_error":
+            events[-1] = ("error", [])
         text = "".join(f"event: {k}\ndata: {json.dumps(v)}\n\n" for k, v in events)
         return httpx.Response(200, text=text, headers={"content-type": "text/event-stream"})
 
@@ -248,6 +252,13 @@ def test_gives_up_when_busy_too_long(tdoc):
         .outcome
         is Outcome.ERROR
     )
+
+
+def test_an_error_event_whose_data_isnt_an_object_is_an_error_not_a_crash(tdoc):
+    req = fill(Template.model_validate(tdoc), VALUES, 1)
+    for tamper, match in (("string_error", "gpu on fire"), ("list_error", "unknown error")):
+        res = client(FakeDarkroom("passed", tamper=tamper)).generate(req)
+        assert res.outcome is Outcome.ERROR and match in res.detail
 
 
 def test_unreachable_is_an_error(tdoc):

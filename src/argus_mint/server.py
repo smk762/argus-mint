@@ -344,8 +344,9 @@ def create_app(
             words["filter"] = WordFilter.from_file(cfg.blocklist)
         return words["filter"]
 
-    if cfg.auto_moderate:
-        word_filter()  # fail at start, not on the first draft, if the list can't load
+    # Teasers are always word-filtered (auto-moderation on or off), and their routes are always
+    # mounted: fail at start, not on the first draft, if the list can't load.
+    word_filter()
 
     signer_configured = signer is not None or bool(cfg.account or os.environ.get("ARGUS_MINT_SIGNER_KEY"))
     writable = not cfg.read_only

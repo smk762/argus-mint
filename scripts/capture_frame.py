@@ -43,8 +43,9 @@ import json
 import os
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -75,8 +76,16 @@ class Rendered:
 Renderer = Callable[[Path, int, int], Rendered]
 
 
-def playwright_render(html: Path, width: int, height: int) -> Rendered:
-    """Render ``html`` at ``width`` x ``height`` (scale 1) to a PNG with a transparent background."""
+def _inside(path: Path, roots: Sequence[Path]) -> bool:
+    return any(path.is_relative_to(root) for root in roots)
+
+
+def playwright_render(html: Path, width: int, height: int, roots: Sequence[Path] = ()) -> Rendered:
+    """Render ``html`` at ``width`` x ``height`` (scale 1) to a PNG with a transparent background.
+
+    The page may load local files only from its own directory and ``roots`` (resolved, so ``..`` and
+    symlinks can't step out): anything else, a key or a wallet beside it included, is refused.
+    """
     try:
         from importlib.metadata import version
 
@@ -85,11 +94,13 @@ def playwright_render(html: Path, width: int, height: int) -> Rendered:
         raise CaptureError(INSTALL) from None
     loaded: list[Path] = []
     refused: list[str] = []
+    allowed = [html.resolve().parent, *(Path(r).resolve() for r in roots)]
 
     def route(r: Any) -> None:
         url = r.request.url
-        if urlparse(url).scheme == "file":
-            loaded.append(Path(unquote(urlparse(url).path)))
+        parsed = urlparse(url)
+        if parsed.scheme == "file" and _inside(Path(unquote(parsed.path)).resolve(), allowed):
+            loaded.append(Path(unquote(parsed.path)))
             r.continue_()
         else:
             refused.append(url)
@@ -111,7 +122,9 @@ def playwright_render(html: Path, width: int, height: int) -> Rendered:
         finally:
             browser.close()
     if refused:
-        raise CaptureError(f"{html}: the page asked for {sorted(set(refused))}; only local files may be used")
+        raise CaptureError(
+            f"{html}: the page asked for {sorted(set(refused))}; only files in {sorted(map(str, allowed))} may be used"
+        )
     return Rendered(png=png, loaded=loaded, versions={"playwright": version("playwright"), "chromium": chromium})
 
 
@@ -127,6 +140,7 @@ def _clean_png(png: bytes, width: int, height: int) -> bytes:
         if im.size != (width, height):
             raise CaptureError(f"the capture is {im.size[0]}x{im.size[1]}, not {width}x{height}")
         rgba = im.convert("RGBA")
+    rgba.info = {}  # convert() keeps the source's info (an ICC profile, a dpi), which save() would write back
     out = io.BytesIO()
     rgba.save(out, format="PNG", optimize=True)
     return out.getvalue()
@@ -158,7 +172,7 @@ def _header(spec_path: Path, yaml_path: Path, html: Path, sources: dict[str, str
 
 def _frame_yaml(header: str, frame: dict[str, Any], png_name: str) -> str:
     doc: dict[str, Any] = {"id": frame["id"], "version": frame["version"], "status": "draft", "overlay": png_name}
-    doc |= {k: v for k, v in frame.items() if k not in ("id", "version")}
+    doc |= {k: v for k, v in frame.items() if k not in ("id", "version", "status", "overlay")}
 
     def flow(v: Any) -> str:
         return yaml.safe_dump(v, default_flow_style=True, sort_keys=False, allow_unicode=True, width=10**6).strip()
@@ -183,10 +197,14 @@ def load_spec(spec_path: Path) -> dict[str, Any]:
         spec = json.loads(spec_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise CaptureError(f"{spec_path}: {e}") from e
+    if not isinstance(spec, dict):
+        raise CaptureError(f"{spec_path}: the spec is a JSON object")
     missing = sorted({"html", "png", "yaml", "width", "height", "frame"} - spec.keys())
     if missing:
         raise CaptureError(f"{spec_path}: missing {missing}")
     frame = spec["frame"]
+    if not isinstance(frame, dict):
+        raise CaptureError(f"{spec_path}: frame is a JSON object")
     reserved = sorted({"status", "overlay", "approved_by", "approved_at"} & frame.keys())
     if reserved:
         raise CaptureError(f"{spec_path}: frame may not set {reserved} (the script writes them; approval is a review)")
@@ -197,8 +215,11 @@ def load_spec(spec_path: Path) -> dict[str, Any]:
     return spec
 
 
-def capture(spec_path: Path, renderer: Renderer = playwright_render) -> tuple[Path, Path]:
+def capture(spec_path: Path, renderer: Renderer | None = None) -> tuple[Path, Path]:
     """Render the spec's page and write its overlay PNG and frame YAML; return their paths.
+
+    The default renderer is Playwright, letting the page load files from its own directory and the
+    frame's (its shared fonts); a file the page loaded from anywhere else is refused.
 
     The YAML is validated with :func:`argus_mint.frames.load_frame` before it replaces anything;
     on failure the files are left as they were.
@@ -238,7 +259,8 @@ def capture(spec_path: Path, renderer: Renderer = playwright_render) -> tuple[Pa
             )
 
     width, height = spec["width"], spec["height"]
-    out = renderer(html, width, height)
+    roots = (html.parent, yaml_path.parent)
+    out = (renderer or partial(playwright_render, roots=roots))(html, width, height)
     png = _clean_png(out.png, width, height)
 
     def rel(p: Path) -> str:
@@ -247,6 +269,8 @@ def capture(spec_path: Path, renderer: Renderer = playwright_render) -> tuple[Pa
     sources = {rel(html): _sha256(html.read_bytes())}
     for f in out.loaded:
         f = f.resolve()
+        if not _inside(f, roots):
+            raise CaptureError(f"the page loaded {f}, outside {sorted(map(str, roots))}; nothing was written")
         if f.is_file():
             sources[rel(f)] = _sha256(f.read_bytes())
     header = _header(spec_path, yaml_path, html, sources, spec.get("kit"), out.versions)
@@ -254,10 +278,13 @@ def capture(spec_path: Path, renderer: Renderer = playwright_render) -> tuple[Pa
 
     old_png = png_path.read_bytes() if png_path.is_file() else None
     png_path.write_bytes(png)
+    # mkstemp makes the file 0600: give it the old YAML's mode, or the PNG's (just written, so the umask's).
+    mode = (yaml_path if yaml_path.is_file() else png_path).stat().st_mode & 0o777
     fd, tmp_name = tempfile.mkstemp(dir=yaml_path.parent, prefix=f".{yaml_path.name}.", suffix=".tmp")
     tmp = Path(tmp_name)
     replaced = False
     try:
+        os.fchmod(fd, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
         try:

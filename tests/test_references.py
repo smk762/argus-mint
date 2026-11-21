@@ -93,6 +93,8 @@ def test_a_missing_or_broken_record_is_a_problem_that_names_no_one(store, tmp_pa
     found = reference_problems(ident, ConsentStore(tmp_path), at=AT)
     assert "consent record is invalid" in found[0]
     assert all(SUBJECT not in p and "Jo" not in p for p in found)
+    (tmp_path / f"{RELEASE}.json").write_bytes(b'{"subject": "\xff"}')  # not UTF-8: a reason, not a crash
+    assert "isn't UTF-8" in reference_problems(ident, ConsentStore(tmp_path), at=AT)[0]
 
 
 def test_a_bad_release_hash_never_becomes_a_path(tmp_path):

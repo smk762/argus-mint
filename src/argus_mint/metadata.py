@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import re
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import (
@@ -115,7 +116,13 @@ def _whole_as_int(x: float) -> int | float:
     writes ``1.0``, JavaScript ``1``. Written as an int, every verifier hashes the same bytes.
     """
     # Only within the range JavaScript writes as a plain integer: from 1e21 it writes 1e+21.
-    return int(x) if x.is_integer() and abs(x) < 1e21 else x
+    if not (x.is_integer() and abs(x) < 1e21):
+        return x
+    if abs(x) <= 2**53:  # exact, and written the same by both
+        return int(x)
+    # Above 2^53 JavaScript writes the shortest round-trip digits padded with zeros (2**60 is
+    # 1152921504606847000), not the exact binary value; Python's repr has the same shortest digits.
+    return int(Decimal(repr(x)))
 
 
 class Tint(BaseModel):

@@ -180,8 +180,12 @@ def test_a_new_project_starts_from_its_project_yaml(make):
 
 def test_project_ids_are_checked_before_any_path_is_built(make):
     c, _, _ = make()
-    assert c.get("/projects/..").status_code == 404
-    assert c.get("/projects/Bad_Id").status_code == 404
+    assert c.get(f"/projects/{PID}").status_code == 200  # a valid id reaches the handler
+    # Percent-encoded, so the client can't drop the dot segment and send GET / instead.
+    for bad in ("%2E%2E", "Bad_Id"):
+        r = c.get(f"/projects/{bad}")
+        # The validator's message quotes the id (repr); the later "no project.yaml" one doesn't.
+        assert r.status_code == 404 and r.json()["detail"] in ("no project '..'", "no project 'Bad_Id'"), r.text
 
 
 def _links(root: Path, version: int = 1) -> dict:
