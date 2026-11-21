@@ -215,7 +215,10 @@ def add_training_routes(
     @app.get("/projects/{pid}/identities/{iid}/{version}/training/candidates/{n}")
     def candidate_image(pid: str, iid: str, version: int, n: int) -> Response:
         identity_of(bundle(pid), iid, version)
-        r = store.load(pid, iid, version)
+        try:
+            r = store.load(pid, iid, version)
+        except TrainingError as e:
+            raise HTTPException(404 if "not an identity" in str(e) else 500, str(e)) from e
         if r is None:
             raise HTTPException(404, f"{iid} v{version} has no training record")
         try:

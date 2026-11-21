@@ -33,6 +33,7 @@ must be the crop sent.
 from __future__ import annotations
 
 import io
+import math
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -156,6 +157,8 @@ def _judge(result: Any, metric: str, crop: ScoreBox, identity: Identity, record:
         why = "no face found" if metric == "identity" else "its scorer didn't run"
         return record("error", f"proof returned no {metric} score ({why}, or no references)", **more)
     score = float(score)
+    if not math.isfinite(score):  # json reads Infinity/NaN: inf would pass any min_score
+        return record("error", f"proof returned a non-finite {metric} score {score!r}", **more)
     more["score"] = score
     who = f"identity {identity.id} v{identity.version}"
     if identity.min_score is None:

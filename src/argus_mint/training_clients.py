@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -61,7 +62,20 @@ class _Http:
             return None
         if resp.status_code >= 400:
             raise TrainingClientError(f"{self.service} GET {path}: {resp.status_code} {resp.text[:500]}")
-        return resp.json()
+        try:
+            body = resp.json()
+        except ValueError as e:
+            raise TrainingClientError(f"{self.service} GET {path}: not JSON", resp.status_code) from e
+        if not isinstance(body, dict):
+            raise TrainingClientError(f"{self.service} GET {path}: not a JSON object", resp.status_code)
+        return body
+
+
+def _seg(value: str) -> str:
+    """``value`` as one path segment: a ``/``, ``?``, ``#`` or ``..`` in a run id can't reach another route."""
+    if value in ("", ".", ".."):
+        raise TrainingClientError(f"not a run id: {value!r}")
+    return quote(value, safe="")
 
 
 def _files(field: str, files: list[tuple[str, bytes]]) -> list[tuple[str, tuple[str, bytes, str]]]:
@@ -119,7 +133,7 @@ class ForgeClient(_Http):
         return self._json("POST", "/run", json=body)
 
     def status(self, run_id: str) -> dict[str, Any] | None:
-        return self._maybe(f"/run/{run_id}")
+        return self._maybe(f"/run/{_seg(run_id)}")
 
 
 class ProofClient(_Http):
@@ -158,7 +172,7 @@ class ProofClient(_Http):
         return last
 
     def report(self, run_id: str) -> dict[str, Any] | None:
-        return self._maybe(f"/report/{run_id}")
+        return self._maybe(f"/report/{_seg(run_id)}")
 
     def manifest(self, run_id: str) -> dict[str, Any]:
-        return self._json("GET", f"/report/{run_id}/manifest")
+        return self._json("GET", f"/report/{_seg(run_id)}/manifest")
