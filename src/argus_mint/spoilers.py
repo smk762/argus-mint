@@ -33,9 +33,11 @@ class SpoilerList:
     rules: tuple[re.Pattern[str], ...]
 
     def hits(self, *texts: str) -> list[int]:
-        """The numbers (from 1) of every rule that matches any of ``texts``, in order."""
-        joined = "\n".join(texts)
-        return [n for n, rule in enumerate(self.rules, start=1) if rule.search(joined)]
+        """The numbers (from 1) of every rule that matches any of ``texts``, in order.
+
+        Each text is searched on its own: ``^``/``$`` anchor to every text, and no match spans two.
+        """
+        return [n for n, rule in enumerate(self.rules, start=1) if any(rule.search(t) for t in texts)]
 
     def __len__(self) -> int:
         return len(self.rules)

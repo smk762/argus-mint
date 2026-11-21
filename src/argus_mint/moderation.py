@@ -117,8 +117,9 @@ def auto_check(
             held.append(f"identity: {identity.reason}; without a min_score it can't stand in for the moderator")
         else:  # passed, a viewpoint's skip, or (auto-moderation off) an uncalibrated score
             checks.append(f"identity: {identity.reason}")
-        if not approve:
-            held.append(AUTO_OFF)
+
+    if not approve:  # auto-moderation off holds every draft, card or teaser, for the moderator
+        held.append(AUTO_OFF)
 
     return AutoCheck(
         at=datetime.now(UTC),

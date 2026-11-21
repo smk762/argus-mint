@@ -177,10 +177,15 @@ class IdentityCheck(BaseModel):
 
     @property
     def held(self) -> bool:
-        """Does this outcome hold the draft for a person (whatever auto-moderation is set to)?"""
-        return self.outcome in ("below", "unavailable", "error") or (
-            self.outcome == "skipped" and self.presence == "embodied"
-        )
+        """Does this outcome hold the draft for a person (whatever auto-moderation is set to)?
+
+        An allow-list, so an outcome added later holds by default. ``uncalibrated`` isn't held
+        here (its score is only recorded), but :func:`argus_mint.moderation.auto_check` never
+        lets it stand in for the moderator.
+        """
+        if self.outcome == "skipped":
+            return self.presence != "viewpoint"
+        return self.outcome not in ("passed", "uncalibrated")
 
 
 class AutoCheck(BaseModel):
