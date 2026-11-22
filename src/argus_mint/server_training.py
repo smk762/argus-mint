@@ -15,7 +15,6 @@ background jobs; a job a restart cut off reads as failed.
 from __future__ import annotations
 
 import queue
-import re
 import secrets
 import threading
 from collections.abc import Callable
@@ -33,6 +32,7 @@ from argus_mint.darkroom import DarkroomError
 from argus_mint.projects import Identity, ProjectBundle, ProjectError, file_strings, fresh_verdicts, load_bundle
 from argus_mint.references import ConsentStore
 from argus_mint.render import Rendered
+from argus_mint.server_projects import is_id
 from argus_mint.spoilers import SpoilerList
 from argus_mint.training import (
     STEPS,
@@ -48,8 +48,6 @@ from argus_mint.training import (
 from argus_mint.wire import IdentityTrainingView
 
 log = structlog.get_logger(__name__)
-
-_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
 @dataclass
@@ -166,7 +164,7 @@ def add_training_routes(
     starting = threading.Lock()
 
     def bundle(pid: str) -> ProjectBundle:
-        if not _ID.fullmatch(pid) or not (projects_dir / pid / "project.yaml").is_file():
+        if not is_id(pid) or not (projects_dir / pid / "project.yaml").is_file():
             raise HTTPException(404, f"no project {pid!r}")
         try:
             return load_bundle(projects_dir / pid)

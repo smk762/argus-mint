@@ -6,6 +6,7 @@ All notable changes to this project are documented here. Versions come from git 
 
 ### Changed
 
+- **The server's project, scene, identity and sample job id checks use argus-cortex's `fs.safe_name`** (ai-code-auditor#60), with mint's own patterns in place of its default, so each is exactly as strict as before. `server_projects.is_id` replaces the copies of the id regex in `server_projects`, `server_teasers` and `server_training`. The base-install modules (`cards`, `library`, `training`, `backgrounds`, `posting`) keep their local checks: argus-cortex is only in the `server` extra.
 - **The `train` step takes the LoRA forge reports (smk762/argus-forge#52).** forge now puts a succeeded run's LoRA on `GET /run/{id}` (`lora`: `export_path`, `sha256`), read from the config the trainer ran. mint uses that file instead of assuming kohya's layout, and refuses the step when forge reports no LoRA or the file mint sees hashes differently from forge's. A forge without the field (no `lora` key) is handled as before. With training disabled, forge now answers a writing `/config` with 403; the warning check stays for older forges.
 
 ## [0.3.0] - 2026-11-19

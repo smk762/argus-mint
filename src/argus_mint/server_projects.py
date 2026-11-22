@@ -31,6 +31,7 @@ from typing import Annotated, Any
 
 import structlog
 import yaml
+from argus_cortex.fs import PathRefused, safe_name
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ValidationError
 
@@ -75,7 +76,24 @@ from argus_mint.wire import (
 
 log = structlog.get_logger()
 
-_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+# A project, scene or identity id: a directory name under the projects root. Checked by argus-cortex's safe_name
+# with this pattern in place of its default, which also takes capitals, "." and "_", and up to 128 characters.
+_ID = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
+
+
+def is_safe_name(value: object, pattern: re.Pattern[str]) -> bool:
+    """Whether *value* is one path segment *pattern* allows, by argus-cortex's ``fs.safe_name`` (whole string,
+    never ``.`` or ``..``, at most 128 characters)."""
+    try:
+        safe_name(value, pattern=pattern)  # type: ignore[arg-type]
+    except PathRefused:
+        return False
+    return True
+
+
+def is_id(value: object) -> bool:
+    """Whether *value* is a project, scene or identity id: lower-case letters, digits and hyphens, at most 64."""
+    return is_safe_name(value, _ID)
 
 
 class _Kind:
@@ -137,7 +155,7 @@ def add_project_routes(
                 for p in reference_problems(ident, consent, at=now)]  # fmt: skip
 
     def project_root(pid: str) -> Path:
-        if not _ID.fullmatch(pid):
+        if not is_id(pid):
             raise HTTPException(404, f"no project {pid!r}")
         return projects_dir / pid
 
@@ -221,7 +239,7 @@ def add_project_routes(
         out: list[ProjectSummary] = []
         if projects_dir.is_dir():
             # nosemgrep: handler-scans-all - the answer is every project; each request parses every project.yaml, so cache by mtime if projects grow
-            for d in sorted(p for p in projects_dir.iterdir() if p.is_dir() and _ID.fullmatch(p.name)):
+            for d in sorted(p for p in projects_dir.iterdir() if p.is_dir() and is_id(p.name)):
                 if not (d / "project.yaml").is_file():
                     continue
                 try:
@@ -254,7 +272,7 @@ def add_project_routes(
         if kind not in KINDS:
             raise HTTPException(404, f"no project file kind {kind!r}")
         root = project_root(pid)
-        if not _ID.fullmatch(item_id) or version < 1:
+        if not is_id(item_id) or version < 1:
             raise HTTPException(422, "an id is lower-case letters, digits and hyphens, and a version is 1 or more")
         if kind in _OWN_ID and item_id != pid:
             raise HTTPException(422, f"a {kind} file's id is the project's own ({pid})")

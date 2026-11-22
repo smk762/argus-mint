@@ -84,7 +84,7 @@ from argus_mint.moderation import WordFilter, auto_review
 from argus_mint.pin import KuboPinner, PinError
 from argus_mint.render import RenderError
 from argus_mint.server_posts import add_post_routes
-from argus_mint.server_projects import add_project_routes
+from argus_mint.server_projects import add_project_routes, is_safe_name
 from argus_mint.server_teasers import add_teaser_routes
 from argus_mint.server_training import TrainingClients, add_training_routes
 from argus_mint.spoilers import load_spoilers
@@ -1103,7 +1103,7 @@ class _SampleRunner:
         self.live: set[str] = set()
 
     def _dir(self, job_id: str) -> Path:
-        if not _JOB_ID.fullmatch(job_id):
+        if not is_safe_name(job_id, _JOB_ID):
             raise HTTPException(400, f"not a sample job id: {job_id!r}")
         return self.root / job_id
 
@@ -1127,7 +1127,7 @@ class _SampleRunner:
     def all(self) -> list[SampleJob]:
         if not self.root.is_dir():
             return []
-        found = [p for p in self.root.iterdir() if _JOB_ID.fullmatch(p.name) and (p / "job.json").is_file()]
+        found = [p for p in self.root.iterdir() if is_safe_name(p.name, _JOB_ID) and (p / "job.json").is_file()]
         ordered = sorted(found, key=lambda p: (p / "job.json").stat().st_mtime, reverse=True)
         return [self.get(p.name) for p in ordered]
 
@@ -1191,4 +1191,4 @@ class _SampleRunner:
         self._save(job.model_copy(update={"status": "done", "finished_at": datetime.now(UTC)}))
 
 
-_JOB_ID = re.compile(r"^[0-9a-f]{16}$")
+_JOB_ID = re.compile(r"[0-9a-f]{16}")  # a sample job id, checked by argus-cortex safe_name (is_safe_name)
