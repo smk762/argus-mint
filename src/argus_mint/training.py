@@ -445,7 +445,9 @@ def rank_kept(scan: dict[str, Any], kept: list[str]) -> list[str]:
 
 def split_held_out(ranked: list[str], train: int, held_out: int) -> tuple[list[str], list[str]]:
     """The closest ``train + held_out`` images, split: ``held_out`` spread evenly through the ranking
-    (so the references are as close to the identity as the training set is), the rest to train."""
+    (so the references are as close to the identity as the training set is), the rest to train. A path
+    ranked twice counts once, so a duplicate never takes a training slot or lands on both sides."""
+    ranked = list(dict.fromkeys(ranked))
     top = ranked[: train + held_out]
     if len(top) < train + held_out:
         raise TrainingError(f"curator kept {len(ranked)} images; {train} to train and {held_out} held out need more")

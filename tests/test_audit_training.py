@@ -34,9 +34,15 @@ def _edit(world, **fields) -> None:
 
 
 def test_duplicates_in_the_ranking_never_shrink_the_training_set():
-    ranked = ["a.png", "a.png", "c.png", "b.png", "d.png", "e.png", "f.png", "g.png", "h.png"]
+    ranked = ["a.png", "a.png", "c.png", "b.png", "d.png", "e.png", "f.png", "g.png", "h.png", "i.png"]
     train, held = split_held_out(ranked, 6, 3)
-    assert (len(train), len(held)) == (6, 3)
+    assert (len(set(train)), len(train), len(set(held)), len(held), set(train) & set(held)) == (6, 6, 3, 3, set())
+    assert set(train) | set(held) == set(ranked)
+
+
+def test_duplicates_never_count_toward_the_images_needed():
+    with pytest.raises(TrainingError, match="kept 8 images"):
+        split_held_out(["a.png", "a.png", "c.png", "b.png", "d.png", "e.png", "f.png", "g.png", "h.png"], 6, 3)
 
 
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), True])
