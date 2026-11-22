@@ -509,6 +509,25 @@ def test_train_refuses_a_lora_forge_does_not_vouch_for(world, report, error):
     assert not list(loras.rglob("*.safetensors"))
 
 
+def test_a_bad_lora_copy_never_reaches_the_published_path(world, monkeypatch):
+    _, _, exports, loras = world
+    c, _sib, _ = make(world)
+    for s in STEPS[:3]:
+        step(c, s)
+    real = shutil.copyfile
+
+    def truncated(src, dst, *a, **kw):
+        real(src, dst, *a, **kw)
+        if str(dst).endswith(".part"):
+            Path(dst).write_bytes(Path(dst).read_bytes()[:-1])  # the disk filled mid-copy, say
+        return dst
+
+    monkeypatch.setattr(shutil, "copyfile", truncated)
+    v = step(c, "train", expect="failed")
+    assert "differs from forge's" in v["record"]["runs"][-1]["error"] and v["record"]["lora"] is None
+    assert [p.name for p in loras.rglob("*") if p.is_file()] == []
+
+
 def test_train_still_works_with_a_forge_that_reports_no_lora_field(world):
     _, _, exports, loras = world
     c, _sib, _ = make(world, forge=FakeForge(exports, report="legacy"))

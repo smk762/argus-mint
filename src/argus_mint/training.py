@@ -823,9 +823,10 @@ def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     shutil.copyfile(out, tmp)
-    tmp.replace(dest)
-    if _sha(dest) != sha:
+    if _sha(tmp) != sha:  # checked before the rename, so a bad copy never replaces the published LoRA
+        tmp.unlink(missing_ok=True)
         raise TrainingError(f"the LoRA copied to {dest} differs from forge's")
+    tmp.replace(dest)
     lora = TrainedLora(name=lora_name, sha256=sha, forge_run=run_id, output_name=output_name, trigger=t.trigger)
     ctx.update(lora=lora)
     return {"lora": lora_name, "sha256": sha}
