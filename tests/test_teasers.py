@@ -16,6 +16,7 @@ from pathlib import Path
 import httpx
 import pytest
 import yaml
+from argus_cortex.hashing import sha256_hex
 from eth_account import Account
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -42,7 +43,6 @@ from argus_mint.projects import (
     Scene,
     TeaserLinks,
     load_bundle,
-    text_sha256,
 )
 from argus_mint.render import GenResult, InitImage, Rendered, RenderFailed
 from argus_mint.server import Settings, create_app
@@ -101,7 +101,7 @@ def approve(root: Path, *, skip: tuple[str, ...] = (), refuse: str | None = None
         doc |= {"status": "approved", "approved_by": "tester", "approved_at": "2026-11-18", "guard": []}
         obj = MODELS["project" if rel == "project.yaml" else rel.split("/")[0]].model_validate(doc)
         doc["guard"] = [
-            GuardVerdict(field=k, sha256=text_sha256(t), policy="default", passed=not (refuse and refuse in t),
+            GuardVerdict(field=k, sha256=sha256_hex(t.encode()), policy="default", passed=not (refuse and refuse in t),
                          detail="rule-7" if refuse and refuse in t else "", checked_at=datetime.now(UTC),
                          ).model_dump(mode="json")
             for k, t in obj.guarded_texts()

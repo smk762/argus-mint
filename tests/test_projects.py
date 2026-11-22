@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from argus_cortex.hashing import sha256_hex
 
 from argus_mint.catalogue import record_decision, record_guard
 from argus_mint.projects import (
@@ -23,7 +24,6 @@ from argus_mint.projects import (
     load_line,
     load_teasers,
     problems,
-    text_sha256,
 )
 from argus_mint.spoilers import SpoilerError, load_spoilers, parse
 
@@ -305,7 +305,7 @@ def test_teaser_links_are_approved_like_any_reviewed_file(project: Path) -> None
 
 def _verdict(field: str, text: str, policy: str = "default", passed: bool = True) -> GuardVerdict:
     return GuardVerdict(
-        field=field, sha256=text_sha256(text), policy=policy, passed=passed, checked_at="2026-11-18T00:00:00Z"
+        field=field, sha256=sha256_hex(text.encode()), policy=policy, passed=passed, checked_at="2026-11-18T00:00:00Z"
     )
 
 
