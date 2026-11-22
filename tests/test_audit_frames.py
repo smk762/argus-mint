@@ -104,8 +104,8 @@ def test_a_file_loaded_from_outside_the_frame_is_refused(spec, tmp_path):
 
 def test_the_route_check_resolves_dot_dot(tmp_path):
     roots = [tmp_path / "frames"]
-    assert capture_frame._inside((tmp_path / "frames" / "src" / ".." / "fonts").resolve(), roots)
-    assert not capture_frame._inside((tmp_path / "frames" / ".." / "secret").resolve(), roots)
+    assert capture_frame._inside(tmp_path / "frames" / "src" / ".." / "fonts", roots)
+    assert not capture_frame._inside(tmp_path / "frames" / ".." / "secret", roots)
 
 
 # -- backgrounds ----------------------------------------------------------------------------------
