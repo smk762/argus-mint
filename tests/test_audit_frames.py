@@ -135,11 +135,11 @@ def test_chromatic_aberration_never_crashes_on_a_small_image(size):
 def test_a_catalogue_edit_keeps_the_files_mode(tmp_path, template_doc):
     path = tmp_path / "t.yaml"
     path.write_text(yaml.safe_dump(template_doc | {"status": "draft"}, sort_keys=False))
-    os.chmod(path, 0o644)
+    os.chmod(path, 0o604)  # neither mkstemp's 0600 nor what a umask-respecting open() makes
     from datetime import date
 
     record_decision(path, "approved", by="moderator", today=date(2026, 11, 21), validate=lambda p: None)
-    assert stat.S_IMODE(path.stat().st_mode) == 0o644
+    assert stat.S_IMODE(path.stat().st_mode) == 0o604
 
 
 # -- metadata -------------------------------------------------------------------------------------
