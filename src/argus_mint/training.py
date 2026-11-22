@@ -445,7 +445,9 @@ def rank_kept(scan: dict[str, Any], kept: list[str]) -> list[str]:
 
 def split_held_out(ranked: list[str], train: int, held_out: int) -> tuple[list[str], list[str]]:
     """The closest ``train + held_out`` images, split: ``held_out`` spread evenly through the ranking
-    (so the references are as close to the identity as the training set is), the rest to train."""
+    (so the references are as close to the identity as the training set is), the rest to train. A path
+    ranked twice counts once, so a duplicate never takes a training slot or lands on both sides."""
+    ranked = list(dict.fromkeys(ranked))
     top = ranked[: train + held_out]
     if len(top) < train + held_out:
         raise TrainingError(f"curator kept {len(ranked)} images; {train} to train and {held_out} held out need more")
@@ -821,9 +823,10 @@ def _train(ctx: TrainingContext, note: Callable[..., None]) -> dict[str, Any]:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
     shutil.copyfile(out, tmp)
-    tmp.replace(dest)
-    if _sha(dest) != sha:
+    if _sha(tmp) != sha:  # checked before the rename, so a bad copy never replaces the published LoRA
+        tmp.unlink(missing_ok=True)
         raise TrainingError(f"the LoRA copied to {dest} differs from forge's")
+    tmp.replace(dest)
     lora = TrainedLora(name=lora_name, sha256=sha, forge_run=run_id, output_name=output_name, trigger=t.trigger)
     ctx.update(lora=lora)
     return {"lora": lora_name, "sha256": sha}

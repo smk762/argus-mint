@@ -77,7 +77,9 @@ Renderer = Callable[[Path, int, int], Rendered]
 
 
 def _inside(path: Path, roots: Sequence[Path]) -> bool:
-    return any(path.is_relative_to(root) for root in roots)
+    """True when ``path`` is under one of ``roots``, both resolved first, so ``..`` and symlinks can't step out."""
+    path = Path(path).resolve()
+    return any(path.is_relative_to(Path(root).resolve()) for root in roots)
 
 
 def playwright_render(html: Path, width: int, height: int, roots: Sequence[Path] = ()) -> Rendered:
