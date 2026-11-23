@@ -14,6 +14,13 @@ import pytest
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def _no_gpu_broker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A host set to the GPU broker (``ARGUS_GPU_BROKER_URL`` alone selects it) must not send tests to it."""
+    for name in ("ARGUS_GPU_COORDINATOR", "ARGUS_GPU_BROKER_URL", "ARGUS_GPU_TENANT", "ARGUS_GPU_TENANT_MANIFEST"):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def template_doc() -> dict[str, Any]:
     """An approved template as it appears in YAML (before validation)."""

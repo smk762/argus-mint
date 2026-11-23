@@ -41,11 +41,10 @@ services:
       ARGUS_MINT_DARKROOM_URL: ${ARGUS_MINT_DARKROOM_URL:-http://host.docker.internal:8106}
       ARGUS_MINT_ACCOUNT: ${ARGUS_MINT_ACCOUNT:-}
       ARGUS_MINT_KEYSTORE_PASSWORD_FILE: ${ARGUS_MINT_KEYSTORE_PASSWORD_FILE:-}
-      # GPU leases for the bio writer, through the argus-iris broker (ARGUS_GPU_BROKER_TOKEN comes from .env).
-      ARGUS_GPU_COORDINATOR: ${ARGUS_GPU_COORDINATOR:-none}
+      # GPU leases for the bio writer, through the argus-iris broker: the URL alone switches them on (unset: no
+      # lease); ARGUS_GPU_BROKER_TOKEN comes from .env and the tenant from the image's /app/gpu-tenant.yaml.
       ARGUS_GPU_BROKER_URL: ${ARGUS_GPU_BROKER_URL:-}
       ARGUS_GPU_BROKER_FALLBACK: ${ARGUS_GPU_BROKER_FALLBACK:-none}
-      ARGUS_GPU_TENANT_MANIFEST: /app/gpu-tenant.yaml
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

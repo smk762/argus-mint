@@ -47,6 +47,8 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -379,7 +381,14 @@ def create_app(
             identity_check=writable and training.proof is not None,
         )
 
-    app = FastAPI(title="argus-mint", version=argus_mint.__version__)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # The bio writer's coordinator registers argus-mint with the GPU broker at startup rather than at the first
+        # bio. Nothing without a writer or a broker URL; startup never waits on the broker.
+        async with gpu.keep_registered(getattr(writer, "coordinator", None)):
+            yield
+
+    app = FastAPI(title="argus-mint", version=argus_mint.__version__, lifespan=lifespan)
     named = [o for o in cfg.cors_origins if o != "*"]
     app.add_middleware(WriteGuard, refuse=cross_site_refuse(named))
     if cfg.read_only:
