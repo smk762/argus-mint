@@ -12,6 +12,7 @@ from typing import Annotated, Any
 import structlog
 import typer
 from argus_cortex.hashing import sha256_hex
+from argus_cortex.peers import PeerRefused, peer_url
 from eth_account import Account
 
 import argus_mint
@@ -55,7 +56,10 @@ app = typer.Typer(help="argus-mint: provenance tokens for game assets.", no_args
 
 DarkroomOpt = Annotated[
     str | None,
-    typer.Option(envvar="ARGUS_MINT_DARKROOM_URL", help="argus-darkroom base URL, e.g. http://localhost:8106"),
+    typer.Option(
+        envvar="ARGUS_MINT_DARKROOM_URL",
+        help="argus-darkroom base URL, e.g. http://localhost:8106 (else the suite-wide $ARGUS_DARKROOM_URL)",
+    ),
 ]
 PolicyOpt = Annotated[str, typer.Option(help="darkroom enforcing policy (default: the SFW policy)")]
 AccountOpt = Annotated[
@@ -94,6 +98,17 @@ def _fail(message: str, code: int = 1) -> typer.Exit:
     return typer.Exit(code)
 
 
+def _darkroom_url(given: str | None) -> str | None:
+    """--darkroom, else what argus-cortex's ``peers`` finds: $ARGUS_MINT_DARKROOM_URL, then the suite-wide
+    $ARGUS_DARKROOM_URL, each from the environment and then the suite file. A value that is not a URL is an error."""
+    if given:
+        return given
+    try:
+        return peer_url("darkroom", "ARGUS_MINT_DARKROOM_URL")
+    except PeerRefused as e:
+        raise _fail(str(e), 2) from e
+
+
 @app.command()
 def version() -> None:
     """Print the installed version."""
@@ -128,6 +143,7 @@ def preflight(
     prompt, guidance, clip_skip). Then darkroom's text pre-flight on every variable combination.
     Exits 1 on any problem or refusal.
     """
+    darkroom = _darkroom_url(darkroom)
     if not darkroom:
         raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
     try:
@@ -279,6 +295,7 @@ def sample(
     --out. With --frame it also writes framed previews; --bio adds a written bio (any status
     of template, frame or bio template may be previewed). Prints a JSON summary.
     """
+    darkroom = _darkroom_url(darkroom)
     if not darkroom:
         raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
     try:
@@ -395,6 +412,7 @@ def draft(
         raise _fail("--library and --entry go together", 2)
     if sum(x for x in (image is not None, placeholder, library is not None)) > 1:
         raise _fail("give one of --image, --placeholder or --library", 2)
+    darkroom = _darkroom_url(darkroom)
     if image is None and not placeholder and library is None and not darkroom:
         raise _fail("give --darkroom (render), --library/--entry, --image or --placeholder", 2)
     lib_entry, lib_image = None, None
@@ -783,6 +801,8 @@ def serve(
     WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY,
     NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, POSTER_TOKEN, SIWE_DOMAIN, SIWE_URI,
     CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST, PROJECTS_DIR, SPOILERS, CONSENT_DIR, BACKGROUNDS_DIR.
+    The URLs of other Argus services (DARKROOM, CURATOR, LENS, FORGE, PROOF) fall back to the suite-wide
+    ARGUS_<PEER>_URL, from the environment or the suite file.
     """
     try:
         import uvicorn
@@ -937,6 +957,7 @@ def library_build(
     Model by model, so each checkpoint loads once; interrupted builds resume. Every image goes
     through darkroom's safety check, with the usual retries.
     """
+    darkroom = _darkroom_url(darkroom)
     if not darkroom:
         raise _fail("--darkroom (or $ARGUS_MINT_DARKROOM_URL) is required")
     try:

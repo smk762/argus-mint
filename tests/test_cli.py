@@ -264,6 +264,34 @@ def test_preflight_command(tmp_path, template_doc, monkeypatch):
     assert all(b["sampling"] is None and b["expand"] is False for b in seen)
 
 
+def test_darkroom_falls_back_to_the_suite_wide_url(tmp_path, template_doc, monkeypatch):
+    from argus_mint import cli
+
+    path = tmp_path / "t.yaml"
+    path.write_text(yaml.safe_dump({**template_doc, "status": "draft", "approved_by": None, "approved_at": None}))
+    urls = []
+
+    class Seen:
+        def __init__(self, url, **kw):
+            urls.append(url)
+
+        def check_template(self, t):
+            return ["stop here"]
+
+    monkeypatch.setattr(cli, "DarkroomClient", Seen)
+    assert runner.invoke(app, ["preflight", str(path)]).exit_code == 1 and urls == []  # nothing names a darkroom
+    monkeypatch.setenv("ARGUS_DARKROOM_URL", "http://suite.test:1")
+    runner.invoke(app, ["preflight", str(path)])
+    monkeypatch.setenv("ARGUS_MINT_DARKROOM_URL", "http://own.test:2")  # mint's own variable wins
+    runner.invoke(app, ["preflight", str(path)])
+    runner.invoke(app, ["preflight", str(path), "--darkroom", "http://flag.test:3"])  # and the flag over both
+    assert list(dict.fromkeys(urls)) == ["http://suite.test:1", "http://own.test:2", "http://flag.test:3"]
+    monkeypatch.delenv("ARGUS_MINT_DARKROOM_URL")
+    monkeypatch.setenv("ARGUS_DARKROOM_URL", "/api/made-up-prefix")  # not a URL: an error, never "not configured"
+    refused = runner.invoke(app, ["preflight", str(path)])
+    assert refused.exit_code == 2 and "ARGUS_DARKROOM_URL" in refused.output and "made-up" not in refused.output
+
+
 def test_every_pin_of_a_card_is_named_by_its_template_version_and_seed(tmp_path, template_doc):
     from eth_account import Account
 
