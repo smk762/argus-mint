@@ -4,6 +4,14 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+### Changed
+
+- **argus-cortex 0.14 → 0.15**, pinned `>=0.15,<0.16`. `ARGUS_GPU_BROKER_URL` (and `ARGUS_GPU_BROKER_TOKEN`) is all the GPU broker needs: cortex selects the broker from the URL alone and finds `gpu-tenant.yaml` in the working directory or at `/app/gpu-tenant.yaml`, where the image ships it. Compose no longer defaults `ARGUS_GPU_COORDINATOR` to `none` or sets `ARGUS_GPU_TENANT_MANIFEST`, the image drops its `ARGUS_GPU_TENANT_MANIFEST`, and `.env.example` and docs/deploy.md list the URL and token only. **Behaviour change:** a host whose `.env` sets `ARGUS_GPU_BROKER_URL` without `ARGUS_GPU_COORDINATOR` now leases bios from the broker; set `ARGUS_GPU_COORDINATOR=none` to keep the old behaviour.
+
+### Added
+
+- **`argus-mint serve` registers with the GPU broker at startup** (`gpu.keep_registered`, in the app's lifespan, with the bio writer's coordinator), re-registers every five minutes and signs off at shutdown, so argus-iris knows the tenant before its first bio. Nothing without a writer or a broker URL; a down broker never blocks startup. The CLI still registers with its first lease.
+
 ## [0.3.1] - 2026-11-23
 
 ### Changed

@@ -39,8 +39,8 @@ ENV ARGUS_MINT_TEMPLATES_DIR=/app/templates \
     ARGUS_MINT_PROJECTS_DIR=/app/projects \
     ARGUS_MINT_DRAFTS_DIR=/data/drafts \
     ARGUS_MINT_SAMPLES_DIR=/data/samples \
-    ARGUS_MINT_BACKGROUNDS_DIR=/data/backgrounds \
-    ARGUS_GPU_TENANT_MANIFEST=/app/gpu-tenant.yaml
+    ARGUS_MINT_BACKGROUNDS_DIR=/data/backgrounds
+# gpu-tenant.yaml is in /app (COPY . .), where argus-cortex looks for the GPU tenant manifest.
 VOLUME /data
 EXPOSE 8108
 CMD ["argus-mint", "serve", "--host", "0.0.0.0", "--port", "8108"]
