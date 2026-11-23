@@ -21,6 +21,19 @@ def _no_gpu_broker(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
+SUITE_PEER_VARS = tuple(f"ARGUS_{peer}_URL" for peer in ("DARKROOM", "CURATOR", "LENS", "FORGE", "PROOF"))
+
+
+@pytest.fixture(autouse=True)
+def _no_suite_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never read a developer's suite file (argus-cortex ``settings``) or the suite-wide peer URLs a shell may
+    export: either would configure a backend the test did not ask for."""
+    monkeypatch.setenv("ARGUS_ENV_FILE", "off")
+    for name in SUITE_PEER_VARS:
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name.replace("ARGUS_", "ARGUS_MINT_"), raising=False)
+
+
 @pytest.fixture
 def template_doc() -> dict[str, Any]:
     """An approved template as it appears in YAML (before validation)."""

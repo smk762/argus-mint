@@ -33,16 +33,26 @@ services:
     image: ghcr.io/smk762/argus-mint:${MINT_TAG:-latest}
     build: .
     restart: unless-stopped
+    # How the suite finds this service (argus-iris's agents read them): the name callers ask for, the package,
+    # and where its health route is inside the container.
+    labels:
+      argus.peer: mint
+      argus.service: argus-mint
+      argus.health: /health
+      argus.port: "8108"
     env_file:
       - path: .env
         required: false
     environment:
       ARGUS_MINT_IPFS_API: ${ARGUS_MINT_IPFS_API:-http://kubo:5001}
-      ARGUS_MINT_DARKROOM_URL: ${ARGUS_MINT_DARKROOM_URL:-http://host.docker.internal:8106}
+      # darkroom: mint's own variable, then the suite-wide ARGUS_DARKROOM_URL from .env or the shell, then the
+      # host's. This default always names one, so a suite file's ARGUS_DARKROOM_URL is not reached from here.
+      ARGUS_MINT_DARKROOM_URL: ${ARGUS_MINT_DARKROOM_URL:-${ARGUS_DARKROOM_URL:-http://host.docker.internal:8106}}
       ARGUS_MINT_ACCOUNT: ${ARGUS_MINT_ACCOUNT:-}
       ARGUS_MINT_KEYSTORE_PASSWORD_FILE: ${ARGUS_MINT_KEYSTORE_PASSWORD_FILE:-}
       # GPU leases for the bio writer, through the argus-iris broker: the URL alone switches them on (unset: no
       # lease); ARGUS_GPU_BROKER_TOKEN comes from .env and the tenant from the image's /app/gpu-tenant.yaml.
+      # Left blank here, both are read from the suite file when one is mounted (below).
       ARGUS_GPU_BROKER_URL: ${ARGUS_GPU_BROKER_URL:-}
       ARGUS_GPU_BROKER_FALLBACK: ${ARGUS_GPU_BROKER_FALLBACK:-none}
     extra_hosts:
@@ -51,6 +61,12 @@ services:
       - "${MINT_PUBLISH:-127.0.0.1:8108}:8108"
     volumes:
       - mint-data:/data
+      # The suite file: settings every Argus service on this host shares (the GPU broker's URL and token, the
+      # suite-wide ARGUS_<PEER>_URL of curator, lens, forge and proof). Anything set in .env or above wins.
+      # Commented out because compose can't skip a bind mount whose file is missing (it would create a
+      # directory). The container runs as root, so the file must be root-owned and not writable by others
+      # (mode 600 or 444), or it is ignored with a warning:
+      # - /etc/argus/suite.env:/etc/argus/suite.env:ro
       # your reviewed files instead of the examples (uncomment):
       # - ./templates:/app/templates:ro
       # - ./frames:/app/frames:ro

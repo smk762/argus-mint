@@ -56,6 +56,7 @@ from typing import Annotated, Any, Literal
 
 import structlog
 from argus_cortex.hashing import sha256_hex
+from argus_cortex.peers import peer_url
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
 from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -196,11 +197,20 @@ class Settings:
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> Settings:
+        from_process = env is None
         env = dict(os.environ if env is None else env)
 
         def get(name: str, default: str = "") -> str:
             # Set but empty (compose's ${VAR:-}) counts as unset: the default applies.
             return env.get(PREFIX + name, "").strip() or default
+
+        def peer(name: str) -> str:
+            # Another Argus service: mint's own ARGUS_MINT_<PEER>_URL, then the suite-wide ARGUS_<PEER>_URL, each
+            # from the process environment and then the suite file (argus_cortex.peers). "off" leaves it unset; a
+            # value that is not an http(s) URL raises PeerRefused, so a typo stops startup. A mapping passed in is
+            # read as given: only its own variable.
+            var = f"{name.upper()}_URL"
+            return (peer_url(name, PREFIX + var) or "") if from_process else get(var)
 
         origins = tuple(o.strip() for o in get("CORS_ORIGINS").split(",") if o.strip())
         return cls(
@@ -210,7 +220,7 @@ class Settings:
             templates_dir=Path(get("TEMPLATES_DIR", "templates")),
             frames_dir=Path(get("FRAMES_DIR", "frames")),
             bios_dir=Path(get("BIOS_DIR", "bios")),
-            darkroom_url=get("DARKROOM_URL"),
+            darkroom_url=peer("darkroom"),
             policy=get("POLICY", "default"),
             writer_url=get("WRITER_URL"),
             writer_key=get("WRITER_KEY"),
@@ -232,10 +242,10 @@ class Settings:
             spoilers=Path(get("SPOILERS")) if get("SPOILERS") else None,
             consent_dir=Path(get("CONSENT_DIR")) if get("CONSENT_DIR") else None,
             backgrounds_dir=Path(get("BACKGROUNDS_DIR", "backgrounds")),
-            curator_url=get("CURATOR_URL"),
-            lens_url=get("LENS_URL"),
-            forge_url=get("FORGE_URL"),
-            proof_url=get("PROOF_URL"),
+            curator_url=peer("curator"),
+            lens_url=peer("lens"),
+            forge_url=peer("forge"),
+            proof_url=peer("proof"),
             training_dir=Path(get("TRAINING_DIR", "training")),
             training_exports_dir=Path(get("TRAINING_EXPORTS_DIR")) if get("TRAINING_EXPORTS_DIR") else None,
             loras_dir=Path(get("LORAS_DIR")) if get("LORAS_DIR") else None,

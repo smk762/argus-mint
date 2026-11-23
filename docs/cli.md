@@ -65,7 +65,7 @@ argus-mint preflight [OPTIONS] TEMPLATE
 | Argument / option | Required | Default | Env | Help |
 |---|---|---|---|---|
 | `TEMPLATE` | yes |  |  | Template YAML file (any status) |
-| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 |
+| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 (else the suite-wide $ARGUS_DARKROOM_URL) |
 | `--policy` |  | `default` |  | darkroom enforcing policy (default: the SFW policy) |
 | `--limit` |  | `256` |  | Refuse templates with more combinations than this |
 | `--text`, `--no-text` |  | `--text` |  | Also run the text pre-flight on every combination |
@@ -106,7 +106,7 @@ argus-mint sample [OPTIONS] TEMPLATE
 | `--bio` |  |  |  | Bio template YAML: a language model writes the card's bio |
 | `--writer` |  |  | `ARGUS_MINT_WRITER_URL` | Bio writer base URL (OpenAI-style POST /chat) |
 | `--text` |  |  |  | Display text for a frame slot, slot=text (repeat), e.g. class=Ranger |
-| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 |
+| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 (else the suite-wide $ARGUS_DARKROOM_URL) |
 | `--policy` |  | `default` |  | darkroom enforcing policy (default: the SFW policy) |
 
 ## argus-mint draft
@@ -141,7 +141,7 @@ argus-mint draft [OPTIONS]
 | `--writer` |  |  | `ARGUS_MINT_WRITER_URL` | Bio writer base URL (OpenAI-style POST /chat) |
 | `--text` |  |  |  | Display text for a frame slot, slot=text (repeat), e.g. class=Ranger |
 | `--image` |  |  |  | Use this image instead of rendering |
-| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 |
+| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 (else the suite-wide $ARGUS_DARKROOM_URL) |
 | `--policy` |  | `default` |  | darkroom enforcing policy (default: the SFW policy) |
 | `--accept-review`, `--no-accept-review` |  | `--no-accept-review` |  | Accept darkroom 'review' images (default: retry) |
 | `--placeholder` |  |  |  | Placeholder art (for dry runs; publish needs --dry-run) |
@@ -248,7 +248,7 @@ argus-mint anchor [OPTIONS] LEAVES
 
 Serve drafts, reviews and publishing over HTTP for argus-studio and argus-assay.
 
-Configured by ARGUS_MINT_* variables (README: Configuration): DRAFTS_DIR, SAMPLES_DIR, LIBRARY_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR, DARKROOM_URL, POLICY, WRITER_URL, WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY, NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, POSTER_TOKEN, SIWE_DOMAIN, SIWE_URI, CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST, PROJECTS_DIR, SPOILERS, CONSENT_DIR, BACKGROUNDS_DIR.
+Configured by ARGUS_MINT_* variables (README: Configuration): DRAFTS_DIR, SAMPLES_DIR, LIBRARY_DIR, TEMPLATES_DIR, FRAMES_DIR, BIOS_DIR, DARKROOM_URL, POLICY, WRITER_URL, WRITER_KEY, IPFS_API, ACCOUNT (+ KEYSTORE_PASSWORD_FILE, KEYSTORE_DIR) or SIGNER_KEY, NETWORK, CARD, CONSUMER, VOUCHER_TTL, MODERATOR_TOKEN, POSTER_TOKEN, SIWE_DOMAIN, SIWE_URI, CORS_ORIGINS, READ_ONLY, AUTO_MODERATE, BLOCKLIST, PROJECTS_DIR, SPOILERS, CONSENT_DIR, BACKGROUNDS_DIR. The URLs of other Argus services (DARKROOM, CURATOR, LENS, FORGE, PROOF) fall back to the suite-wide ARGUS_<PEER>_URL, from the environment or the suite file.
 
 ```
 argus-mint serve [OPTIONS]
@@ -342,7 +342,7 @@ argus-mint library build [OPTIONS] TEMPLATE
 | `--count` |  | `48` |  | Variable combinations per checkpoint |
 | `--seed` |  | `0` |  | Picks the combinations; group n renders with seed*1000+n |
 | `--model` |  |  |  | Checkpoint (repeat); default: all the template allows |
-| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 |
+| `--darkroom` |  |  | `ARGUS_MINT_DARKROOM_URL` | argus-darkroom base URL, e.g. http://localhost:8106 (else the suite-wide $ARGUS_DARKROOM_URL) |
 | `--policy` |  | `default` |  | darkroom enforcing policy (default: the SFW policy) |
 
 ## argus-mint library list

@@ -221,6 +221,55 @@ def test_settings_from_env():
     assert s.cors_origins == ("https://a", "https://b") and s.read_only is True
 
 
+PEERS = ("darkroom", "curator", "lens", "forge", "proof")
+
+
+@pytest.mark.parametrize("peer", PEERS)
+def test_a_peer_url_is_mints_own_variable_then_the_suite_wide_one(peer, monkeypatch):
+    own, suite = f"ARGUS_MINT_{peer.upper()}_URL", f"ARGUS_{peer.upper()}_URL"
+    assert getattr(Settings.from_env(), f"{peer}_url") == ""  # neither set: not configured
+    monkeypatch.setenv(suite, "http://suite.test:1/")
+    assert getattr(Settings.from_env(), f"{peer}_url") == "http://suite.test:1"
+    monkeypatch.setenv(own, "http://own.test:2")
+    assert getattr(Settings.from_env(), f"{peer}_url") == "http://own.test:2"  # mint's own variable wins
+    monkeypatch.setenv(own, "")  # compose's ${VAR:-}: blank falls through
+    assert getattr(Settings.from_env(), f"{peer}_url") == "http://suite.test:1"
+    monkeypatch.setenv(own, "off")  # opts mint out, whatever the suite says
+    assert getattr(Settings.from_env(), f"{peer}_url") == ""
+
+
+def test_a_peer_url_is_read_from_the_suite_file(tmp_path, monkeypatch):
+    suite = tmp_path / "suite.env"
+    suite.write_text("ARGUS_DARKROOM_URL=http://file.test:3\n")
+    suite.chmod(0o600)
+    monkeypatch.setenv("ARGUS_ENV_FILE", str(suite))
+    assert Settings.from_env().darkroom_url == "http://file.test:3"
+    monkeypatch.setenv("ARGUS_DARKROOM_URL", "http://env.test:4")  # the environment wins over the file
+    assert Settings.from_env().darkroom_url == "http://env.test:4"
+
+
+@pytest.mark.parametrize("var", ["ARGUS_MINT_PROOF_URL", "ARGUS_PROOF_URL"])
+def test_a_malformed_peer_url_stops_startup_and_is_not_echoed(var, monkeypatch):
+    from argus_cortex.peers import PeerRefused
+
+    monkeypatch.setenv(var, "/api/made-up-prefix")  # e.g. a browser path prefix under the same name
+    with pytest.raises(PeerRefused) as refused:
+        Settings.from_env()
+    assert var in str(refused.value) and "made-up-prefix" not in str(refused.value)
+
+
+def test_a_mapping_passed_to_from_env_is_read_as_given(monkeypatch):
+    monkeypatch.setenv("ARGUS_LENS_URL", "http://suite.test:1")
+    s = Settings.from_env({"ARGUS_MINT_CURATOR_URL": "http://own.test:2"})
+    assert s.curator_url == "http://own.test:2" and s.lens_url == ""
+
+
+def test_mints_public_url_is_not_a_peer_variable(monkeypatch):
+    # ARGUS_MINT_URL is where others (argus-herald, peer `mint`) find mint. Mint reads none of its peers from it.
+    monkeypatch.setenv("ARGUS_MINT_URL", "http://mint.test:8108")
+    assert Settings.from_env() == Settings.from_env({})
+
+
 def test_settings_treat_empty_variables_as_unset():
     # compose's ${VAR:-} sets a variable to "": the defaults must still apply.
     names = ("DRAFTS_DIR", "SAMPLES_DIR", "VOUCHER_TTL", "POLICY", "NETWORK", "CONSUMER")
