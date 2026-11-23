@@ -37,7 +37,9 @@ import math
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from argus_mint.cards import IdentityCheck, ScoreBox, ScorerFile, sha256_hex
+from argus_cortex.hashing import sha256_hex
+
+from argus_mint.cards import IdentityCheck, ScoreBox, ScorerFile
 from argus_mint.projects import Identity, Scene
 from argus_mint.training_clients import TrainingClientError
 

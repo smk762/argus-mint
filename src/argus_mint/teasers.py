@@ -30,10 +30,12 @@ import zlib
 from datetime import UTC, datetime
 from typing import Any
 
+from argus_cortex.hashing import sha256_hex
+
 import argus_mint
 from argus_mint._codec import hex0x
 from argus_mint.backgrounds import Background
-from argus_mint.cards import CardDraft, TeaserBackground, TeaserFile, TeaserRecord, sha256_hex
+from argus_mint.cards import CardDraft, TeaserBackground, TeaserFile, TeaserRecord
 from argus_mint.frames import FrameError, LoadedFrame, compose
 from argus_mint.projects import (
     Area,

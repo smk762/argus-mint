@@ -16,7 +16,7 @@ IMAGE = b"card image"
 
 
 def card_draft() -> CardDraft:
-    from argus_mint.cards import sha256_hex
+    from argus_cortex.hashing import sha256_hex
 
     request = RenderRequest(
         template_id="t",

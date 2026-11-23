@@ -53,6 +53,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import structlog
+from argus_cortex.hashing import sha256_hex
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
 from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -72,7 +73,6 @@ from argus_mint.cards import (
     DraftStore,
     IdentityCheck,
     review,
-    sha256_hex,
     write_atomic,
 )
 from argus_mint.catalogue import CatalogueError, record_decision

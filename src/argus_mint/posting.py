@@ -24,10 +24,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from argus_cortex.hashing import sha256_hex
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from argus_mint import merkle
-from argus_mint.cards import CardDraft, DraftError, DraftStore, Post, TeaserRecord, sha256_hex, write_atomic
+from argus_mint.cards import CardDraft, DraftError, DraftStore, Post, TeaserRecord, write_atomic
 
 __all__ = [
     "ANCHORS_FILE",
