@@ -1,7 +1,7 @@
 {
   "service": "argus-mint",
   "version": "0.2.3.dev40+gd32345987",
-  "wire_version": "1.17",
+  "wire_version": "1.18",
   "read_only": false,
   "network": "base_sepolia",
   "chain_id": 84532,
@@ -35,5 +35,14 @@
     "darkroom": true,
     "writer": true,
     "ipfs": true
-  }
+  },
+  "service_version": "1.1",
+  "status": "ok",
+  "started_at": "2026-11-23T00:00:00Z",
+  "wire": {
+    "wire_version": "1.18"
+  },
+  "checks": {},
+  "build": null,
+  "peer": null
 }

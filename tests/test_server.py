@@ -109,7 +109,7 @@ def test_health_and_catalogue(setup):
     c = setup()
     h = c.get("/health").json()
     assert c.get("/templates").json()[0]["combinations"] == 8 and c.get("/templates").json()[0]["file"] == "t.yaml"
-    assert h["wire_version"] == "1.17" and h["chain_id"] == 84532 and h["card"] == CARD
+    assert h["wire_version"] == "1.18" and h["chain_id"] == 84532 and h["card"] == CARD
     assert all(
         v
         for k, v in h["capabilities"].items()
@@ -121,6 +121,66 @@ def test_health_and_catalogue(setup):
     assert frames[0]["width"] == 300 and set(frames[0]["frame"]["texts"]) == {"name", "bio"}
     assert c.get("/frames/test-frame/1/overlay").headers["content-type"] == "image/png"
     assert c.get("/bios").json()[0]["bio"]["id"] == "test-bio"
+
+
+OLD_HEALTH_FIELDS = (
+    "service", "version", "wire_version", "read_only", "network", "chain_id", "card", "consumer", "reviewers",
+    "siwe_domain", "capabilities", "backends",
+)  # fmt: skip
+
+
+def test_health_is_a_service_health_with_every_old_field(setup):
+    from argus_cortex.service import ServiceHealth
+
+    from argus_mint.wire import WIRE_VERSION, Capabilities, Health
+
+    c = setup()
+    r = c.get("/health")
+    body = r.json()
+    assert r.status_code == 200
+    # what the UIs read today: the same names and values
+    assert all(name in body for name in OLD_HEALTH_FIELDS)
+    assert body["service"] == "argus-mint" and body["version"] == argus_mint.__version__
+    assert body["wire_version"] == WIRE_VERSION and body["read_only"] is False
+    assert body["network"] == "base_sepolia" and body["chain_id"] == 84532 and body["card"] == CARD
+    assert body["reviewers"] == ["moderator", "owner"]
+    assert body["backends"] == {"darkroom": True, "writer": True, "ipfs": True}
+    # capabilities: every name of wire.Capabilities, in its order, each a boolean
+    caps = body["capabilities"]
+    assert list(caps) == list(Capabilities.model_fields) and all(type(v) is bool for v in caps.values())
+    assert Capabilities.model_validate(caps).model_dump() == caps
+    # the suite's contract, and mint's own wire model, both accept the body as it is
+    health = ServiceHealth.model_validate(body)
+    assert health.status == "ok" and health.wire == {"wire_version": WIRE_VERSION}
+    assert set(health.capability_names) == {name for name, on in caps.items() if on}
+    assert set(health.checks) == {"darkroom", "writer", "ipfs"} and all(ch.ok for ch in health.checks.values())
+    assert Health.model_validate(body).status == "ok"
+    # a probe from another service skips the dependency checks, and still gets mint's own fields
+    shallow = c.get("/health?checks=0").json()
+    assert shallow["checks"] == {} and shallow["status"] == "ok" and shallow["backends"] == body["backends"]
+
+
+def test_health_stays_200_and_says_degraded_when_a_configured_backend_is_down(tmp_path):
+    cfg = Settings(
+        drafts_dir=tmp_path / "d", darkroom_url="http://darkroom.test:1", ipfs_api="", writer_url="",
+        templates_dir=tmp_path / "t", frames_dir=tmp_path / "f", bios_dir=tmp_path / "b",
+    )  # fmt: skip
+    seen = []
+    c = TestClient(create_app(cfg, probe_fn=lambda url: seen.append(url) or False))
+    r = c.get("/health")
+    body = r.json()
+    assert r.status_code == 200 and body["status"] == "degraded"
+    assert body["backends"] == {"darkroom": False, "writer": False, "ipfs": False}
+    assert set(body["checks"]) == {"darkroom"} and body["checks"]["darkroom"]["ok"] is False  # only what is configured
+    assert set(seen) == {"http://darkroom.test:1/health?checks=0"}  # a sibling is asked without its own checks
+    assert c.get("/health", params={"checks": "0"}).json()["status"] == "ok"
+    ro = TestClient(create_app(Settings(drafts_dir=tmp_path / "d", read_only=True), probe_fn=lambda url: False))
+    assert ro.get("/health").json()["read_only"] is True and ro.get("/health").json()["status"] == "ok"
+
+
+def test_health_is_not_in_the_openapi_document(setup):
+    # install_health registers the route outside it. Clients take Health from schema/mint-wire.schema.json.
+    assert "/health" not in setup().get("/openapi.json").json()["paths"]
 
 
 def test_full_flow(setup, owner):

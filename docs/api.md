@@ -33,7 +33,7 @@ Errors are JSON `{"detail": …}`. `detail` is usually a sentence; a failed rend
 
 | Endpoint | Returns |
 |---|---|
-| `GET /health` | `version`, `wire_version`, `read_only`, `network`, `chain_id`, `card`, `consumer`, `reviewers`, `siwe_domain`, `capabilities`, and `backends` (does darkroom, the writer and IPFS answer) |
+| `GET /health` | `version`, `wire_version`, `read_only`, `network`, `chain_id`, `card`, `consumer`, `reviewers`, `siwe_domain`, `capabilities`, and `backends` (does darkroom, the writer and IPFS answer). Since wire 1.18 the same body is argus-cortex's `ServiceHealth`: `service_version`, `status` (`ok`, or `degraded` when a configured backend doesn't answer; the route is 200 either way), `started_at`, `wire`, `checks` (one per configured backend), `build`, `peer`. `?checks=0` skips the checks |
 
 `capabilities` tells a UI which controls to enable:
 

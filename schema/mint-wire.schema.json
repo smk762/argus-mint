@@ -1361,6 +1361,53 @@
       "title": "CreateTeaserDraft",
       "type": "object"
     },
+    "DependencyCheck": {
+      "description": "How one thing a service depends on is doing. Unknown fields are ignored, so a reader accepts a later 1.x.",
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Short and human-readable. Never a token; credentials in a URL are removed, and it is cut to 200 characters.",
+          "title": "Detail"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "required": {
+          "default": true,
+          "description": "A failed required check makes the service degraded. Others are reported and nothing more.",
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok"
+      ],
+      "title": "DependencyCheck",
+      "type": "object"
+    },
     "DraftDetail": {
       "additionalProperties": false,
       "properties": {
@@ -2107,6 +2154,18 @@
           "title": "Backends",
           "type": "object"
         },
+        "build": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Build"
+        },
         "capabilities": {
           "$ref": "#/$defs/Capabilities"
         },
@@ -2125,6 +2184,13 @@
           "title": "Chain Id",
           "type": "integer"
         },
+        "checks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/DependencyCheck"
+          },
+          "title": "Checks",
+          "type": "object"
+        },
         "consumer": {
           "title": "Consumer",
           "type": "string"
@@ -2132,6 +2198,18 @@
         "network": {
           "title": "Network",
           "type": "string"
+        },
+        "peer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peer"
         },
         "read_only": {
           "title": "Read Only",
@@ -2150,6 +2228,18 @@
           "title": "Service",
           "type": "string"
         },
+        "service_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Service Version"
+        },
         "siwe_domain": {
           "anyOf": [
             {
@@ -2161,12 +2251,49 @@
           ],
           "title": "Siwe Domain"
         },
+        "started_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "degraded",
+                "starting"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
         "version": {
           "title": "Version",
           "type": "string"
         },
+        "wire": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Wire",
+          "type": "object"
+        },
         "wire_version": {
-          "default": "1.17",
+          "default": "1.18",
           "title": "Wire Version",
           "type": "string"
         }
@@ -5198,5 +5325,5 @@
       "type": "object"
     }
   },
-  "title": "argus-mint wire 1.17"
+  "title": "argus-mint wire 1.18"
 }

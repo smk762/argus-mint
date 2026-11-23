@@ -36,6 +36,7 @@ refused (cortex's ``WriteGuard``: CORS alone is not a write boundary), and with
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import os
@@ -58,6 +59,7 @@ import structlog
 from argus_cortex.hashing import sha256_hex
 from argus_cortex.peers import peer_url
 from argus_cortex.server import WriteGuard, constant_refuse, cross_site_refuse
+from argus_cortex.service import install_health
 from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -94,6 +96,7 @@ from argus_mint.spoilers import load_spoilers
 from argus_mint.templates import Template, TemplateError, combinations, load_template
 from argus_mint.training_clients import CuratorClient, ForgeClient, LensClient, ProofClient
 from argus_mint.wire import (
+    WIRE_VERSION,
     BioInfo,
     Capabilities,
     CatalogueDecision,
@@ -108,7 +111,6 @@ from argus_mint.wire import (
     FrameInfo,
     FrameLayout,
     FramePreviewRequest,
-    Health,
     LayoutRequest,
     LibraryItem,
     LibraryListing,
@@ -529,24 +531,43 @@ def create_app(
 
     # -- reads -----------------------------------------------------------------------------------
 
-    @app.get("/health")
-    def health() -> Health:
-        return Health(
-            version=argus_mint.__version__,
-            read_only=cfg.read_only,
-            network=net.name,
-            chain_id=net.chain_id,
-            card=cfg.card or None,
-            consumer=cfg.consumer,
-            reviewers=list(REVIEWERS),
-            siwe_domain=cfg.siwe_domain or None,
-            capabilities=capabilities(),
-            backends={
-                "darkroom": probe_fn(f"{cfg.darkroom_url.rstrip('/')}/health") if cfg.darkroom_url else False,
-                "writer": probe_fn(f"{cfg.writer_url.rstrip('/')}/health") if cfg.writer_url else False,
-                "ipfs": probe_fn(f"{cfg.ipfs_api.rstrip('/')}/api/v0/version") if cfg.ipfs_api else False,
-            },
+    # GET /health is argus-cortex's ServiceHealth (service, version, status, started_at, wire, checks, build, peer)
+    # with mint's own fields beside it: the body is wire.Health. Always 200: mint has no loading phase, and a
+    # configured backend that doesn't answer makes it `degraded`, not unready.
+    backend_urls = {
+        # Another Argus service is probed without its own dependency checks, so two services can't wait on each other.
+        "darkroom": f"{cfg.darkroom_url.rstrip('/')}/health?checks=0" if cfg.darkroom_url else "",
+        "writer": f"{cfg.writer_url.rstrip('/')}/health" if cfg.writer_url else "",
+        "ipfs": f"{cfg.ipfs_api.rstrip('/')}/api/v0/version" if cfg.ipfs_api else "",
+    }
+
+    async def health_fields() -> dict[str, Any]:
+        # `backends` is probed on every request, as it always was, off the event loop.
+        answers = await asyncio.gather(
+            *(asyncio.to_thread(probe_fn, url) if url else asyncio.sleep(0, False) for url in backend_urls.values())
         )
+        return {
+            "wire_version": WIRE_VERSION,
+            "network": net.name,
+            "chain_id": net.chain_id,
+            "card": cfg.card or None,
+            "consumer": cfg.consumer,
+            "reviewers": list(REVIEWERS),
+            "siwe_domain": cfg.siwe_domain or None,
+            "backends": dict(zip(backend_urls, (bool(a) for a in answers), strict=True)),
+        }
+
+    install_health(
+        app,
+        service="argus-mint",
+        version=argus_mint.__version__,
+        wire={"wire_version": WIRE_VERSION},
+        capabilities=lambda: capabilities().model_dump(),
+        # Only the backends this server was given: one that is not configured is a capability that is off, not a fault.
+        checks={name: (lambda url=url: bool(probe_fn(url))) for name, url in backend_urls.items() if url},
+        read_only=cfg.read_only,
+        extra=health_fields,
+    )
 
     @app.get("/templates")
     def list_templates() -> list[TemplateInfo]:

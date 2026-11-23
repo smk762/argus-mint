@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
+from argus_cortex.service import DependencyCheck
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from argus_mint.backgrounds import Background, BackgroundSet
@@ -85,7 +86,9 @@ __all__ = [
 # 1.14 identity training (curator, lens, forge, proof), Identity.proof_export/check_metric/min_score/training
 # 1.15 the identity check on a teaser (AutoCheck.identity, POST /drafts/{id}/identity-check, identity_check)
 # 1.16 a project's own frames (ids <project>/<name>; FrameInfo.project); 1.17 frame effects (Frame.effects)
-WIRE_VERSION = "1.17"
+# 1.18 GET /health is also argus-cortex's ServiceHealth (Health.service_version, status, started_at, wire, checks,
+# build, peer)
+WIRE_VERSION = "1.18"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -142,6 +145,14 @@ class Health(_Wire):
     siwe_domain: str | None
     capabilities: Capabilities
     backends: dict[str, bool]  # darkroom, writer, ipfs: does something answer there
+    # argus-cortex's ServiceHealth, served on the same body since 1.18 (absent from an older server):
+    service_version: str | None = None  # the ServiceHealth contract's own version
+    status: Literal["ok", "degraded", "starting"] | None = None  # degraded: a configured backend doesn't answer
+    started_at: AwareDatetime | None = None
+    wire: dict[str, str] = Field(default_factory=dict)  # {"wire_version": WIRE_VERSION}
+    checks: dict[str, DependencyCheck] = Field(default_factory=dict)  # one per configured backend; none with ?checks=0
+    build: str | None = None  # the image's build id, if it was given one (ARGUS_BUILD)
+    peer: str | None = None  # the container's argus.peer label, if it was told it (ARGUS_PEER)
 
 
 class TemplateInfo(_Wire):
