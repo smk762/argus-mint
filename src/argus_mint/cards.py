@@ -18,7 +18,6 @@ Reviews stay in the draft file; they are not written into the public metadata.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -28,6 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+from argus_cortex.hashing import sha256_hex
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from argus_mint._codec import Bytes32
@@ -395,10 +395,6 @@ class CardDraft(BaseModel):
             bio=self.bio.ref if self.bio is not None else None,
             style=self.style,
         )
-
-
-def sha256_hex(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def write_atomic(path: Path, text: str) -> None:

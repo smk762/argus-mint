@@ -11,12 +11,13 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from argus_cortex.hashing import sha256_hex
 from eth_account.signers.local import LocalAccount
 
 import argus_mint
 from argus_mint._codec import hex0x
 from argus_mint.bios import Bio, BioError, BioFailed, BioTemplate, TextGuard, Writer, write_bio
-from argus_mint.cards import BioRecord, CardDraft, DraftError, check_publishable, sha256_hex
+from argus_mint.cards import BioRecord, CardDraft, DraftError, check_publishable
 from argus_mint.frames import FrameError, LoadedFrame, check_style, compose, require_approved
 from argus_mint.library import LibraryEntry, LibraryError, check_entry
 from argus_mint.metadata import CardStyle, card_metadata, content_hash

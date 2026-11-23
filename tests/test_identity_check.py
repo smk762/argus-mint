@@ -16,7 +16,9 @@ from PIL import Image
 
 pytest.importorskip("better_profanity")
 
-from argus_mint.cards import IdentityCheck, sha256_hex  # noqa: E402
+from argus_cortex.hashing import sha256_hex  # noqa: E402
+
+from argus_mint.cards import IdentityCheck  # noqa: E402
 from argus_mint.identity_check import PROOF_MAJOR, check_identity  # noqa: E402
 from argus_mint.moderation import AUTO_OFF, AUTO_REVIEWER, WordFilter, auto_review  # noqa: E402
 from argus_mint.projects import Identity, Scene, load_bundle  # noqa: E402

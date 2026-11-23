@@ -32,7 +32,9 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 
-from argus_mint.cards import AutoCheck, CardDraft, IdentityCheck, Review, sha256_hex
+from argus_cortex.hashing import sha256_hex
+
+from argus_mint.cards import AutoCheck, CardDraft, IdentityCheck, Review
 
 __all__ = ["AUTO_OFF", "AUTO_REVIEWER", "WordFilter", "auto_check", "auto_review"]
 

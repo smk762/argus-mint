@@ -19,10 +19,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+from argus_cortex.hashing import sha256_hex
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import Response
 
-from argus_mint.cards import DraftError, DraftNotFound, DraftStore, Post, sha256_hex
+from argus_mint.cards import DraftError, DraftNotFound, DraftStore, Post
 from argus_mint.posting import approved_at, is_current, teaser_drafts
 from argus_mint.projects import ProjectError, load_bundle
 from argus_mint.wire import DraftPosts, PostRequest, ReadyTeaser, ReadyTeasers

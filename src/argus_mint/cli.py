@@ -11,6 +11,7 @@ from typing import Annotated, Any
 
 import structlog
 import typer
+from argus_cortex.hashing import sha256_hex
 from eth_account import Account
 
 import argus_mint
@@ -27,7 +28,6 @@ from argus_mint.cards import (
     load_draft,
     review,
     save_draft,
-    sha256_hex,
 )
 from argus_mint.darkroom import DarkroomClient, DarkroomError
 from argus_mint.frames import FrameError, compose, load_frame

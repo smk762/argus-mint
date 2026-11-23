@@ -32,6 +32,7 @@ from typing import Annotated, Any
 import structlog
 import yaml
 from argus_cortex.fs import PathRefused, safe_name
+from argus_cortex.hashing import sha256_hex
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ValidationError
 
@@ -58,7 +59,6 @@ from argus_mint.projects import (
     load_teasers,
     problems,
     teaser_problems,
-    text_sha256,
 )
 from argus_mint.references import ConsentStore, reference_problems
 from argus_mint.spoilers import SpoilerList
@@ -194,7 +194,12 @@ def add_project_routes(
             passed, detail = darkroom.check_text(text, policy=policy)
             out.append(
                 GuardVerdict(
-                    field=f, sha256=text_sha256(text), policy=policy, passed=passed, detail=detail, checked_at=now
+                    field=f,
+                    sha256=sha256_hex(text.encode()),
+                    policy=policy,
+                    passed=passed,
+                    detail=detail,
+                    checked_at=now,
                 )
             )
         return out

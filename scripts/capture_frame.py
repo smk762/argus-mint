@@ -37,7 +37,6 @@ and the tests pass a stub. Install it for a capture with ``uv run --with playwri
 from __future__ import annotations
 
 import argparse
-import hashlib
 import io
 import json
 import os
@@ -51,6 +50,7 @@ from typing import Any
 from urllib.parse import unquote, urlparse
 
 import yaml
+from argus_cortex.hashing import sha256_hex
 
 INSTALL = (
     "capture_frame needs Playwright, which argus-mint doesn't depend on. Run it with\n"
@@ -128,10 +128,6 @@ def playwright_render(html: Path, width: int, height: int, roots: Sequence[Path]
             f"{html}: the page asked for {sorted(set(refused))}; only files in {sorted(map(str, allowed))} may be used"
         )
     return Rendered(png=png, loaded=loaded, versions={"playwright": version("playwright"), "chromium": chromium})
-
-
-def _sha256(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
 
 
 def _clean_png(png: bytes, width: int, height: int) -> bytes:
@@ -212,7 +208,10 @@ def load_spec(spec_path: Path) -> dict[str, Any]:
         raise CaptureError(f"{spec_path}: frame may not set {reserved} (the script writes them; approval is a review)")
     if not {"id", "version", "window"} <= frame.keys():
         raise CaptureError(f"{spec_path}: frame needs id, version and window")
-    if not (isinstance(spec["width"], int) and isinstance(spec["height"], int)) or min(spec["width"], spec["height"]) < 1:
+    if (
+        not (isinstance(spec["width"], int) and isinstance(spec["height"], int))
+        or min(spec["width"], spec["height"]) < 1
+    ):
         raise CaptureError(f"{spec_path}: width and height are positive integers")
     return spec
 
@@ -268,13 +267,13 @@ def capture(spec_path: Path, renderer: Renderer | None = None) -> tuple[Path, Pa
     def rel(p: Path) -> str:
         return Path(os.path.relpath(p, yaml_path.parent)).as_posix()
 
-    sources = {rel(html): _sha256(html.read_bytes())}
+    sources = {rel(html): sha256_hex(html.read_bytes())}
     for f in out.loaded:
         f = f.resolve()
         if not _inside(f, roots):
             raise CaptureError(f"the page loaded {f}, outside {sorted(map(str, roots))}; nothing was written")
         if f.is_file():
-            sources[rel(f)] = _sha256(f.read_bytes())
+            sources[rel(f)] = sha256_hex(f.read_bytes())
     header = _header(spec_path, yaml_path, html, sources, spec.get("kit"), out.versions)
     text = _frame_yaml(header, spec["frame"], png_path.name)
 
@@ -314,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
     except CaptureError as e:
         print(e, file=sys.stderr)
         return 1
-    print(json.dumps({"png": str(png), "yaml": str(frame), "png_sha256": _sha256(png.read_bytes())}))
+    print(json.dumps({"png": str(png), "yaml": str(frame), "png_sha256": sha256_hex(png.read_bytes())}))
     return 0
 
 

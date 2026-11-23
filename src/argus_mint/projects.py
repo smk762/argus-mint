@@ -28,7 +28,6 @@ is wrong with a project at once, for the author, rather than stopping at the fir
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from collections.abc import Callable
@@ -38,6 +37,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Literal, TypeVar
 
 import yaml
+from argus_cortex.hashing import sha256_hex
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from argus_mint._codec import canonical, keccak256
@@ -69,7 +69,6 @@ __all__ = [
     "load_teasers",
     "problems",
     "teaser_problems",
-    "text_sha256",
 ]
 
 _ID_PATTERN = r"^[a-z0-9][a-z0-9-]{0,63}$"
@@ -105,10 +104,6 @@ class FrameLink(Ref):
     @property
     def project(self) -> str | None:
         return self.id.split("/", 1)[0] if "/" in self.id else None
-
-
-def text_sha256(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 class GuardVerdict(BaseModel):
@@ -400,7 +395,7 @@ def fresh_verdicts(obj: _Reviewed, policy: str) -> tuple[dict[str, GuardVerdict]
     fresh: dict[str, GuardVerdict] = {}
     missing: list[tuple[str, str]] = []
     for f, text in obj.guarded_texts():
-        v = stored.get((f, text_sha256(text), policy))
+        v = stored.get((f, sha256_hex(text.encode()), policy))
         if v is None:
             missing.append((f, text))
         else:

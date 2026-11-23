@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import structlog
+from argus_cortex.hashing import sha256_hex
 from eth_utils import to_checksum_address
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
@@ -52,7 +53,7 @@ from argus_mint.backgrounds import (
     background_loras,
     render_background,
 )
-from argus_mint.cards import CardDraft, DraftError, DraftNotFound, DraftStore, IdentityCheck, sha256_hex
+from argus_mint.cards import CardDraft, DraftError, DraftNotFound, DraftStore, IdentityCheck
 from argus_mint.darkroom import DarkroomError
 from argus_mint.frames import FrameError, LoadedFrame
 from argus_mint.identity_check import Scorer, check_identity
