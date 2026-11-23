@@ -4,10 +4,21 @@ All notable changes to this project are documented here. Versions come from git 
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-23
+
 ### Changed
 
-- **The server's project, scene, identity and sample job id checks use argus-cortex's `fs.safe_name`** (ai-code-auditor#60), with mint's own patterns in place of its default, so each is exactly as strict as before. `server_projects.is_id` replaces the copies of the id regex in `server_projects`, `server_teasers` and `server_training`. The base-install modules (`cards`, `library`, `training`, `backgrounds`, `posting`) keep their local checks: argus-cortex is only in the `server` extra.
+- **The server's project, scene, identity and sample job id checks use argus-cortex's `fs.safe_name`** (ai-code-auditor#60), with mint's own patterns in place of its default, so each is exactly as strict as before. `server_projects.is_id` replaces the copies of the id regex in `server_projects`, `server_teasers` and `server_training`. The base-install modules (`cards`, `library`, `training`, `backgrounds`, `posting`) keep their local checks.
 - **The `train` step takes the LoRA forge reports (smk762/argus-forge#52).** forge now puts a succeeded run's LoRA on `GET /run/{id}` (`lora`: `export_path`, `sha256`), read from the config the trainer ran. mint uses that file instead of assuming kohya's layout, and refuses the step when forge reports no LoRA or the file mint sees hashes differently from forge's. A forge without the field (no `lora` key) is handled as before. With training disabled, forge now answers a writing `/config` with 403; the warning check stays for older forges.
+- **argus-cortex `>=0.14,<0.15` is a base dependency** (it was only in the `server` extra, at `>=0.9,<0.10`; the server extra moves to the same range). Digests go through `argus_cortex.hashing.sha256_hex`, the same bytes as the local helpers, so nothing stored changes. `cards.sha256_hex`, `projects.text_sha256` and `capture_frame`'s own sha256 helper are gone. The requirements-test name check uses `packaging.utils.canonicalize_name`.
+
+### Fixed
+
+- **Auto-moderation off holds a card's check too.** `auto_check` with approval off records the hold for a card as it already did for a teaser, so `passed` is false. An identity check holds unless the outcome is `passed` or `uncalibrated` (a viewpoint's `skipped` stays clear); an outcome added later holds by default. The word filter loads when the server starts, whatever auto-moderation is set to, and a missing or unreadable list stops startup. A spoiler rule is matched against each text on its own.
+- **An approved `project.yaml` can't be replaced.** Saving another version over a reviewed one is 409. Approving a file re-checks it under the lock, and anchor writes are locked. Malformed posting, consent and darkroom error inputs raise errors.
+- **Training resumes only a run that still matches.** A resumed forge run or a reused proof report is used only when it matches the current config and LoRA sha256. Held-out references are checked against their sha256 before export. Run ids are escaped in URLs, and only finite scores count. An image ranked twice counts once in the train/held-out split. The copied LoRA is hashed before it replaces the published file, so a bad copy leaves the published one in place.
+- **`capture_frame` resolves a path before it accepts it**, so a raw `..` path is refused. It always writes `status: draft` and the new overlay name, strips colour profiles and keeps file modes. A background id can't point outside its set. Chromatic aberration's shift is clamped to the image. Whole floats from 2^53 serialise the way JavaScript writes them, so a content hash still matches a JS verifier.
+- **The example lamp-room figure box gives the keeper's head room.** `character_area` is `{x: 128, y: 256, width: 272, height: 768}`: left of centre, to the bottom edge, clear of the sill lamp and the wall picture, and tall enough for the head. The scene is a draft, edited in place, and its background seeds are unchanged.
 
 ## [0.3.0] - 2026-11-19
 
