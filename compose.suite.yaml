@@ -1,0 +1,18 @@
+# Optional: mount the suite settings file (argus_cortex.settings) into the mint container, read-only.
+#
+#   python -m argus_cortex.settings --init                # creates ~/.config/argus/suite.env, mode 600
+#   COMPOSE_FILE=compose.yaml:compose.suite.yaml          # in .env, or pass both files with -f
+#
+# A separate file because compose cannot make a bind mount optional: with it in compose.yaml, a host without a
+# suite file would not start. Known limit (smk762/argus-cortex#218): the image runs as root, and argus-cortex
+# refuses a suite file that belongs to another user, so today the mounted file must be root-owned (and not
+# writable by anyone else); otherwise it is ignored with a warning. Point ARGUS_SUITE_ENV at such a copy.
+# Anything set in .env or the environment still wins.
+services:
+  mint:
+    volumes:
+      - type: bind
+        source: "${ARGUS_SUITE_ENV:-${HOME}/.config/argus/suite.env}"
+        target: /etc/argus/suite.env
+        read_only: true
+        bind: {create_host_path: false}

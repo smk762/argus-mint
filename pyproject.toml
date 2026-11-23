@@ -46,7 +46,7 @@ classifiers = [
 # and the render/pin clients. web3 is only pulled by the `chain` extra.
 dependencies = [
     # argus_cortex.hashing.sha256_hex (projects.py); the [server] extra adds the rest of cortex.
-    "argus-cortex>=0.16,<0.17",
+    "argus-cortex>=0.16.1,<0.17",
     "pydantic>=2.7",
     "structlog>=24.0",
     "pyyaml>=6.0",
@@ -61,7 +61,7 @@ dependencies = [
 chain = ["web3>=7.0"]
 cli = ["typer>=0.12", "rich>=13.0"]
 frames = ["pillow>=11.0"]
-server = ["argus-cortex[server,remote]>=0.16,<0.17", "fastapi>=0.110", "uvicorn>=0.27", "better-profanity>=0.7,<0.8", "argus-mint[cli,frames]"]
+server = ["argus-cortex[server,remote]>=0.16.1,<0.17", "fastapi>=0.110", "uvicorn>=0.27", "better-profanity>=0.7,<0.8", "argus-mint[cli,frames]"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff==0.15.16"]
 
 [project.scripts]

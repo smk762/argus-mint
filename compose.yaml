@@ -52,7 +52,7 @@ services:
       ARGUS_MINT_KEYSTORE_PASSWORD_FILE: ${ARGUS_MINT_KEYSTORE_PASSWORD_FILE:-}
       # GPU leases for the bio writer, through the argus-iris broker: the URL alone switches them on (unset: no
       # lease); ARGUS_GPU_BROKER_TOKEN comes from .env and the tenant from the image's /app/gpu-tenant.yaml.
-      # Left blank here, both are read from the suite file when one is mounted (below).
+      # Left blank here, both are read from the suite file when one is mounted (compose.suite.yaml).
       ARGUS_GPU_BROKER_URL: ${ARGUS_GPU_BROKER_URL:-}
       ARGUS_GPU_BROKER_FALLBACK: ${ARGUS_GPU_BROKER_FALLBACK:-none}
     extra_hosts:
@@ -61,12 +61,8 @@ services:
       - "${MINT_PUBLISH:-127.0.0.1:8108}:8108"
     volumes:
       - mint-data:/data
-      # The suite file: settings every Argus service on this host shares (the GPU broker's URL and token, the
-      # suite-wide ARGUS_<PEER>_URL of curator, lens, forge and proof). Anything set in .env or above wins.
-      # Commented out because compose can't skip a bind mount whose file is missing (it would create a
-      # directory). The container runs as root, so the file must be root-owned and not writable by others
-      # (mode 600 or 444), or it is ignored with a warning:
-      # - /etc/argus/suite.env:/etc/argus/suite.env:ro
+      # The suite file (settings every Argus service on this host shares: the GPU broker's URL and token, the
+      # suite-wide ARGUS_<PEER>_URL of curator, lens, forge and proof) is mounted by compose.suite.yaml.
       # your reviewed files instead of the examples (uncomment):
       # - ./templates:/app/templates:ro
       # - ./frames:/app/frames:ro

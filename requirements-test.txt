@@ -22,7 +22,7 @@ web3==8.0.0
 typer==0.28.0
 rich==15.0.0
 pillow==13.0.0
-argus-cortex[server,remote]==0.16.0
+argus-cortex[server,remote]==0.16.1
 fastapi==0.162.2
 uvicorn==0.54.0
 better-profanity==0.7.0

@@ -142,7 +142,7 @@ argus-mint serve --host 127.0.0.1 --port 8108 --cors http://localhost:3108   # d
 
 | Endpoint | |
 |---|---|
-| `GET /health` | version, wire version, network, Card, what it can do (`capabilities`), which backends answer |
+| `GET /health` | version, wire version, network, Card, what it can do (`capabilities`), which backends answer; also the suite's `ServiceHealth` (`status`, `started_at`, `wire`, `checks`) |
 | `GET /templates` `/frames` `/bios` | the reviewed files, every status, with hashes; `GET /frames/{id}/{version}/overlay` |
 | `GET /drafts` | newest first, `?status=pending\|approved\|rejected\|published`, paged |
 | `GET /drafts/{id}` | the draft and its reviews; the pins and signed voucher once published |
