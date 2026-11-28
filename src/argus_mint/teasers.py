@@ -6,6 +6,10 @@ identity, scene and frame must be approved, and so must the chosen background. N
 while the project has a cross-file problem, a spoiler rule matches any linked text, or a linked
 text lacks a fresh passing SingGuard verdict (stored in its file).
 
+- **Embodied** identity, in a **pose** when the teaser names one: the reviewed pose's keypoints
+  go to darkroom with the scene's ``character_area``, where argus-puppet draws them as a
+  skeleton and a pose ControlNet holds the figure to it. Only reviewed keypoints are sent
+  (hard rules 1 and 2); the pose never changes between a rejection's retries (hard rule 3).
 - **Embodied** identity: its ``prompt`` (with its ``lora`` once pinned, plus the project's
   ``style_lora``: darkroom takes at most :data:`MAX_LORAS`) is inpainted into the scene's
   ``character_area`` on the background, through darkroom's image-to-image with a mask (SDXL).
@@ -41,6 +45,7 @@ from argus_mint.projects import (
     Area,
     Identity,
     Line,
+    Pose,
     Project,
     ProjectBundle,
     Scene,
@@ -50,7 +55,7 @@ from argus_mint.projects import (
 )
 from argus_mint.render import InitImage, Inpainter, render_requests
 from argus_mint.spoilers import SpoilerList
-from argus_mint.templates import SEED_MAX, InitImageRef, LoraRef, RenderRequest
+from argus_mint.templates import SEED_MAX, InitImageRef, LoraRef, PoseUse, RenderRequest
 from argus_mint.workflow import Made
 
 __all__ = [
@@ -64,6 +69,7 @@ __all__ = [
     "make_teaser",
     "mask_png",
     "png_chunks",
+    "pose_use",
     "teaser_loras",
     "teaser_seed",
     "teaser_texts",
@@ -172,8 +178,32 @@ def teaser_loras(project: Project, identity: Identity) -> tuple[LoraRef, ...]:
     return loras
 
 
-def inpaint_request(project: Project, identity: Identity, scene: Scene, init: InitImageRef, seed: int) -> RenderRequest:
-    """The request that paints ``identity`` into a background of ``scene``.
+def pose_use(pose: Pose, scene: Scene) -> PoseUse:
+    """What a request records of ``pose`` painted into ``scene``: the file, its keypoints' hash, how
+    it is drawn, and the scene's character area as the place it is drawn in."""
+    area = scene.character_area
+    if area is None:
+        raise TeaserError(f"scene {scene.id} has no character_area: there is nowhere to draw the pose")
+    return PoseUse(
+        id=pose.id,
+        version=pose.version,
+        hash=pose.hash(),
+        keypoints_sha256=pose.keypoints_sha256(),
+        width=pose.width,
+        height=pose.height,
+        strength=pose.strength,
+        hands=pose.hands,
+        face=pose.face,
+        fit=pose.fit,
+        area=(area.x, area.y, area.width, area.height),
+        controlnet=pose.controlnet,
+    )
+
+
+def inpaint_request(
+    project: Project, identity: Identity, scene: Scene, init: InitImageRef, seed: int, pose: PoseUse | None = None
+) -> RenderRequest:
+    """The request that paints ``identity`` into a background of ``scene``, in ``pose`` when given.
 
     Its ``template_*`` name the identity (id, version, hash); the checkpoint, sampling and size
     are the scene's, so the figure is painted at the background's own size.
@@ -197,6 +227,7 @@ def inpaint_request(project: Project, identity: Identity, scene: Scene, init: In
         variables={},
         seed=seed,
         init_image=init,
+        pose=pose,
     )
 
 
@@ -261,7 +292,11 @@ def make_teaser(
     line = bundle.lines[link.line.key][0]
     identity = bundle.identities[link.identity.key][0]
     scene = bundle.scenes[link.scene.key][0]
-    for kind, obj in (("project", project), ("line", line), ("identity", identity), ("scene", scene)):
+    pose = bundle.poses[link.pose.key][0] if link.pose is not None else None
+    reviewed: list[tuple[str, Any]] = [("project", project), ("line", line), ("identity", identity), ("scene", scene)]
+    if pose is not None:
+        reviewed.append(("pose", pose))
+    for kind, obj in reviewed:
         if obj.status != "approved":
             raise TeaserError(f"{kind} {obj.id} v{obj.version} is {obj.status}; only approved files make teasers")
     if (frame.frame.id, frame.frame.version) != link.frame.key:
@@ -282,9 +317,7 @@ def make_teaser(
     if sha256_hex(background_image) != background.sha256:
         raise TeaserError(f"background {background.id} on disk differs from the one approved")
 
-    linked: list[tuple[str, Any]] = [
-        ("project", project), ("line", line), ("identity", identity), ("scene", scene), ("teaser links", links)
-    ]  # fmt: skip
+    linked: list[tuple[str, Any]] = [*reviewed, ("teaser links", links)]
     # A project's own frame is spoiler-checked when approved; checked again here, as the linked
     # texts are, so a rule added since holds it (its YAML's strings: comments were read at approval).
     frame_strings = file_strings(frame.frame.model_dump(mode="json")) if frame.frame.project is not None else []
@@ -308,19 +341,26 @@ def make_teaser(
         if scene.character_area is None:  # pragma: no cover - problems() reports it first
             raise TeaserError(f"scene {scene.id} has no character_area")
         loras = teaser_loras(project, identity)
-        check = getattr(renderer, "check_inpaint", None)
-        if check is not None:
-            refused = check(scene.model, len(loras))
-            if refused:
-                raise TeaserError("darkroom can't inpaint this teaser: " + "; ".join(refused))
+        use = pose_use(pose, scene) if pose is not None else None
+        if pose is None:
+            check = getattr(renderer, "check_inpaint", None)
+            refused = check(scene.model, len(loras)) if check is not None else []
+        else:
+            # A darkroom that can't hold a pose is refused here: the figure is never painted without it.
+            check = getattr(renderer, "check_inpaint_pose", None)
+            if check is None:
+                raise TeaserError(f"{number} names pose {pose.id}, and this renderer can't paint a figure in a pose")
+            refused = check(scene.model, len(loras), pose.controlnet)
+        if refused:
+            raise TeaserError("darkroom can't inpaint this teaser: " + "; ".join(refused))
         init = InitImage(
             image=background_image, mask=mask_png(scene.width, scene.height, scene.character_area),
-            denoise=INPAINT_DENOISE,
+            denoise=INPAINT_DENOISE, pose=pose.keypoints if pose is not None else None,
         )  # fmt: skip
         ref = init.ref()
         rendered = render_requests(
             renderer,
-            lambda seed: inpaint_request(project, identity, scene, ref, seed),
+            lambda seed: inpaint_request(project, identity, scene, ref, seed, use),
             teaser_seed(bundle.id, number, background.sha256),
             scene.max_attempts,
             init=init,
@@ -358,6 +398,7 @@ def make_teaser(
             presence=identity.presence,
             background=TeaserBackground(id=background.id, sha256=background.sha256),
             alt=link.alt,
+            pose=_file(pose) if pose is not None else None,
         ),
         made_with=made_with,
         art_sha256=sha256_hex(art),

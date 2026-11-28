@@ -31,6 +31,7 @@ from typing import Any
 import httpx
 import structlog
 
+from argus_mint._codec import canonical
 from argus_mint.render import GenResult, InitImage
 from argus_mint.templates import RenderRequest, Template, family
 
@@ -38,6 +39,7 @@ __all__ = [
     "DarkroomClient",
     "DarkroomError",
     "check_inpaint",
+    "check_inpaint_pose",
     "check_render",
     "check_template",
     "final_prompt",
@@ -89,10 +91,13 @@ def request_body(
     ``/preflight`` body, where sampling is optional because nothing is rendered).
 
     ``init`` is the input image and mask of an inpainting request (darkroom's ``init_image``):
-    it must be the one ``req.init_image`` records, and a request that records one needs it.
+    it must be the one ``req.init_image`` records, and a request that records one needs it. Its
+    ``pose`` (keypoints) goes as darkroom's ``pose``, and must be the one ``req.pose`` records.
     """
     if (init is None) != (req.init_image is None) or (init is not None and init.ref() != req.init_image):
         raise DarkroomError("the input image sent must be the one the request records")
+    if (req.pose.keypoints_sha256 if req.pose else None) != (init.pose_sha256() if init else None):
+        raise DarkroomError("the pose sent must be the one the request records")
     if req.sampling is None and not for_preflight:
         raise DarkroomError(
             f"template {req.template_id} v{req.template_version} has no sampling block; darkroom needs one"
@@ -117,6 +122,20 @@ def request_body(
             "data_base64": base64.b64encode(init.image).decode("ascii"),
             "denoise": init.denoise,
             **({"mask_base64": base64.b64encode(init.mask).decode("ascii")} if init.mask is not None else {}),
+        }
+    if req.pose is not None and init is not None and init.pose is not None:
+        x, y, w, h = req.pose.area
+        # The pose itself, never a photo: one person's keypoints, drawn by argus-puppet inside the area.
+        body["pose"] = {
+            "keypoints": [list(p) for p in init.pose],
+            "width": req.pose.width,
+            "height": req.pose.height,
+            "strength": req.pose.strength,
+            "hands": req.pose.hands,
+            "face": req.pose.face,
+            "fit": req.pose.fit,
+            "area": {"x": x, "y": y, "width": w, "height": h},
+            **({"controlnet": req.pose.controlnet} if req.pose.controlnet else {}),
         }
     return body
 
@@ -248,6 +267,68 @@ def check_inpaint(models: dict[str, Any], model: str, loras: int) -> list[str]:
     return []
 
 
+def _check_pose(got: Any, req: RenderRequest) -> str | None:
+    """Why darkroom's record doesn't name the pose ``req`` asked for (None: it does, or neither has one)."""
+    if req.pose is None:
+        return "darkroom steered the render with a pose nobody sent" if got is not None else None
+    if not isinstance(got, dict):
+        return "darkroom ignored the pose"
+    if got.get("source") != "keypoints":
+        return "darkroom took the pose from a photo, not from the keypoints sent"
+    people = got.get("people") if isinstance(got.get("people"), list) else []
+    drawn = [p.get("keypoints") for p in people if isinstance(p, dict)]
+    try:
+        sent = hashlib.sha256(canonical([[float(v) for v in point] for point in drawn[0]])).hexdigest()
+    except (IndexError, TypeError, ValueError):
+        return "darkroom's record doesn't say which pose it drew"
+    if len(drawn) != 1 or sent != req.pose.keypoints_sha256:
+        return "darkroom drew a different pose"
+    if (got.get("width"), got.get("height")) != (req.pose.width, req.pose.height):
+        return "darkroom read the pose in a different frame"
+    if got.get("strength") != req.pose.strength:
+        return f"darkroom held the pose at strength {got.get('strength')}, not {req.pose.strength}"
+    if tuple(got.get("area") or ()) != req.pose.area:
+        return "darkroom drew the pose in a different area"
+    if (got.get("hands"), got.get("face"), got.get("fit")) != (req.pose.hands, req.pose.face, req.pose.fit):
+        return "darkroom drew the pose with other options"
+    if req.pose.controlnet and (got.get("controlnet") or {}).get("name") != req.pose.controlnet:
+        return "darkroom used a different ControlNet"
+    if not isinstance(got.get("control"), dict):
+        return "darkroom's record names no control image: the pose wasn't drawn"
+    return None
+
+
+def check_inpaint_pose(models: dict[str, Any], model: str, loras: int, controlnet: str | None = None) -> list[str]:
+    """What would make darkroom refuse to inpaint a figure in a pose, from its ``GET /models``.
+
+    It needs an inpainting workflow with a pose for the family and LoRA count
+    (``<family>+lora<N>+inpaint+pose.json``: ``inpaint_pose_lora_counts``), and a ControlNet:
+    ``controlnet`` when the pose names one, else darkroom's default. Pure; an empty list means
+    nothing was found.
+    """
+    c = next(
+        (c for c in models.get("checkpoints") or [] if isinstance(c, dict) and c.get("name") == model),
+        None,
+    )
+    if c is None:
+        return [f"{model}: darkroom has no such checkpoint"]
+    if "inpaint_pose_lora_counts" not in c:
+        return [f"{model}: darkroom doesn't say whether it can inpaint with a pose (it needs "
+                "inpaint_pose_lora_counts in /models: argus-darkroom with pose input)"]  # fmt: skip
+    out = []
+    offered = sorted(n for n in c.get("inpaint_pose_lora_counts") or [] if isinstance(n, int))
+    if loras not in offered:
+        out.append(
+            f"{model}: no darkroom inpainting workflow with a pose takes {loras} LoRA(s) (it has {offered or 'none'})"
+        )
+    names = [n.get("name") for n in models.get("controlnets") or [] if isinstance(n, dict)]
+    if controlnet is not None and controlnet not in names:
+        out.append(f"darkroom has no ControlNet {controlnet}")
+    if controlnet is None and not models.get("default_pose_controlnet"):
+        out.append("the pose names no ControlNet and darkroom has no default one (ARGUS_DARKROOM_POSE_CONTROLNET)")
+    return out
+
+
 class DarkroomClient:
     """Renders through argus-darkroom. Implements :class:`argus_mint.render.Darklight`."""
 
@@ -365,6 +446,10 @@ class DarkroomClient:
         """:func:`check_inpaint` against this darkroom."""
         return check_inpaint(self.models(), model, loras)
 
+    def check_inpaint_pose(self, model: str, loras: int, controlnet: str | None = None) -> list[str]:
+        """:func:`check_inpaint_pose` against this darkroom."""
+        return check_inpaint_pose(self.models(), model, loras, controlnet)
+
     def _stream(self, req: RenderRequest, init: InitImage | None = None) -> dict[str, Any] | str:
         """Run one generation; return the record, or the error detail.
 
@@ -422,7 +507,7 @@ class DarkroomClient:
                 return f"darkroom used denoise {got.get('denoise')}, not {req.init_image.denoise}"
         elif r.get("init_image") is not None:
             return "darkroom painted on an input image nobody sent"
-        return None
+        return _check_pose(r.get("pose"), req)
 
     def generate(self, req: RenderRequest, init: InitImage | None = None) -> GenResult:
         """Render ``req``; with ``init``, inpaint it into that image through its mask."""

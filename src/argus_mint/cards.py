@@ -28,7 +28,17 @@ from pathlib import Path
 from typing import Any, Literal
 
 from argus_cortex.hashing import sha256_hex
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    ValidationError,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from argus_mint._codec import Bytes32
 from argus_mint.metadata import (
@@ -267,6 +277,21 @@ class TeaserRecord(BaseModel):
     presence: Literal["embodied", "viewpoint"]
     background: TeaserBackground
     alt: str = Field(min_length=1, max_length=1000)
+    # The reviewed pose an embodied figure was painted in; None: no pose (left out of the document).
+    pose: TeaserFile | None = None
+
+    @model_validator(mode="after")
+    def _pose_needs_a_figure(self) -> TeaserRecord:
+        if self.pose is not None and self.presence != "embodied":
+            raise ValueError("a pose is for a figure painted into the image: a viewpoint teaser has none")
+        return self
+
+    @model_serializer(mode="wrap")
+    def _no_unset_pose(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        doc = handler(self)
+        if doc.get("pose") is None:
+            doc.pop("pose", None)
+        return doc
 
 
 class CardDraft(BaseModel):
@@ -379,6 +404,7 @@ class CardDraft(BaseModel):
             art=f"ipfs://{art_cid}",
             asset_id=teaser_asset_id(t.project.id, t.number),
             inpaint=inpaint,
+            pose=ref(t.pose) if t.pose is not None else None,
         )
 
     def provenance(self, art_cid: str | None) -> Provenance:

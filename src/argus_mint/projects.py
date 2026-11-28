@@ -7,6 +7,7 @@ A project lives in one directory::
       identities/*.yaml     # who appears (or whose view it is), and how they keep their look
       scenes/*.yaml         # the backgrounds: prompt, sampling, how many to render, where a figure goes
       lines/*.yaml          # the quotes, verbatim, with the published wording and their source
+      poses/*.json          # optional: body poses (keypoints) an embodied figure may be painted in
       teasers/*.json        # which line goes with which identity, scene and frame, and its alt text
       frames/*.yaml         # optional: the project's own frames, ids ``<project>/<name>`` (argus_mint.frames)
 
@@ -38,7 +39,16 @@ from typing import Any, ClassVar, Literal, TypeVar
 
 import yaml
 from argus_cortex.hashing import sha256_hex
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    SerializerFunctionWrapHandler,
+    ValidationError,
+    model_serializer,
+    model_validator,
+)
 
 from argus_mint._codec import canonical, keccak256
 from argus_mint.frames import FRAME_ID_PATTERN
@@ -49,6 +59,8 @@ __all__ = [
     "Identity",
     "IdentityTraining",
     "Line",
+    "POSE_KEYPOINTS",
+    "Pose",
     "Project",
     "ProjectBundle",
     "ProjectError",
@@ -64,6 +76,8 @@ __all__ = [
     "load_bundle",
     "load_identity",
     "load_line",
+    "load_pose",
+    "pose_from_puppet",
     "load_project",
     "load_scene",
     "load_teasers",
@@ -356,8 +370,53 @@ class Line(_Reviewed):
         return self.published or self.text
 
 
+POSE_KEYPOINTS = 133  # COCO-WholeBody, as argus-puppet reports a person: body, feet, face, hands
+PoseFit = Literal["contain", "cover", "skeleton"]
+
+
+class Pose(_Reviewed):
+    """A body pose an embodied figure may be painted in: one person's keypoints, reviewed like a scene.
+
+    The keypoints are argus-puppet's (``POST /pose``, a sidecar, or a pose-library entry: its
+    ``keypoints``, ``width`` and ``height`` fit as they are). They are numbers, never an image:
+    darkroom has argus-puppet draw them as a skeleton and steers the inpainting with it. The
+    figure's look still comes from the identity, and where it stands from the scene's
+    ``character_area``; the pose only says how the body is held.
+
+    ``description`` says what the pose is, for the people who review it (SingGuard reads it,
+    like every text). ``source`` says where it came from; ``source_sha256`` is the image it was
+    extracted from, when known. A pose taken from a photo of a real person should come from a
+    library built with argus-puppet's age check.
+    """
+
+    project: str = Field(pattern=_ID_PATTERN)
+    description: str = Field(min_length=1, max_length=200)
+    source: str = Field(min_length=1, max_length=200)
+    source_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    width: int = Field(ge=1, le=65535)  # the frame the keypoints are in
+    height: int = Field(ge=1, le=65535)
+    keypoints: tuple[tuple[FiniteFloat, FiniteFloat, FiniteFloat], ...] = Field(
+        min_length=POSE_KEYPOINTS, max_length=POSE_KEYPOINTS
+    )
+    strength: float = Field(default=0.8, gt=0.0, le=2.0)  # how hard the ControlNet holds the pose (darkroom's range)
+    hands: bool = True  # draw the hands
+    face: bool = True  # draw the face landmarks
+    # How the pose's frame is fitted into the character area: `skeleton` fills the area with the figure.
+    fit: PoseFit = "skeleton"
+    controlnet: str | None = Field(default=None, min_length=1, max_length=200)  # None: darkroom's default
+
+    GUARDED = ("description",)
+
+    def keypoints_sha256(self) -> str:
+        """sha256 of the keypoints' canonical JSON: what a render request records of them."""
+        return sha256_hex(canonical([list(p) for p in self.keypoints]))
+
+
 class TeaserLink(BaseModel):
-    """One teaser: a reviewed line, identity, scene and frame, and the image's alt text."""
+    """One teaser: a reviewed line, identity, scene and frame, and the image's alt text.
+
+    ``pose`` (optional) is the reviewed pose an embodied identity is painted in. It is left out
+    of the document when unset, so links written before poses hash as they did."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -367,6 +426,14 @@ class TeaserLink(BaseModel):
     frame: FrameLink
     alt: str = Field(min_length=1, max_length=1000)  # posts refuse an image without it
     background: str | None = Field(default=None, min_length=1, max_length=64)  # the chosen render, once there is one
+    pose: Ref | None = None
+
+    @model_serializer(mode="wrap")
+    def _no_unset_pose(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        doc = handler(self)
+        if doc.get("pose") is None:
+            doc.pop("pose", None)
+        return doc
 
 
 class TeaserLinks(_Reviewed):
@@ -439,6 +506,60 @@ def load_line(path: Path) -> Line:
     return _load_yaml(path, Line)
 
 
+def pose_from_puppet(doc: Any, entry: str | None = None) -> dict[str, Any]:
+    """The pose fields of an argus-puppet document: ``keypoints``, ``width``, ``height``, ``source`` and
+    ``source_sha256``, ready to go in a pose file. Pure.
+
+    ``doc`` is a pose library (``entries``: ``entry`` names one by id, and may be left out when
+    there is only one) or a pose result such as a ``.pose.json`` sidecar (its primary person).
+    Raises :class:`ProjectError` when it is neither, or holds no such pose.
+    """
+    if not isinstance(doc, dict):
+        raise ProjectError("not an argus-puppet pose library or pose result")
+    if isinstance(doc.get("entries"), list):
+        entries = [e for e in doc["entries"] if isinstance(e, dict)]
+        if entry is None and len(entries) != 1:
+            raise ProjectError(f"the library has {len(entries)} poses: name one by its id")
+        found = next((e for e in entries if entry is None or e.get("id") == entry), None)
+        if found is None:
+            raise ProjectError(f"the library has no pose {entry!r}")
+        checked = "age-checked" if doc.get("age_checked") is True else "not age-checked"
+        return {
+            "keypoints": found.get("keypoints"),
+            "width": found.get("width"),
+            "height": found.get("height"),
+            "source": f"argus-puppet pose library ({checked}), pose {found.get('id')}"[:200],
+            "source_sha256": found.get("source_sha256"),
+        }
+    people = doc.get("people")
+    if isinstance(people, list):
+        if entry is not None:
+            raise ProjectError("a pose result holds one image's people: there are no entries to name")
+        primary = doc.get("primary")
+        if not isinstance(primary, int) or not 0 <= primary < len(people) or not isinstance(people[primary], dict):
+            raise ProjectError("the pose result has no primary person")
+        return {
+            "keypoints": people[primary].get("keypoints"),
+            "width": doc.get("width"),
+            "height": doc.get("height"),
+            "source": f"argus-puppet pose result of {doc.get('image') or 'an image'}"[:200],
+            "source_sha256": doc.get("image_sha256"),
+        }
+    raise ProjectError("not an argus-puppet pose library or pose result")
+
+
+def load_pose(path: Path) -> Pose:
+    """One pose file (JSON: 133 keypoints read better as JSON than as YAML)."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise ProjectError(f"{path}: not valid JSON: {e}") from e
+    try:
+        return Pose.model_validate(raw)
+    except ValidationError as e:
+        raise ProjectError(f"{path}: {e}") from e
+
+
 def load_teasers(path: Path) -> TeaserLinks:
     """One version of a project's teaser links (JSON)."""
     try:
@@ -461,6 +582,7 @@ class ProjectBundle:
     scenes: dict[tuple[str, int], tuple[Scene, Path]] = field(default_factory=dict)
     lines: dict[tuple[str, int], tuple[Line, Path]] = field(default_factory=dict)
     teasers: dict[tuple[str, int], tuple[TeaserLinks, Path]] = field(default_factory=dict)
+    poses: dict[tuple[str, int], tuple[Pose, Path]] = field(default_factory=dict)
 
     @property
     def id(self) -> str:
@@ -495,6 +617,8 @@ def load_bundle(root: Path) -> ProjectBundle:
     b.identities = _collect(_yaml_files(root / "identities"), load_identity, "identity")
     b.scenes = _collect(_yaml_files(root / "scenes"), load_scene, "scene")
     b.lines = _collect(_yaml_files(root / "lines"), load_line, "line")
+    pdir = root / "poses"
+    b.poses = _collect(sorted(pdir.glob("*.json")) if pdir.is_dir() else [], load_pose, "pose")
     if (root / "teasers.json").is_file():
         raise ProjectError(
             f"{root}: teasers.json is now versioned and reviewed: move it to teasers/{b.id}-v1.json "
@@ -536,7 +660,7 @@ def problems(b: ProjectBundle, frames: set[tuple[str, int]] | None = None) -> li
             out.append(f"project.yaml names frame {fr.id}, which is project {fr.project}'s")
         elif frames is not None and fr.key not in frames:
             out.append(f"project.yaml names frame {fr.id} v{fr.version}, which this server doesn't have")
-    for kind, table in (("identity", b.identities), ("scene", b.scenes), ("line", b.lines)):
+    for kind, table in (("identity", b.identities), ("scene", b.scenes), ("line", b.lines), ("pose", b.poses)):
         for obj, path in table.values():
             if obj.project != b.id:
                 out.append(f"{path.name}: {kind} {obj.id} belongs to project {obj.project!r}, not {b.id!r}")
@@ -575,6 +699,11 @@ def teaser_problems(b: ProjectBundle, links: TeaserLinks) -> list[str]:
             out.append(f"{n}: frame {t.frame.id} is project {t.frame.project}'s")
         elif allowed and t.frame.key not in allowed:
             out.append(f"{n}: frame {t.frame.id} v{t.frame.version} isn't one of the project's frames")
+        if t.pose is not None:
+            if t.pose.key not in b.poses:
+                out.append(f"{n}: no pose {t.pose.id} v{t.pose.version}")
+            if ident is not None and ident[0].presence != "embodied":
+                out.append(f"{n}: a pose is for a figure painted into the image, and {ident[0].id} is a viewpoint")
         if line is not None and ident is not None and line[0].voice != ident[0].voice:
             out.append(f"{n}: the line is in the {line[0].voice!r} voice but the identity speaks as {ident[0].voice!r}")
         if ident is not None and scene is not None:

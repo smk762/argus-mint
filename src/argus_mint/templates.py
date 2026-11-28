@@ -17,7 +17,16 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    ValidationError,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from argus_mint._codec import Bytes32, canonical, keccak256
 
@@ -296,12 +305,38 @@ class InitImageRef(BaseModel):
     denoise: float = Field(ge=0.05, le=1.0)  # darkroom's range
 
 
+class PoseUse(BaseModel):
+    """The body pose an inpainted figure is steered into, by hash: the keypoints travel beside the request.
+
+    ``keypoints_sha256`` is of the keypoints' canonical JSON (one person, 133 points) in a frame
+    of ``width`` x ``height``; ``area`` is where in the render the skeleton is drawn (the scene's
+    character area: x, y, width, height). darkroom's record names the keypoints it drew and the
+    rest, and the client checks them.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    version: int = Field(ge=1)
+    hash: Bytes32  # the reviewed pose file's
+    keypoints_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    width: int = Field(ge=1, le=65535)
+    height: int = Field(ge=1, le=65535)
+    strength: float = Field(gt=0.0, le=2.0)
+    hands: bool = True
+    face: bool = True
+    fit: Literal["contain", "cover", "skeleton"] = "skeleton"
+    area: tuple[int, int, int, int]
+    controlnet: str | None = None  # None: darkroom's default
+
+
 class RenderRequest(BaseModel):
     """Everything a renderer needs, fully determined by template version + values + seed.
 
     A teaser's renders are not of a template: a background's ``template_*`` name its scene, and
     an inpainted figure's name its identity (each file's id, version and hash). ``init_image``
-    is set only for an inpainted figure.
+    is set only for an inpainted figure, and ``pose`` only for one painted in a reviewed pose
+    (it is left out of the document when unset, so requests from before poses read as they did).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -319,6 +354,14 @@ class RenderRequest(BaseModel):
     variables: dict[str, str]
     seed: int = Field(ge=0, le=SEED_MAX)
     init_image: InitImageRef | None = None
+    pose: PoseUse | None = None
+
+    @model_serializer(mode="wrap")
+    def _no_unset_pose(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+        doc = handler(self)
+        if doc.get("pose") is None:
+            doc.pop("pose", None)
+        return doc
 
 
 def load_template(path: Path) -> Template:

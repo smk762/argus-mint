@@ -453,7 +453,9 @@ def add_teaser_routes(
                     number=number,
                     stages=TeaserStages(
                         quote_final=approved(b.lines, link.line.key),
-                        concept_chosen=approved(b.identities, link.identity.key) and approved(b.scenes, link.scene.key),
+                        concept_chosen=approved(b.identities, link.identity.key)
+                        and approved(b.scenes, link.scene.key)
+                        and (link.pose is None or approved(b.poses, link.pose.key)),
                         image_made=any(s.current and s.status in ("approved", "published") for s in states),
                         posted=posted,
                         minted=any(s.status == "published" for s in states),

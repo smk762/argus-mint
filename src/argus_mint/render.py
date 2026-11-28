@@ -17,7 +17,7 @@ from typing import Any, Protocol
 
 import structlog
 
-from argus_mint._codec import Bytes32
+from argus_mint._codec import Bytes32, canonical
 from argus_mint.metadata import Provenance
 from argus_mint.templates import (
     SEED_MAX,
@@ -87,11 +87,20 @@ class Darklight(Protocol):
 
 @dataclass(frozen=True)
 class InitImage:
-    """The bytes an inpainting request carries: the input image and its mask (white repaints)."""
+    """What an inpainting request carries beside it: the input image, its mask (white repaints),
+    and the keypoints of the pose the figure is painted in, when the request names one."""
 
     image: bytes
     mask: bytes | None
     denoise: float
+    # One person's 133 (x, y, score) points: the reviewed pose file's. None: no pose.
+    pose: tuple[tuple[float, float, float], ...] | None = None
+
+    def pose_sha256(self) -> str | None:
+        """sha256 of the keypoints' canonical JSON (``RenderRequest.pose.keypoints_sha256``); None without a pose."""
+        if self.pose is None:
+            return None
+        return hashlib.sha256(canonical([list(p) for p in self.pose])).hexdigest()
 
     def ref(self) -> InitImageRef:
         """What the request records about these bytes."""
@@ -245,6 +254,8 @@ def render_requests(
         req = build(derive_seed(seed, n))
         if init is not None and req.init_image != init.ref():
             raise ValueError("the request doesn't record the input image it is sent with")
+        if (req.pose.keypoints_sha256 if req.pose else None) != (init.pose_sha256() if init else None):
+            raise ValueError("the request doesn't record the pose it is sent with")
         result = client.generate(req) if init is None else client.generate(req, init=init)  # type: ignore[call-arg]
         if result.outcome is Outcome.OK and not result.image:
             result = GenResult.error("darklight returned no image", ref=result.ref)

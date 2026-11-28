@@ -16,8 +16,9 @@ One directory per project, under `ARGUS_MINT_PROJECTS_DIR` (default `projects`).
 | `identities/*.yaml` | Who a teaser speaks for. Its `voice`, and its `presence`: **`embodied`** (painted in from `prompt`, and kept consistent by a `lora` once a training run passes argus-proof, pinned with its `proof_run` and `proof_export`; see [Training an identity](#training-an-identity)) or **`viewpoint`** (nobody painted in: the image is what they see, and their `frame`, such as a security-feed overlay, says so). It also lists `references`, each with its `file`, `sha256` and `provenance`: an argus-cortex `Provenance` record (see [References](#references)) |
 | `scenes/*.yaml` | A setting: checkpoint, sampling, size, a fixed `prompt`, how many `backgrounds` to render for review, and the `character_area` where a figure may be painted in (left out when nobody is) |
 | `lines/*.yaml` | One quote each. `text` is verbatim from its `source` and never edited. `published` is what goes on the image (typos fixed, nothing else), and defaults to `text`. No model writes or reads a line |
+| `poses/<id>-v<n>.json` | Optional: a body pose an embodied figure may be painted in (see [Poses](#poses)). One person's 133 keypoints from argus-puppet, the `width` and `height` of the frame they are in, a `description` of the pose for its reviewers, its `source` (and `source_sha256`, the image it was extracted from, when known), and how it is used: `strength` (default 0.8), `hands`, `face`, `fit` (default `skeleton`) and an optional `controlnet` |
 | `frames/*.yaml` | Optional: the project's own [frames](catalogue.md#a-projects-own-frames), named `<project>/<name>` (such as a viewpoint identity's camera overlay), each with its overlay PNG and fonts beside it. Reviewed and hashed like any frame, through the frame routes. Their sources (HTML, CSS, a capture spec for [`scripts/capture_frame.py`](catalogue.md#building-an-overlay-from-html)) can sit in `frames/src/` |
-| `teasers/<project>-v<n>.json` | The teaser links, one file per version, with the project's id. The teasers by number (`T1`, `T2`…): for each, its `line`, `identity`, `scene` and `frame` (by id and version), its `alt` text, and the chosen `background` once there is one |
+| `teasers/<project>-v<n>.json` | The teaser links, one file per version, with the project's id. The teasers by number (`T1`, `T2`…): for each, its `line`, `identity`, `scene` and `frame` (by id and version), its `alt` text, the chosen `background` once there is one, and optionally the `pose` its figure is painted in (by id and version) |
 
 Every file, the teaser links included, has an `id`, a `version` and a `status`, and is reviewed like a template: `draft`, then `approved` (with `approved_by` and `approved_at`), then `retired`. A change is a new version. Only approved files make teasers; teasers are made from the newest approved version of the links. Every image they lead to is reviewed again, as a draft.
 
@@ -27,9 +28,9 @@ A scene or identity prompt is fixed text written by the author. A teaser never t
 
 Each save (and `GET /projects/{id}`) reports:
 
-- **Problems**: schema errors, and what one file says about another: a teaser naming a file or frame that doesn't exist, or a frame that isn't one of the project's; a frame of another project (a project uses global frames and its own); a line whose voice isn't the identity's; an embodied identity in a scene with no `character_area`; a viewpoint teaser not using its identity's frame; a scene outside the project's checkpoint family; a file belonging to another project.
+- **Problems**: schema errors, and what one file says about another: a teaser naming a file or frame that doesn't exist, or a frame that isn't one of the project's; a frame of another project (a project uses global frames and its own); a line whose voice isn't the identity's; an embodied identity in a scene with no `character_area`; a viewpoint teaser not using its identity's frame; a teaser naming a pose that doesn't exist, or a pose for a viewpoint identity (nobody is painted in); a scene outside the project's checkpoint family; a file belonging to another project.
 - **Spoilers**: rule numbers from the private spoiler list that match any text in the file, negatives and sources included. `GET /projects/{id}` also reads the project's own frame files as raw text: every string in the YAML **and its comments** (a capture's comments name its sources). Approving such a frame through the frame review route is refused (409, `held by spoiler rule N`). Text drawn into an overlay PNG can't be read: the reviewer checks the overlay by eye.
-- **SingGuard**: darkroom's text pre-flight, under the project's `policy`, on the title and attribution, each identity and scene prompt, each line's text and published text, and each teaser's alt text. Negative prompts are left out, since they name what to avoid.
+- **SingGuard**: darkroom's text pre-flight, under the project's `policy`, on the title and attribution, each identity and scene prompt, each line's text and published text, each pose's description, and each teaser's alt text. Negative prompts are left out, since they name what to avoid.
 
 ### SingGuard's verdicts are kept in the file
 
@@ -87,7 +88,7 @@ An approved or retired file never changes: the author saves a new version.
 |---|---|---|
 | `GET /projects` | | `{projects: [{id, title, status}]}` |
 | `GET /projects/{id}` | | `{id, files, checks}`. Each file is `{kind, id, version, status, hash, file, doc}`; the teaser links are kind `teasers`. `checks.guard` holds the stored verdicts that still hold |
-| `POST /projects/{id}/files/{kind}/{item}/{version}` | moderator | `{doc}` writes a draft `project`, `identity`, `scene`, `line` or `teasers` (the links; `item` is the project's id). Leave out `status`, `approved_by`, `approved_at` and `guard`. SingGuard judges the texts first and its verdicts are saved with the file. Returns `{file, checks}`. A new project starts with `files/project/{id}/1` |
+| `POST /projects/{id}/files/{kind}/{item}/{version}` | moderator | `{doc}` writes a draft `project`, `identity`, `scene`, `line`, `pose` or `teasers` (the links; `item` is the project's id). Leave out `status`, `approved_by`, `approved_at` and `guard`. SingGuard judges the texts first and its verdicts are saved with the file. Returns `{file, checks}`. A new project starts with `files/project/{id}/1` |
 | `POST /projects/{id}/files/{kind}/{item}/{version}/review` | moderator | `{decision: "approve" \| "retire", by}` |
 | `POST /projects/{id}/scenes/{scene}/{version}/backgrounds` | moderator | start a background job (202): the scene's set, with its `job` |
 | `GET /projects/{id}/backgrounds` | | `{sets}`, one per scene version |
@@ -119,20 +120,50 @@ The moderator looks at each one (`GET /projects/{id}/backgrounds/{bg}/image`) an
 
 `POST /projects/{id}/teasers/{n}/draft` (moderator, `{to}`) makes the draft for teaser `T<n>` of the newest approved teaser links. It is refused (409) unless:
 
-- the project has no problems, and no spoiler rule matches any linked text (the project, line, identity, scene and the teaser's entry);
-- the teaser links, project, line, identity and scene are approved, and so is the frame;
+- the project has no problems, and no spoiler rule matches any linked text (the project, line, identity, scene, pose and the teaser's entry);
+- the teaser links, project, line, identity and scene are approved, and so is the frame, and the pose when the teaser names one;
 - every text of those files has a stored SingGuard verdict that still holds (same text, the project's policy) and passed;
 - the teaser has a `background`, rendered from its scene, approved, and unchanged on disk.
 
 Then the layers:
 
-1. **The art.** For an **embodied** identity, its `prompt` (and `negative`) is painted into the scene's `character_area` on the background, through darkroom's inpainting: the background as the input image, a mask that is white over the area, `denoise` 1.0. The checkpoint, sampling and size are the scene's. The LoRAs are the identity's `lora` (once pinned) and then the project's `style_lora`, never more than two. Inpainting needs SDXL, and darkroom must have an inpainting workflow for that many LoRAs: its example workflows stop at one (`sdxl+lora1+inpaint.json`), so a teaser with both LoRAs needs a `sdxl+lora2+inpaint.json` in its workflow directory. The draft is refused (409) before rendering when darkroom's `/models` says it can't. The seed is derived from the project, the teaser number and the background's sha256. A safety rejection is retried with the next derived seed, and every attempt is recorded. Every pixel outside the mask stays the background's. For a **viewpoint** identity the background itself is the art, and nothing is rendered.
+1. **The art.** For an **embodied** identity, its `prompt` (and `negative`) is painted into the scene's `character_area` on the background, through darkroom's inpainting: the background as the input image, a mask that is white over the area, `denoise` 1.0. The checkpoint, sampling and size are the scene's. The LoRAs are the identity's `lora` (once pinned) and then the project's `style_lora`, never more than two. Inpainting needs SDXL, and darkroom must have an inpainting workflow for that many LoRAs: its example workflows stop at one (`sdxl+lora1+inpaint.json`), so a teaser with both LoRAs needs a `sdxl+lora2+inpaint.json` in its workflow directory. The draft is refused (409) before rendering when darkroom's `/models` says it can't. The seed is derived from the project, the teaser number and the background's sha256. A safety rejection is retried with the next derived seed, and every attempt is recorded. Every pixel outside the mask stays the background's. When the teaser names a [pose](#poses), the figure is painted in it. For a **viewpoint** identity the background itself is the art, and nothing is rendered.
 2. **The frame**, with the line's published text in its `quote` slot, the project's `attribution` in `attribution` when it is set, and "generated image" in `label` when `generated_label` is on. A frame without a slot the teaser needs is refused. [frames/example-teaser-v1.yaml](https://github.com/smk762/argus-mint/tree/dev/frames/example-teaser-v1.yaml) is a full-bleed example: the window is the whole canvas. The example project's viewpoint identity, `lamp`, uses the project's own [frames/harbour-feed-v1.yaml](https://github.com/smk762/argus-mint/tree/dev/projects/example-teasers/frames/harbour-feed-v1.yaml) (`example-teasers/harbour-feed`), a harbour-camera overlay, also full bleed, with mild [effects](catalogue.md#effects) on the background (lens bulge, colour fringing, scanlines, noise, vignette).
 3. **The PNG** is baked opaque, with only its critical chunks (`IHDR`, `IDAT`, `IEND`): no text, time, colour-profile or size metadata. Stripping metadata (argus-herald does) changes no byte, so its sha256 stays the one reviewed.
 
-The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash, `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Once both approve, it can be [posted](#posting), [minted](#minting), both or neither.
+The draft has `kind: "teaser"`, no `asset_id`, `consumer` or bio, and a `teaser` record: the project, the teaser links and the number, each linked file by id, version and hash (the `pose` among them, when there is one), `presence`, the background's id and sha256, and the alt text. The frame is the draft's `frame`, and the quote, attribution and label are its `texts`. It is reviewed like a card ([review.md](review.md)): the moderator (or auto-moderation), then the owner by signing in with the wallet in `to`. A teaser's text isn't edited: it is the reviewed line's. Once both approve, it can be [posted](#posting), [minted](#minting), both or neither.
 
 Before it is saved, it gets its [identity check](#the-identity-check) and auto-moderation's checks, which are recorded in its `auto_check` whether auto-moderation is on or not.
+
+## Poses
+
+Left to itself, an inpainted figure takes whatever stance the model favours, so a project's teasers tend to show the same pose. A **pose** file fixes how the body is held for one teaser. Different teasers name different poses.
+
+A pose is keypoints, never a picture: one person's 133 whole-body points as [argus-puppet](https://github.com/smk762/argus-puppet) reports them, in a frame of `width` x `height`. The figure's look still comes from the identity, and where it stands from the scene's `character_area`; the pose only says how the body is held.
+
+**Writing one.** `argus-mint teasers pose` takes the keypoints from an argus-puppet pose library entry, or from a pose result (a `.pose.json` sidecar: its primary person), and writes a draft file:
+
+```bash
+argus-puppet library sample poses.library.json -n 8            # pick varied poses; note their ids
+argus-mint teasers pose poses.library.json projects/my-project \
+  --id arm-raised --entry <pose id> --description "standing, one arm raised"
+```
+
+It records where the keypoints came from in `source`, and whether the library was built with argus-puppet's age check. Use an age-checked library for poses taken from photos of real people; a pose of a synthetic figure needs none. [projects/example-teasers/poses/hand-raised-v1.json](https://github.com/smk762/argus-mint/tree/dev/projects/example-teasers/poses/hand-raised-v1.json) is a synthetic example. Like every project file, a pose never changes once written: a change is a new version.
+
+**Reviewing one.** A pose is saved and approved through the project file routes (kind `pose`), like a scene. SingGuard reads its `description`, and the spoiler list reads its `description` and `source`. A reviewer who wants to see the pose can draw it: `argus-puppet render` takes the same keypoints.
+
+**Using one.** A teaser's entry in the teaser links names it: `"pose": {"id": "arm-raised", "version": 1}`. The links are approved only when the pose is. Then, for that teaser's draft:
+
+- mint sends darkroom the pose's keypoints, its `strength`, `hands`, `face` and `fit`, and the scene's `character_area` as the place to draw them, with the usual inpainting request. Nothing else about the request changes, and no prompt is added.
+- darkroom has argus-puppet draw the keypoints as a skeleton inside the character area and steers the inpainting with a pose ControlNet. `fit: skeleton` (the default) fills the area with the figure; `contain` keeps the pose's own framing.
+- darkroom must be able to do it: its `/models` must offer an inpainting workflow with a pose for the scene's checkpoint and that many LoRAs (`<family>+lora<N>+inpaint+pose.json`), and a ControlNet (the pose's `controlnet`, or darkroom's default). The draft is refused (409) before rendering when it doesn't. **A figure is never painted without the pose its teaser names.**
+- a safety rejection is retried with the next seed and the same pose.
+- the image is accepted only when darkroom's record names the keypoints that were sent, drawn in that area at that strength.
+
+The draft's `request.pose` records the pose file (id, version, hash), the sha256 of its keypoints and how it was drawn; its `teaser.pose` and, when minted, the metadata's provenance name the file. A teaser without a pose is made exactly as before, and its links, request and record hash as they did.
+
+darkroom also records whether the image held the pose (`pose_adherence` in its record, found by the attempt's `ref`). Mint doesn't read it yet: the moderator and the owner see the image.
 
 ## The identity check
 

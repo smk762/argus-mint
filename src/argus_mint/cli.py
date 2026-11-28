@@ -844,7 +844,7 @@ def schema(
 
 # --- teasers: anchoring what was posted, exporting the record --------------------------------
 
-teasers_app = typer.Typer(help="Teaser projects: anchoring posted teasers.", no_args_is_help=True)
+teasers_app = typer.Typer(help="Teaser projects: importing poses, anchoring posted teasers.", no_args_is_help=True)
 app.add_typer(teasers_app, name="teasers")
 
 DraftsOpt = Annotated[
@@ -853,6 +853,46 @@ DraftsOpt = Annotated[
 AnchorsOpt = Annotated[
     Path, typer.Option(envvar="ARGUS_MINT_ANCHORS_DIR", help="Where each project's anchors and trees are kept")
 ]
+
+
+@teasers_app.command("pose")
+def teasers_pose(
+    source: Annotated[
+        Path, typer.Argument(help="An argus-puppet pose library, or a pose result (.pose.json sidecar)", exists=True)
+    ],
+    project_dir: Annotated[Path, typer.Argument(help="The project's directory (holding project.yaml)", exists=True)],
+    pose_id: Annotated[str, typer.Option("--id", help="The new pose's id (lower-case letters, digits, hyphens)")],
+    description: Annotated[str, typer.Option(help="What the pose is, for the people who review it")],
+    entry: Annotated[str | None, typer.Option(help="With a library: the id of the pose to take")] = None,
+    version: Annotated[int, typer.Option(help="The pose file's version", min=1)] = 1,
+    strength: Annotated[float, typer.Option(help="How hard the ControlNet holds the pose", min=0.01, max=2.0)] = 0.8,
+) -> None:
+    """Write a draft pose file from argus-puppet's keypoints: <project>/poses/<id>-v<version>.json.
+
+    It takes one person's 133 keypoints from SOURCE (a library entry, or a pose result's primary
+    person), with their frame and where they came from. The file is a draft: review it like any
+    other project file before a teaser may name it. Nothing is read but SOURCE; no image is.
+    """
+    from argus_mint.cards import write_atomic
+    from argus_mint.projects import Pose, ProjectError, load_project, pose_from_puppet
+
+    try:
+        project = load_project(project_dir / "project.yaml")
+        fields = pose_from_puppet(json.loads(source.read_text(encoding="utf-8")), entry)
+        pose = Pose.model_validate(
+            {"id": pose_id, "version": version, "status": "draft", "project": project.id,
+             "description": description, "strength": strength, **fields}
+        )  # fmt: skip
+    except (OSError, ValueError, ProjectError) as e:  # ValidationError and JSONDecodeError are ValueErrors
+        raise _fail(f"no pose was written: {e}") from e
+    out = project_dir / "poses" / f"{pose.id}-v{pose.version}.json"
+    if out.exists():
+        raise _fail(f"{out} exists: a pose file never changes once written; give it a new --version")
+    out.parent.mkdir(exist_ok=True)
+    doc = pose.model_dump(mode="json", exclude={"guard", "approved_by", "approved_at"})
+    write_atomic(out, json.dumps(doc, indent=1) + "\n")
+    typer.echo(json.dumps({"file": str(out), "id": pose.id, "version": pose.version, "hash": "0x" + pose.hash().hex(),
+                           "keypoints_sha256": pose.keypoints_sha256()}, indent=2))  # fmt: skip
 
 
 @teasers_app.command("anchor")
