@@ -16,6 +16,10 @@ All notable changes to this project are documented here. Versions come from git 
 
 - **`argus-mint serve` registers with the GPU broker at startup** (`gpu.keep_registered`, in the app's lifespan, with the bio writer's coordinator), re-registers every five minutes and signs off at shutdown, so argus-iris knows the tenant before its first bio. Nothing without a writer or a broker URL; a down broker never blocks startup. The CLI still registers with its first lease.
 
+### Fixed
+
+- **`scripts/capture_frame.py` puts the old overlay back after any failure.** The PNG was written, and the YAML's mode and temp file made, before the `try` whose `finally` restores it. A failed write left a truncated overlay, and a failed `stat` or `mkstemp` left the new PNG beside the old frame YAML. The PNG is now staged beside the target and renamed over it, so a failed write never truncates the old one, and the rollback covers every step after it.
+
 ## [0.3.1] - 2026-11-23
 
 ### Changed

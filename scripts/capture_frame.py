@@ -278,13 +278,14 @@ def capture(spec_path: Path, renderer: Renderer | None = None) -> tuple[Path, Pa
     text = _frame_yaml(header, spec["frame"], png_path.name)
 
     old_png = png_path.read_bytes() if png_path.is_file() else None
-    png_path.write_bytes(png)
-    # mkstemp makes the file 0600: give it the old YAML's mode, or the PNG's (just written, so the umask's).
-    mode = (yaml_path if yaml_path.is_file() else png_path).stat().st_mode & 0o777
-    fd, tmp_name = tempfile.mkstemp(dir=yaml_path.parent, prefix=f".{yaml_path.name}.", suffix=".tmp")
-    tmp = Path(tmp_name)
+    tmp: Path | None = None
     replaced = False
-    try:
+    try:  # from the first write on: whatever fails, the finally below puts the PNG back
+        _swap_in(png_path, png)
+        # mkstemp makes the file 0600: give it the old YAML's mode, or the PNG's (just written, so the umask's).
+        mode = (yaml_path if yaml_path.is_file() else png_path).stat().st_mode & 0o777
+        fd, tmp_name = tempfile.mkstemp(dir=yaml_path.parent, prefix=f".{yaml_path.name}.", suffix=".tmp")
+        tmp = Path(tmp_name)
         os.fchmod(fd, mode)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
@@ -295,13 +296,29 @@ def capture(spec_path: Path, renderer: Renderer | None = None) -> tuple[Path, Pa
         os.replace(tmp, yaml_path)
         replaced = True
     finally:
-        tmp.unlink(missing_ok=True)
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
         if not replaced:  # whatever stopped it, the PNG goes back as it was
             if old_png is None:
                 png_path.unlink(missing_ok=True)
             else:
-                png_path.write_bytes(old_png)
+                _swap_in(png_path, old_png)
     return png_path, yaml_path
+
+
+def _swap_in(path: Path, data: bytes) -> None:
+    """Write ``data`` beside ``path`` and rename it over it, so a failed write never truncates the file there.
+
+    The new file keeps the old one's mode, or gets the umask's when there was none.
+    """
+    staged = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        staged.write_bytes(data)
+        if path.is_file():
+            os.chmod(staged, path.stat().st_mode & 0o777)
+        os.replace(staged, path)
+    finally:
+        staged.unlink(missing_ok=True)
 
 
 def main(argv: list[str] | None = None) -> int:
