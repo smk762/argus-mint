@@ -30,6 +30,13 @@ def _png(size=(200, 100), icc: bytes | None = None) -> bytes:
     return out.getvalue()
 
 
+def _recoloured() -> bytes:
+    """A different overlay of the same size: a re-capture whose bytes differ from the first."""
+    out = io.BytesIO()
+    Image.new("RGBA", (200, 100), (200, 10, 10, 255)).save(out, format="PNG")
+    return out.getvalue()
+
+
 def _chunks(png: bytes) -> list[bytes]:
     out, i = [], 8
     while i < len(png):
@@ -86,6 +93,38 @@ def test_the_frame_yaml_gets_the_files_usual_mode(spec):
     os.chmod(frame, 0o640)
     _, frame = capture_frame.capture(spec, renderer=renderer())  # a draft updated keeps its mode
     assert stat.S_IMODE(frame.stat().st_mode) == 0o640
+
+
+def test_a_failure_after_the_png_is_written_puts_the_old_png_back(spec, monkeypatch):
+    png, frame = capture_frame.capture(spec, renderer=renderer())
+    before_png, before_yaml = png.read_bytes(), frame.read_text()
+
+    def no_fds(**_kw):
+        raise OSError(24, "EMFILE")
+
+    monkeypatch.setattr(capture_frame.tempfile, "mkstemp", no_fds)
+    with pytest.raises(OSError):
+        capture_frame.capture(spec, renderer=renderer(_recoloured()))
+    assert png.read_bytes() == before_png and frame.read_text() == before_yaml  # the draft still matches its overlay
+    assert not list(png.parent.glob(".*.tmp"))
+
+
+def test_a_png_write_that_fails_partway_never_truncates_the_old_one(spec, monkeypatch):
+    png, _ = capture_frame.capture(spec, renderer=renderer())
+    before = png.read_bytes()
+    real = Path.write_bytes
+
+    def half_then_enospc(self, data):
+        if self.name.endswith(".tmp") or self == png:
+            real(self, data[: len(data) // 2])
+            raise OSError(28, "ENOSPC")
+        return real(self, data)
+
+    monkeypatch.setattr(Path, "write_bytes", half_then_enospc)
+    with pytest.raises(OSError, match="ENOSPC"):
+        capture_frame.capture(spec, renderer=renderer(_recoloured()))
+    monkeypatch.setattr(Path, "write_bytes", real)
+    assert png.read_bytes() == before
 
 
 def test_a_file_loaded_from_outside_the_frame_is_refused(spec, tmp_path):
