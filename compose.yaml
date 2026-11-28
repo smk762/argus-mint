@@ -11,7 +11,7 @@
 # 4001 tcp+udp on the router or content is reachable only via relays/hole punching.
 
 services:
-  kubo:
+  kubo:  # nosemgrep: service-peer-label  third-party image (IPFS node), not a suite service
     image: ipfs/kubo:v0.43.1
     restart: unless-stopped
     environment:
