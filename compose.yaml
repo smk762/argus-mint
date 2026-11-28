@@ -44,6 +44,8 @@ services:
       - path: .env
         required: false
     environment:
+      # The peer label above, reported back in GET /health: a process cannot read its own labels.
+      ARGUS_PEER: mint
       ARGUS_MINT_IPFS_API: ${ARGUS_MINT_IPFS_API:-http://kubo:5001}
       # darkroom: mint's own variable, then the suite-wide ARGUS_DARKROOM_URL from .env or the shell, then the
       # host's. This default always names one, so a suite file's ARGUS_DARKROOM_URL is not reached from here.
