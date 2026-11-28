@@ -44,6 +44,7 @@ from argus_mint.projects import (
     GuardVerdict,
     Identity,
     Line,
+    Pose,
     Project,
     ProjectBundle,
     ProjectError,
@@ -54,6 +55,7 @@ from argus_mint.projects import (
     load_bundle,
     load_identity,
     load_line,
+    load_pose,
     load_project,
     load_scene,
     load_teasers,
@@ -109,6 +111,7 @@ KINDS: dict[str, _Kind] = {
     "identity": _Kind("identities", load_identity, Identity),
     "scene": _Kind("scenes", load_scene, Scene),
     "line": _Kind("lines", load_line, Line),
+    "pose": _Kind("poses", load_pose, Pose, ext="json"),
     "teasers": _Kind("teasers", load_teasers, TeaserLinks, ext="json"),
 }
 _OWN_ID = ("project", "teasers")  # kinds whose id is the project's own
@@ -171,7 +174,8 @@ def add_project_routes(
     def table(b: ProjectBundle, kind: str) -> dict[tuple[str, int], tuple[Any, Path]]:
         if kind == "project":
             return {b.project.key: (b.project, b.root / "project.yaml")}
-        return {"identity": b.identities, "scene": b.scenes, "line": b.lines, "teasers": b.teasers}[kind]
+        tables = {"identity": b.identities, "scene": b.scenes, "line": b.lines, "pose": b.poses, "teasers": b.teasers}
+        return tables[kind]
 
     def project_file(b: ProjectBundle, kind: str, obj: Any, path: Path) -> ProjectFile:
         return ProjectFile(
@@ -380,6 +384,7 @@ def add_project_routes(
                             ("line", t.line, b.lines),
                             ("identity", t.identity, b.identities),
                             ("scene", t.scene, b.scenes),
+                            *((("pose", t.pose, b.poses),) if t.pose is not None else ()),
                         )  # fmt: skip
                         if ref.key not in tab or tab[ref.key][0].status != "approved"
                     }

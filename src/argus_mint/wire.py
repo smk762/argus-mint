@@ -88,7 +88,9 @@ __all__ = [
 # 1.16 a project's own frames (ids <project>/<name>; FrameInfo.project); 1.17 frame effects (Frame.effects)
 # 1.18 GET /health is also argus-cortex's ServiceHealth (Health.service_version, status, started_at, wire, checks,
 # build, peer)
-WIRE_VERSION = "1.18"
+# 1.19 teaser poses: project file kind "pose" (ProjectKind), TeaserLink.pose, RenderRequest.pose, TeaserRecord.pose
+# (each left out of the document when unset)
+WIRE_VERSION = "1.19"
 
 MAX_SLOTS = 16  # text slots a request may fill; frames have a handful
 # Display text by frame slot: slot names as frames name them, each text as long as a bio may be.
@@ -450,7 +452,7 @@ class LibraryListing(_Wire):
 
 # -- teaser projects --------------------------------------------------------------------------------
 
-ProjectKind = Literal["project", "identity", "scene", "line", "teasers"]
+ProjectKind = Literal["project", "identity", "scene", "line", "pose", "teasers"]
 
 
 class TextCheck(_Wire):

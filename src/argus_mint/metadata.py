@@ -322,8 +322,8 @@ class TeaserProvenance(BaseModel):
     """How a teaser was made: the teaser record, by reviewed file. Fixed at mint; covered by
     :func:`content_hash` exactly as a card's :class:`Provenance` is.
 
-    ``project``, ``links``, ``line``, ``identity`` and ``scene`` are the reviewed files (id,
-    version, keccak256 hash); ``background`` the approved background's id and PNG sha256;
+    ``project``, ``links``, ``line``, ``identity``, ``scene`` and, when the figure was painted in
+    one, ``pose`` are the reviewed files (id, version, keccak256 hash); ``background`` the approved background's id and PNG sha256;
     ``frame`` the frame; ``art`` ``ipfs://`` of the unframed art (the background with the figure
     painted in, or the background itself for a viewpoint identity). ``inpaint`` is set for an
     embodied identity only. The quote, attribution and label on the image come from the line and
@@ -345,6 +345,9 @@ class TeaserProvenance(BaseModel):
     art: str
     asset_id: Bytes32
     inpaint: InpaintRef | None = None
+    # The reviewed pose file the figure was painted in (its hash covers the keypoints, the strength and how it
+    # was drawn; the scene's covers where). None, and absent from the document: no pose.
+    pose: FileRef | None = None
 
     @field_validator("art")
     @classmethod
@@ -358,6 +361,8 @@ class TeaserProvenance(BaseModel):
     def _inpaint_iff_embodied(self) -> TeaserProvenance:
         if (self.presence == "embodied") != (self.inpaint is not None):
             raise ValueError("an embodied teaser records its inpainting, and a viewpoint teaser has none")
+        if self.pose is not None and self.presence != "embodied":
+            raise ValueError("a pose is for a figure painted into the image: a viewpoint teaser has none")
         if self.asset_id != teaser_asset_id(self.project.id, self.number):
             raise ValueError("a teaser's asset id is derived from its project and number")
         return self

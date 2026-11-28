@@ -26,7 +26,8 @@ For the review flow these commands drive, see [drafts.md](drafts.md) and [review
 | [`argus-mint serve`](#argus-mint-serve) | Serve drafts, reviews and publishing over HTTP for argus-studio and argus-assay. |
 | [`argus-mint schema`](#argus-mint-schema) | Write (or --check) the HTTP wire schema that argus-studio and argus-assay pin. |
 | [`argus-mint export`](#argus-mint-export) | Write each approved teaser of PROJECT as T<n>.png (the reviewed bytes) and T<n>.json (its record). |
-| [`argus-mint teasers`](#argus-mint-teasers) | Teaser projects: anchoring posted teasers. |
+| [`argus-mint teasers`](#argus-mint-teasers) | Teaser projects: importing poses, anchoring posted teasers. |
+| [`argus-mint teasers pose`](#argus-mint-teasers-pose) | Write a draft pose file from argus-puppet's keypoints: <project>/poses/<id>-v<version>.json. |
 | [`argus-mint teasers anchor`](#argus-mint-teasers-anchor) | Anchor the image sha256s of PROJECT's posted teasers that no earlier anchor holds (COMMITTER_ROLE). |
 | [`argus-mint library`](#argus-mint-library) | Pre-rendered portraits, for a demo without a GPU. |
 | [`argus-mint library build`](#argus-mint-library-build) | Render COUNT combinations of TEMPLATE on each checkpoint, same variables and seeds on each. |
@@ -293,9 +294,29 @@ argus-mint export [OPTIONS] PROJECT
 
 ## argus-mint teasers
 
-Teaser projects: anchoring posted teasers.
+Teaser projects: importing poses, anchoring posted teasers.
 
-Subcommands: `anchor`.
+Subcommands: `pose`, `anchor`.
+
+## argus-mint teasers pose
+
+Write a draft pose file from argus-puppet's keypoints: <project>/poses/<id>-v<version>.json.
+
+It takes one person's 133 keypoints from SOURCE (a library entry, or a pose result's primary person), with their frame and where they came from. The file is a draft: review it like any other project file before a teaser may name it. Nothing is read but SOURCE; no image is.
+
+```
+argus-mint teasers pose [OPTIONS] SOURCE PROJECT_DIR
+```
+
+| Argument / option | Required | Default | Env | Help |
+|---|---|---|---|---|
+| `SOURCE` | yes |  |  | An argus-puppet pose library, or a pose result (.pose.json sidecar) |
+| `PROJECT_DIR` | yes |  |  | The project's directory (holding project.yaml) |
+| `--id` | yes |  |  | The new pose's id (lower-case letters, digits, hyphens) |
+| `--description` | yes |  |  | What the pose is, for the people who review it |
+| `--entry` |  |  |  | With a library: the id of the pose to take |
+| `--version` |  | `1` |  | The pose file's version |
+| `--strength` |  | `0.8` |  | How hard the ControlNet holds the pose |
 
 ## argus-mint teasers anchor
 
